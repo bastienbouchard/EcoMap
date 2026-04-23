@@ -1,0 +1,27 @@
+name: ecomap
+description: A new Flutter project.
+
+environment:
+  sdk: '^3.8.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_map: ^8.0.0
+  latlong2: ^0.9.1
+  sqflite: ^2.3.0
+  path_provider: ^2.1.0
+  geolocator: ^13.0.0
+  http: ^1.2.0
+  fl_chart: ^0.70.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/tiles/eco.mbtiles
+    - assets/eco_zone.geojson
+    - assets/logo.png

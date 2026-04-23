@@ -1,0 +1,27 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# Android
+android/.gradle
+android/local.properties
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+
+# Données lourdes (ne pas versionner)
+data/
+assets/tiles/eco.mbtiles
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
