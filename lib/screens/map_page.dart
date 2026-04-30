@@ -1,5 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -8,14 +9,39 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../app_globals.dart';
+import '../services/groupe_service.dart';
 import '../models/hotspot_info.dart';
 import '../services/geo_service.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
 import '../widgets/scale_bar.dart';
 import '../widgets/hotspot_detail_sheet.dart';
-import '../widgets/map_drawer.dart';
+import 'about_page.dart';
+import 'chat_page.dart';
+import 'meteo_page.dart';
 import 'navigation_page.dart';
+import 'parcours_page.dart';
+
+class _AideItem extends StatelessWidget {
+  final String title;
+  final String desc;
+  const _AideItem(this.title, this.desc);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(text: '$title  ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            TextSpan(text: desc, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -25,7 +51,7 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  double _opacity = 0.86;
+  double _opacity = 0.5;
   final MapController _mapController = MapController();
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
   bool _loading = false;
@@ -35,32 +61,67 @@ class _MapPageState extends State<MapPage> {
   List<LatLng> _parcours = [];
   double _distanceParcours = 2.0;
   bool _showParcours = false;
-  bool _showPolygons = true;
   List<Polygon> _polygonsCache = [];
   double _parcoursScore = 0;
   bool _showHotspots = false;
   List<LatLng> _hotspots = [];
   List<HotspotInfo> _hotspotInfos = [];
-  List<MapEntry<int, LatLng>> _hotspotsData = [];
-  List<Map> _hotspotsProps = [];
-  bool _showMenu = false;
+  List<HotspotInfo> _rawHotspots = [];
   double _mapZoom = 13.0;
   double _mapLat = 48.2917;
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  StreamSubscription<Position>? _positionStream;
+  Timer? _hotspotDebounce;
+  List<Map<String, dynamic>> _observations = [];
+  String? _groupeId;
+  String? _monNom;
+  bool _groupeActif = false;
+  List<MembreGroupe> _membres = [];
+  StreamSubscription<List<MembreGroupe>>? _groupeStream;
+  bool _recording = false;
+  List<LatLng> _trackPoints = [];
+  final List<({DateTime date, List<LatLng> points})> _savedTracks = [];
+  bool _showActionPanel = false;
+  bool _showNavPanel = false;
 
   @override
   void initState() {
     super.initState();
     _initLocation();
     _fetchWind();
+    // Tracé de test pour l'émulateur
+    _savedTracks.add((
+      date: DateTime(2026, 4, 25, 8, 30),
+      points: [
+        const LatLng(48.2917, -71.3220),
+        const LatLng(48.2924, -71.3202),
+        const LatLng(48.2933, -71.3185),
+        const LatLng(48.2942, -71.3170),
+        const LatLng(48.2951, -71.3175),
+        const LatLng(48.2958, -71.3195),
+        const LatLng(48.2963, -71.3225),
+        const LatLng(48.2955, -71.3258),
+        const LatLng(48.2943, -71.3272),
+        const LatLng(48.2929, -71.3265),
+        const LatLng(48.2917, -71.3240),
+        const LatLng(48.2917, -71.3220),
+      ],
+    ));
     // Calculs lourds dans des isolates background — ne bloque plus le thread UI
-    compute(buildPolygonsIsolate, geoJson).then((polys) {
-      if (mounted) setState(() => _polygonsCache = polys);
+    Future.delayed(const Duration(seconds: 3), () {
+      compute(buildPolygonsIsolate, geoJson).then((polys) {
+        if (mounted) setState(() => _polygonsCache = polys);
+      });
     });
     compute(buildHotspotsDataIsolate, geoJson).then((raw) {
       if (mounted) {
-        _hotspotsData =
-            raw.map((e) => MapEntry(e[0].round(), LatLng(e[1], e[2]))).toList();
+        setState(() {
+          _rawHotspots = raw.map((e) => HotspotInfo(
+            position: LatLng(e['la'] as double, e['lo'] as double),
+            score: e['s'] as int,
+            props: e['p'] as Map,
+          )).toList();
+          if (_showHotspots) _hotspots = _computeHotspots();
+        });
       }
     });
   }
@@ -72,16 +133,49 @@ class _MapPageState extends State<MapPage> {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.deniedForever) return;
+
+      // Position initiale
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
       if (mounted) {
-        setState(() => _currentPosition = LatLng(pos.latitude, pos.longitude));
+        final gpsPos = LatLng(pos.latitude, pos.longitude);
+        setState(() => _currentPosition = gpsPos);
+        _mapController.move(gpsPos, 13);
         await _fetchWind();
       }
+
+      // Suivi continu — met à jour la position en temps réel
+      _positionStream = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10, // Mise à jour tous les 10m
+        ),
+      ).listen((position) {
+        if (mounted) {
+          final pos = LatLng(position.latitude, position.longitude);
+          setState(() {
+            _currentPosition = pos;
+            if (_recording) _trackPoints.add(pos);
+            if (_showHotspots) _hotspots = _computeHotspots();
+          });
+          if (_groupeActif && _groupeId != null && _monNom != null) {
+            GroupeService.publierPosition(groupeId: _groupeId!, nom: _monNom!, position: pos);
+          }
+        }
+      });
     } catch (e) {}
+  }
+
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    _groupeStream?.cancel();
+    _hotspotDebounce?.cancel();
+    if (_groupeActif && _groupeId != null && _monNom != null) {
+      GroupeService.quitter(_groupeId!, _monNom!);
+    }
+    super.dispose();
   }
 
   Future<void> _goToCurrentLocation() async {
@@ -153,88 +247,55 @@ class _MapPageState extends State<MapPage> {
     } catch (e) {}
   }
 
-  // Génère un parcours SINUEUX qui suit les bonnes zones
+  // Génère un parcours dans un isolate séparé pour ne pas bloquer le thread UI
   Future<void> _genererParcours() async {
     setState(() => _loadingParcours = true);
 
-    final features = geoJson['features'] as List;
-    double windRad = ((_windDeg ?? 0) + 180) * pi / 180;
+    try {
+      // Départ = centre de l'écran (réticule), pas le GPS
+      final startPos = _mapController.camera.center;
 
-    List<LatLng> points = [_currentPosition];
-    LatLng current = _currentPosition;
-    double totalDist = 0;
-    double targetDist = _distanceParcours * 1000;
-    int totalScore = 0;
-    int nbPoints = 0;
-    int blockedAttempts = 0;
+      // Direction vers les meilleurs hotspots (triés par score)
+      final topHotspots = (_rawHotspots.toList()
+            ..sort((a, b) => b.score.compareTo(a.score)))
+          .take(8)
+          .map((h) => [h.position.latitude, h.position.longitude])
+          .toList();
 
-    for (int step = 0; step < 80 && totalDist < targetDist; step++) {
-      // Céder le thread à chaque étape pour éviter le blocage du thread principal
-      await Future.delayed(Duration.zero);
+      final result = await compute(buildParcoursIsolate, {
+        'lat': startPos.latitude,
+        'lon': startPos.longitude,
+        'windRad': (_windDeg ?? 0) * pi / 180,
+        'hotspots': topHotspots,
+        'targetDist': _distanceParcours * 1000,
+        'geoJson': geoJson,
+      });
 
-      int bestScore = -1;
-      LatLng? bestPoint;
-      double stepDist = targetDist / 30;
+      final rawList = result['points'] as List;
+      final scorePct = (result['scorePct'] as num).toDouble();
+      final points = rawList.map((p) {
+        final coords = p as List;
+        return LatLng((coords[0] as num).toDouble(), (coords[1] as num).toDouble());
+      }).toList();
 
-      for (double angleDelta = -90; angleDelta <= 90; angleDelta += 5) {
-        double angle = windRad + angleDelta * pi / 180;
-        double stepLat = (stepDist / 111000) * cos(angle);
-        double stepLon =
-            (stepDist / 111000) * sin(angle) / cos(current.latitude * pi / 180);
-
-        LatLng candidate = LatLng(
-          current.latitude + stepLat,
-          current.longitude + stepLon,
-        );
-
-        if (crossesWaterBody(current, candidate, geoJson)) continue;
-        if (hasSteepSlope(current, candidate, geoJson)) continue;
-
-        int candidateScore = 0;
-        for (final feat in features) {
-          final geom = feat['geometry'] as Map;
-          if (pointInGeometry(candidate, geom)) {
-            final props = feat['properties'] as Map;
-            candidateScore = scoreOrignal(props);
-            break;
-          }
-        }
-
-        if (candidateScore > bestScore ||
-            (candidateScore == bestScore && angleDelta.abs() > 20)) {
-          bestScore = candidateScore;
-          bestPoint = candidate;
-          blockedAttempts = 0;
-        }
-      }
-
-      if (bestPoint != null) {
-        double dist = const Distance().as(LengthUnit.Meter, current, bestPoint);
-        totalDist += dist;
-        points.add(bestPoint);
-        current = bestPoint;
-        totalScore += bestScore < 0 ? 0 : bestScore;
-        nbPoints++;
-      } else {
-        blockedAttempts++;
-        if (blockedAttempts >= 3) break;
-      }
+      if (!mounted) return;
+      setState(() {
+        _parcours = points;
+        _showParcours = true;
+        _parcoursScore = scorePct;
+        _loadingParcours = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingParcours = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur parcours: $e'),
+            backgroundColor: const Color(0xFF8B4513)),
+      );
+      return;
     }
 
-    const double scoreMaxPossible = 26.0;
-    double scorePct = nbPoints > 0
-        ? (totalScore / nbPoints / scoreMaxPossible * 100).clamp(0, 100)
-        : 0;
-
-    if (!mounted) return;
-    setState(() {
-      _parcours = points;
-      _showParcours = true;
-      _parcoursScore = scorePct;
-      _loadingParcours = false;
-    });
-
-    if (points.length < 5) {
+    if (_parcours.length < 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -248,155 +309,675 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  List<Polygon> _buildPolygons() {
-    final features = geoJson['features'] as List;
-    List<Polygon> result = [];
-
-    for (final feat in features) {
-      try {
-        final props = feat['properties'] as Map;
-        final score = scoreOrignal(props);
-        final geom = feat['geometry'];
-        final type = geom['type'];
-        final color = scoreColor(score);
-        List<List<LatLng>> rings = [];
-
-        if (type == 'Polygon') {
-          for (final ring in geom['coordinates']) {
-            rings.add(
-              (ring as List)
-                  .map((c) => LatLng(c[1].toDouble(), c[0].toDouble()))
-                  .toList(),
-            );
-          }
-        } else if (type == 'MultiPolygon') {
-          for (final poly in geom['coordinates']) {
-            for (final ring in poly) {
-              rings.add(
-                (ring as List)
-                    .map((c) => LatLng(c[1].toDouble(), c[0].toDouble()))
-                    .toList(),
-              );
-            }
-          }
-        }
-
-        for (final ring in rings) {
-          result.add(
-            Polygon(
-              points: ring,
-              color: color,
-              borderColor: Colors.transparent,
-              borderStrokeWidth: 0,
-            ),
-          );
-        }
-      } catch (e) {}
-    }
-    return result;
-  }
-
   List<LatLng> _computeHotspots() {
-    // Peupler le cache si nécessaire
-    if (_hotspotsData.isEmpty) {
-      final features = geoJson['features'] as List;
-      final List<MapEntry<int, LatLng>> temp = [];
-      final List<Map> tempProps = [];
-      for (final feat in features) {
-        try {
-          final props = feat['properties'] as Map;
-          final score = scoreOrignal(props);
-          if (score < 3) continue;
-          final geom = feat['geometry'] as Map;
-          final type = geom['type'];
-          List<dynamic> ring;
-          if (type == 'Polygon') {
-            ring = geom['coordinates'][0] as List;
-          } else if (type == 'MultiPolygon') {
-            ring = geom['coordinates'][0][0] as List;
-          } else continue;
-          double sumLat = 0, sumLon = 0;
-          for (final c in ring) {
-            sumLon += (c[0] as num).toDouble();
-            sumLat += (c[1] as num).toDouble();
-          }
-          temp.add(MapEntry(score, LatLng(sumLat / ring.length, sumLon / ring.length)));
-          tempProps.add(props);
-        } catch (e) {}
-      }
-      _hotspotsData = temp;
-      _hotspotsProps = tempProps;
-    }
+    if (_rawHotspots.isEmpty) return [];
 
-    // Filtrer par ce qui est VISIBLE à l'écran
-    LatLngBounds? bounds;
+    // Filtre par la vue visible si possible
+    List<HotspotInfo> candidates = [];
     try {
-      bounds = _mapController.camera.visibleBounds;
+      final b = _mapController.camera.visibleBounds;
+      final south = b.southWest.latitude;
+      final north = b.northEast.latitude;
+      final west = b.southWest.longitude;
+      final east = b.northEast.longitude;
+      candidates = _rawHotspots
+          .where((h) =>
+              h.position.latitude >= south &&
+              h.position.latitude <= north &&
+              h.position.longitude >= west &&
+              h.position.longitude <= east)
+          .toList()
+        ..sort((a, b) => b.score.compareTo(a.score));
     } catch (_) {}
 
-    final inView = bounds == null
-        ? _hotspotsData
-        : _hotspotsData.where((e) => bounds!.contains(e.value)).toList();
-
-    // Fallback si rien dans la vue : tout le dataset
-    final source = List<MapEntry<int, LatLng>>.from(
-      inView.isNotEmpty ? inView : _hotspotsData,
-    );
-    source.sort((a, b) => b.key.compareTo(a.key));
+    // Fallback : rien en vue → les 5 plus proches du centre
+    if (candidates.isEmpty) {
+      try {
+        final center = _mapController.camera.center;
+        candidates = _rawHotspots.toList()
+          ..sort((a, b) => const Distance()
+              .as(LengthUnit.Meter, center, a.position)
+              .compareTo(const Distance().as(LengthUnit.Meter, center, b.position)));
+      } catch (_) {
+        candidates = _rawHotspots.toList()..sort((a, b) => b.score.compareTo(a.score));
+      }
+    }
 
     final List<LatLng> result = [];
     final List<HotspotInfo> infos = [];
-    for (int i = 0; i < source.length; i++) {
-      final entry = source[i];
-      final pos = entry.value;
+    for (final info in candidates) {
       final tooClose = result.any(
-        (e) => const Distance().as(LengthUnit.Meter, e, pos) < 200,
+        (e) => const Distance().as(LengthUnit.Meter, e, info.position) < 200,
       );
       if (!tooClose) {
-        result.add(pos);
-        // Retrouver les props par comparaison de coordonnées
-        Map props = {};
-        for (int j = 0; j < _hotspotsData.length; j++) {
-          final e = _hotspotsData[j];
-          if ((e.value.latitude - pos.latitude).abs() < 0.000001 &&
-              (e.value.longitude - pos.longitude).abs() < 0.000001 &&
-              j < _hotspotsProps.length) {
-            props = _hotspotsProps[j];
-            break;
-          }
-        }
-        infos.add(HotspotInfo(position: pos, score: entry.key, props: props));
+        result.add(info.position);
+        infos.add(info);
       }
-      if (result.length >= 25) break;
+      if (result.length >= 5) break;
     }
     _hotspotInfos = infos;
-
     return result;
   }
 
-  String _windDirection(double deg) {
-    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
-    return dirs[((deg + 22.5) / 45).floor() % 8];
+  static const _typesObservation = [
+    ('🦌', 'Frottage'),
+    ('💧', 'Souille'),
+    ('👣', 'Traces'),
+    ('📷', 'Caméra'),
+    ('💩', 'Crottes'),
+    ('🌿', 'Cache'),
+    ('🍃', 'Broutage'),
+  ];
+
+  void _addObservation() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Type d\'observation', style: TextStyle(color: Colors.white, fontSize: 16)),
+        contentPadding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 2.8,
+            children: _typesObservation.map((t) {
+              return GestureDetector(
+                onTap: () {
+                  final obsPos = _mapController.camera.center;
+                  setState(() => _observations.add({
+                    'pos': obsPos,
+                    'note': '${t.$1} ${t.$2}',
+                    'time': DateTime.now(),
+                  }));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('${t.$1} ${t.$2} ajouté'),
+                    backgroundColor: const Color(0xFF2D5016),
+                    duration: const Duration(seconds: 1),
+                  ));
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(t.$1, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 6),
+                    Text(t.$2, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ]),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _sharePosition() {
+    if (!_groupeActif) {
+      _dialogueRejoindre();
+    } else {
+      _panelGroupe();
+    }
+  }
+
+  void _dialogueRejoindre() {
+    final nomCtrl = TextEditingController(text: _monNom);
+    final codeCtrl = TextEditingController(text: _groupeId);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Rejoindre un groupe', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: nomCtrl,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              labelText: 'Ton nom', labelStyle: TextStyle(color: Colors.white54),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: codeCtrl,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              labelText: 'Code du groupe (ex: chasse2026)',
+              labelStyle: TextStyle(color: Colors.white54),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text('Tous les chasseurs du même code se voient sur la carte.',
+              style: TextStyle(color: Colors.white38, fontSize: 11)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D5016)),
+            onPressed: () {
+              final nom = nomCtrl.text.trim();
+              final code = codeCtrl.text.trim();
+              if (nom.isEmpty || code.isEmpty) return;
+              Navigator.pop(context);
+              _rejoindreGroupe(nom, code);
+            },
+            child: const Text('Rejoindre', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _panelGroupe() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2D2D2D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              const Icon(Icons.people, color: Color(0xFF4A90E2), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Groupe actif', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                  Text(_groupeId ?? '', style: const TextStyle(color: Color(0xFF4A90E2), fontSize: 12)),
+                ]),
+              ),
+              TextButton(
+                onPressed: () { Navigator.pop(context); _quitterGroupe(); },
+                child: const Text('Quitter', style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13)),
+              ),
+            ]),
+            const Divider(color: Colors.white12, height: 24),
+            _groupeTile(
+              Icons.location_on_rounded, 'Position du groupe',
+              'Positions GPS en temps réel',
+              () { Navigator.pop(context); },
+            ),
+            _groupeTile(
+              Icons.chat_bubble_rounded, 'Clavardage du groupe',
+              'Messages entre chasseurs',
+              () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => ChatPage(groupeId: _groupeId!, monNom: _monNom!),
+                ));
+              },
+            ),
+            _groupeTile(
+              Icons.pin_drop_rounded, 'Partage des observations',
+              'Frottages, souilles, traces…',
+              () {
+                Navigator.pop(context);
+                _partagerObservations();
+              },
+            ),
+            _groupeTile(
+              Icons.route_rounded, 'Partage des tracés',
+              'Tracés GPS du groupe',
+              () {
+                Navigator.pop(context);
+                _partagerTraces();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _groupeTile(IconData icon, String titre, String sous, VoidCallback onTap) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFF4A90E2).withOpacity(0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: const Color(0xFF4A90E2), size: 22),
+      ),
+      title: Text(titre, style: const TextStyle(color: Colors.white, fontSize: 14)),
+      subtitle: Text(sous, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+      trailing: const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+      onTap: onTap,
+    );
+  }
+
+  void _partagerObservations() {
+    if (_observations.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Aucune observation à partager'),
+        backgroundColor: Color(0xFF8B4513),
+        duration: Duration(seconds: 2),
+      ));
+      return;
+    }
+    final db = FirebaseFirestore.instance;
+    for (final obs in _observations) {
+      final pos = obs['pos'] as LatLng;
+      db.collection('groupes').doc(_groupeId).collection('observations').add({
+        'nom': _monNom,
+        'note': obs['note'],
+        'lat': pos.latitude,
+        'lon': pos.longitude,
+        'ts': FieldValue.serverTimestamp(),
+      });
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${_observations.length} observation(s) partagée(s)'),
+      backgroundColor: const Color(0xFF2D5016),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  void _partagerTraces() {
+    if (_savedTracks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Aucun tracé à partager'),
+        backgroundColor: Color(0xFF8B4513),
+        duration: Duration(seconds: 2),
+      ));
+      return;
+    }
+    final db = FirebaseFirestore.instance;
+    for (final track in _savedTracks) {
+      db.collection('groupes').doc(_groupeId).collection('traces').add({
+        'nom': _monNom,
+        'points': track.points.map((p) => {'lat': p.latitude, 'lon': p.longitude}).toList(),
+        'date': track.date.toIso8601String(),
+        'ts': FieldValue.serverTimestamp(),
+      });
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${_savedTracks.length} tracé(s) partagé(s)'),
+      backgroundColor: const Color(0xFF2D5016),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  void _rejoindreGroupe(String nom, String groupeId) {
+    setState(() {
+      _monNom = nom;
+      _groupeId = groupeId;
+      _groupeActif = true;
+    });
+    // Publier ma position immédiatement
+    GroupeService.publierPosition(groupeId: groupeId, nom: nom, position: _currentPosition);
+    // Écouter les autres membres
+    _groupeStream?.cancel();
+    _groupeStream = GroupeService.ecouterGroupe(groupeId, nom).listen((membres) {
+      if (mounted) setState(() => _membres = membres);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Groupe "$groupeId" rejoint — ta position est partagée'),
+      backgroundColor: const Color(0xFF2D5016),
+    ));
+  }
+
+  void _quitterGroupe() {
+    _groupeStream?.cancel();
+    if (_groupeId != null && _monNom != null) {
+      GroupeService.quitter(_groupeId!, _monNom!);
+    }
+    setState(() { _groupeActif = false; _membres = []; });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Groupe quitté'), backgroundColor: Color(0xFF8B4513)));
+  }
+
+  void _toggleHotspots() {
+    if (_showHotspots) {
+      setState(() { _showHotspots = false; _hotspots = []; });
+      return;
+    }
+    if (_rawHotspots.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Données habitat non chargées — patiente un instant'),
+        backgroundColor: Color(0xFF8B4513),
+        duration: Duration(seconds: 2),
+      ));
+      return;
+    }
+    final spots = _computeHotspots();
+    setState(() { _hotspots = spots; _showHotspots = true; });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${spots.length} point${spots.length > 1 ? 's' : ''} chaud${spots.length > 1 ? 's' : ''} dans cette zone'),
+      backgroundColor: const Color(0xFF2D5016),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  void _toggleRecording() {
+    if (_recording) {
+      final pts = List<LatLng>.from(_trackPoints);
+      setState(() => _recording = false);
+      if (pts.length < 2) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Tracé trop court'),
+          backgroundColor: Color(0xFF8B4513),
+          duration: Duration(seconds: 2),
+        ));
+        return;
+      }
+      setState(() => _savedTracks.add((date: DateTime.now(), points: pts)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Tracé sauvegardé — ${pts.length} points'),
+        backgroundColor: const Color(0xFF2D5016),
+        duration: const Duration(seconds: 2),
+      ));
+    } else {
+      setState(() {
+        _recording = true;
+        _trackPoints = [];
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Enregistrement démarré — bouge-toi!'),
+        backgroundColor: const Color(0xFF2D2D2D),
+        duration: Duration(seconds: 2),
+      ));
+    }
+  }
+
+  Widget _obsBtn() {
+    return GestureDetector(
+      onTap: _addObservation,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2D2D2D),
+              borderRadius: BorderRadius.circular(25),
+              border: Border.all(color: const Color(0xFFFFB347).withOpacity(0.5)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+            ),
+            child: const Center(
+              child: Text('!', style: TextStyle(color: Color(0xFFFFB347),
+                  fontSize: 28, fontWeight: FontWeight.bold, height: 1)),
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text('Obs.', style: TextStyle(color: Color(0xFFFFB347), fontSize: 10)),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool active,
+    required VoidCallback onTap,
+    bool loading = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: active ? color.withOpacity(0.25) : const Color(0xFF2D2D2D),
+              borderRadius: BorderRadius.circular(25),
+              border: Border.all(
+                color: active ? color : color.withOpacity(0.4),
+                width: active ? 2 : 1,
+              ),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+            ),
+            child: loading
+                ? Center(child: SizedBox(width: 22, height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: color)))
+                : Icon(icon, color: active ? color : color.withOpacity(0.8), size: 24),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: active ? color : Colors.white54, fontSize: 10)),
+        ],
+      ),
+    );
+  }
+
+  void _showParcoursDialog() {
+    double localDist = _distanceParcours;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2D2D2D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(children: [
+                Icon(Icons.route_rounded, color: Color(0xFF5A8A1E), size: 20),
+                SizedBox(width: 8),
+                Text('Générer un parcours',
+                    style: TextStyle(color: Colors.white, fontSize: 16,
+                        fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(height: 16),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('Distance cible',
+                    style: TextStyle(color: Colors.white60, fontSize: 13)),
+                Text('${localDist.toStringAsFixed(1)} km',
+                    style: const TextStyle(color: Colors.white, fontSize: 15,
+                        fontWeight: FontWeight.bold)),
+              ]),
+              SliderTheme(
+                data: SliderThemeData(
+                  activeTrackColor: const Color(0xFF5A8A1E),
+                  inactiveTrackColor: Colors.white24,
+                  thumbColor: const Color(0xFF7DC95E),
+                  overlayColor: Colors.transparent,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                  trackHeight: 3,
+                ),
+                child: Slider(
+                  value: localDist,
+                  min: 0.5,
+                  max: 5.0,
+                  divisions: 18,
+                  onChanged: (v) => setSheet(() => localDist = v),
+                ),
+              ),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('0.5 km', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  Text('5 km', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2D5016),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _distanceParcours = localDist;
+                      _showParcours = false;
+                    });
+                    _genererParcours();
+                  },
+                  child: const Text('Générer le parcours',
+                      style: TextStyle(color: Colors.white, fontSize: 15,
+                          fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTracesDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: const Color(0xFF2D2D2D),
+          title: const Text('Tracés sauvegardés',
+              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+          content: _savedTracks.isEmpty
+              ? const Text('Aucun tracé sauvegardé.\nAppuie sur ⏺ pour enregistrer un déplacement.',
+                  style: TextStyle(color: Colors.white54, fontSize: 13))
+              : SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _savedTracks.length,
+                    itemBuilder: (_, i) {
+                      final t = _savedTracks[_savedTracks.length - 1 - i];
+                      final d = t.date;
+                      final label =
+                          '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')} '
+                          '${d.hour.toString().padLeft(2, '0')}h${d.minute.toString().padLeft(2, '0')}';
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(label,
+                            style: const TextStyle(color: Colors.white, fontSize: 13)),
+                        subtitle: Text('${t.points.length} points',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                        leading: const Icon(Icons.route, color: Color(0xFFE53935), size: 20),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Color(0xFFFF6B35), size: 20),
+                          onPressed: () {
+                            setState(() => _savedTracks.removeAt(_savedTracks.length - 1 - i));
+                            setDlg(() {});
+                          },
+                        ),
+                        onTap: () {
+                          setState(() => _trackPoints = List<LatLng>.from(t.points));
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+          actions: [
+            if (_savedTracks.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  setState(() => _savedTracks.clear());
+                  setDlg(() {});
+                },
+                child: const Text('Tout supprimer',
+                    style: TextStyle(color: Colors.white38, fontSize: 12)),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fermer', style: TextStyle(color: Color(0xFFFF6B35))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAide() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Aide', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _AideItem('🔥 Spots', 'Affiche les 5 meilleurs habitats d\'orignal dans la zone visible. Se met à jour en déplaçant la carte.'),
+              _AideItem('🗺 Parcours', 'Génère un itinéraire optimisé selon le vent et l\'habitat. Ajuste la distance avant de générer.'),
+              _AideItem('👥 Groupe', 'Partage ta position GPS en temps réel avec les autres chasseurs du même code.'),
+              _AideItem('🧭 Nord', 'Réoriente la carte vers le nord.'),
+              _AideItem('📍 GPS', 'Centre la carte sur ta position actuelle.'),
+              _AideItem('⏺ Tracé', 'Enregistre ton déplacement GPS. Appuie sur Stop pour sauvegarder.'),
+              _AideItem('! Obs.', 'Ajoute une observation terrain (frottage, traces, souille…) au centre de l\'écran.'),
+              _AideItem('Slider', 'Contrôle la transparence de la couche de scoring habitat.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer', style: TextStyle(color: Color(0xFFFF6B35))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _navBtn(IconData icon, String label, VoidCallback onTap,
+      {Color color = const Color(0xFFFF6B35)}) {
+    return GestureDetector(
+      onTap: () {
+        setState(() { _showActionPanel = false; _showNavPanel = false; });
+        onTap();
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(23),
+              border: Border.all(color: color.withOpacity(0.45), width: 1.5),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 9)),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      key: _scaffoldKey,
       backgroundColor: const Color(0xFF1A1A1A),
-      drawer: MapDrawer(
-        showPolygons: _showPolygons,
-        onPolygonsChanged: (val) => setState(() => _showPolygons = val),
-        opacity: _opacity,
-        onOpacityChanged: (val) => setState(() => _opacity = val),
-        distanceParcours: _distanceParcours,
-        onDistanceChanged: (val) => setState(() {
-          _distanceParcours = val;
-          _showParcours = false;
-        }),
-        loadingParcours: _loadingParcours,
-        onGenerateParcours: _genererParcours,
-      ),
       body: Stack(
         children: [
           // ── CARTE ──────────────────────────────────────────────
@@ -408,10 +989,21 @@ class _MapPageState extends State<MapPage> {
               minZoom: 8,
               maxZoom: 19,
               onPositionChanged: (pos, _) {
-                if (mounted) setState(() {
-                  _mapZoom = pos.zoom;
-                  _mapLat = pos.center.latitude;
-                });
+                if (!mounted) return;
+                final newZoom = pos.zoom;
+                final newLat = pos.center.latitude;
+                if ((newZoom - _mapZoom).abs() > 0.1 || (newLat - _mapLat).abs() > 0.001) {
+                  setState(() {
+                    _mapZoom = newZoom;
+                    _mapLat = newLat;
+                  });
+                }
+                if (_showHotspots) {
+                  _hotspotDebounce?.cancel();
+                  _hotspotDebounce = Timer(const Duration(milliseconds: 600), () {
+                    if (mounted) setState(() => _hotspots = _computeHotspots());
+                  });
+                }
               },
             ),
             children: [
@@ -421,10 +1013,14 @@ class _MapPageState extends State<MapPage> {
               ),
               Opacity(
                 opacity: _opacity,
-                child: TileLayer(tileProvider: MBTilesProvider()),
+                child: TileLayer(
+                  tileProvider: MBTilesProvider(),
+                  minNativeZoom: mbtilesMinZoom,
+                  maxNativeZoom: mbtilesMaxZoom,
+                ),
               ),
-              if (_showPolygons && _polygonsCache.isNotEmpty)
-                PolygonLayer(polygons: _polygonsCache),
+              if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _opacity > 0.02)
+                PolygonLayer(polygons: _polygonsCache, simplificationTolerance: 0),
               if (_showParcours && _parcours.isNotEmpty)
                 PolylineLayer(
                   polylines: [
@@ -436,6 +1032,77 @@ class _MapPageState extends State<MapPage> {
                       borderStrokeWidth: 1,
                     ),
                   ],
+                ),
+              if (_trackPoints.length >= 2)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _trackPoints,
+                      color: const Color(0xFFE53935),
+                      strokeWidth: 4,
+                      borderColor: Colors.white,
+                      borderStrokeWidth: 1,
+                    ),
+                  ],
+                ),
+              // Observations terrain
+              if (_observations.isNotEmpty)
+                MarkerLayer(
+                  markers: _observations.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final obs = entry.value;
+                    final pos = obs['pos'] as LatLng;
+                    final note = obs['note'] as String;
+                    return Marker(
+                      point: pos,
+                      width: 52,
+                      height: 52,
+                      child: GestureDetector(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              backgroundColor: const Color(0xFF2D2D2D),
+                              title: Text(note, style: const TextStyle(color: Colors.white, fontSize: 15)),
+                              content: Text(
+                                '${(obs['time'] as DateTime).hour.toString().padLeft(2, '0')}:${(obs['time'] as DateTime).minute.toString().padLeft(2, '0')}',
+                                style: const TextStyle(color: Colors.white54, fontSize: 13),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() => _observations.removeAt(idx));
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Supprimer', style: TextStyle(color: Color(0xFFFF6B35))),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Fermer', style: TextStyle(color: Colors.white54)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2D1A00),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFFFFB347), width: 2),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)],
+                          ),
+                          child: Center(
+                            child: Text(
+                              note.split(' ').first,
+                              style: const TextStyle(fontSize: 20, height: 1),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               // Points chauds orignal
               if (_showHotspots && _hotspots.isNotEmpty)
@@ -480,6 +1147,28 @@ class _MapPageState extends State<MapPage> {
                     );
                   }).toList(),
                 ),
+              // Membres du groupe
+              if (_groupeActif && _membres.isNotEmpty)
+                MarkerLayer(
+                  markers: _membres.map((m) => Marker(
+                    point: m.position,
+                    width: 56,
+                    height: 56,
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4A90E2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child: Text(m.nom, style: const TextStyle(color: Colors.white,
+                            fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const Icon(Icons.person_pin_circle, color: Color(0xFF4A90E2), size: 28),
+                    ]),
+                  )).toList(),
+                ),
             ],
           ),
 
@@ -495,229 +1184,46 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
 
-          // ── EN-TÊTE: Logo + Score ──────────────────────────────
+          // ── BANDE STATUS BAR ───────────────────────────────────
           Positioned(
-            top: 12,
-            left: 12,
-            right: 12,
+            top: 0,
+            left: 0,
+            right: 0,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF2D2D2D).withOpacity(0.95),
-                    const Color(0xFF1A1A1A).withOpacity(0.95),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFFFF6B35).withOpacity(0.3),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF6B35).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Image.asset('assets/logo.png', height: 32),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2D2D2D),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
-                      ),
-                      child: const Icon(Icons.menu, color: Color(0xFFFF6B35), size: 20),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  if (_windDeg != null)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Text('💨 ', style: TextStyle(fontSize: 14)),
-                              Text(
-                                '${_windDirection(_windDeg!)} ${_windSpeed?.toStringAsFixed(0)} km/h',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            '${_currentPosition.latitude.toStringAsFixed(4)}, ${_currentPosition.longitude.toStringAsFixed(4)}',
-                            style: const TextStyle(fontSize: 9, color: Color(0xFF888888)),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    const Expanded(
-                      child: Text(
-                        'Chargement...',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ),
-                  if (_showParcours)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _parcoursScore > 60
-                            ? const Color(0xFF2D5016)
-                            : _parcoursScore > 35
-                            ? const Color(0xFFFF6B35)
-                            : const Color(0xFF8B4513),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${_parcoursScore.round()}%',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              height: MediaQuery.of(context).padding.top + 6,
+              color: Colors.black.withOpacity(0.45),
             ),
           ),
 
-          // ── BOUTON NORD ────────────────────────────────────────
-          Positioned(
-            top: 80,
-            right: 16,
-            child: GestureDetector(
-              onTap: _resetNorth,
+          // ── SCORE PARCOURS (haut droit, conditionnel) ─────────
+          if (_showParcours && _parcoursScore > 0)
+            Positioned(
+              top: 16,
+              right: 16,
               child: Container(
-                width: 50,
-                height: 50,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF2D2D2D), Color(0xFF1A1A1A)],
-                  ),
-                  borderRadius: BorderRadius.circular(25),
-                  border: Border.all(
-                    color: const Color(0xFFFF6B35).withOpacity(0.3),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
-                      blurRadius: 8,
-                    ),
-                  ],
+                  color: _parcoursScore > 60
+                      ? const Color(0xFF2D5016)
+                      : _parcoursScore > 35
+                      ? const Color(0xFFFF6B35)
+                      : const Color(0xFF8B4513),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
                 ),
-                child: const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'N',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFFF6B35),
-                      ),
-                    ),
-                    Text(
-                      '↑',
-                      style: TextStyle(fontSize: 10, color: Colors.white70),
-                    ),
-                  ],
+                child: Text(
+                  '${_parcoursScore.round()}%',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
             ),
-          ),
-
-          // ── BOUTON POINTS CHAUDS ──────────────────────────────
-          Positioned(
-            top: 142,
-            right: 16,
-            child: GestureDetector(
-              onTap: () {
-                if (_showHotspots) {
-                  setState(() => _showHotspots = false);
-                  return;
-                }
-                final spots = _computeHotspots();
-                setState(() {
-                  _hotspots = spots;
-                  _showHotspots = spots.isNotEmpty;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(spots.isEmpty
-                      ? 'Aucun point chaud ici — navigue vers ton secteur'
-                      : '${spots.length} points chauds dans cette zone'),
-                  backgroundColor: spots.isEmpty
-                      ? const Color(0xFF8B4513)
-                      : const Color(0xFF2D5016),
-                  duration: const Duration(seconds: 2),
-                ));
-              },
-              child: Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _showHotspots
-                        ? [const Color(0xFF2D5016), const Color(0xFF1F3A0F)]
-                        : [const Color(0xFF2D2D2D), const Color(0xFF1A1A1A)],
-                  ),
-                  borderRadius: BorderRadius.circular(25),
-                  border: Border.all(
-                    color: _showHotspots
-                        ? const Color(0xFF2D5016)
-                        : const Color(0xFFFF6B35).withOpacity(0.3),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _showHotspots
-                          ? const Color(0xFF2D5016).withOpacity(0.5)
-                          : Colors.black.withOpacity(0.5),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.local_fire_department,
-                  color: _showHotspots ? Colors.white : const Color(0xFFFF6B35),
-                  size: 26,
-                ),
-              ),
-            ),
-          ),
 
           // ── BARRE PARCOURS ACTIF ──────────────────────────────
           if (_showParcours)
             Positioned(
-              bottom: 84,
-              right: 16,
+              bottom: 56,
+              left: 16,
+              right: 90,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
@@ -755,6 +1261,7 @@ class _MapPageState extends State<MapPage> {
                         builder: (_) => NavigationPage(
                           parcours: _parcours,
                           score: _parcoursScore,
+                          windDeg: _windDeg,
                         ),
                       ),
                     ),
@@ -780,104 +1287,241 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
 
-          // ── BOUTON GPS (bas droite) ────────────────────────────
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: GestureDetector(
-              onTap: _goToCurrentLocation,
-              child: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D2D2D),
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 8)],
-                ),
-                child: _loading
-                    ? const Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Color(0xFFFF6B35),
-                          ),
-                        ),
-                      )
-                    : const CustomPaint(
-                        size: Size(30, 30),
-                        painter: CrosshairPainter(),
+          // ── PANEL GAUCHE — ACTIONS (coloré) ──────────────────
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            left: _showActionPanel ? 0 : -70,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 70,
+                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A).withOpacity(0.94),
+                      border: Border(
+                        top: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.3)),
+                        bottom: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.3)),
                       ),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 12, offset: const Offset(4, 0))],
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _obsBtn(),
+                          const SizedBox(height: 10),
+                          _actionBtn(
+                            icon: Icons.local_fire_department,
+                            label: 'Spots',
+                            color: const Color(0xFFFF6B35),
+                            active: _showHotspots,
+                            onTap: _toggleHotspots,
+                          ),
+                          const SizedBox(height: 10),
+                          _actionBtn(
+                            icon: Icons.route_rounded,
+                            label: 'Parcours',
+                            color: const Color(0xFF5A8A1E),
+                            active: _showParcours,
+                            loading: _loadingParcours,
+                            onTap: _showParcours
+                                ? () => setState(() => _showParcours = false)
+                                : _showParcoursDialog,
+                          ),
+                          const SizedBox(height: 10),
+                          _actionBtn(
+                            icon: Icons.people,
+                            label: 'Groupe',
+                            color: const Color(0xFF4A90E2),
+                            active: _groupeActif,
+                            onTap: _sharePosition,
+                          ),
+                          const SizedBox(height: 10),
+                          _actionBtn(
+                            icon: Icons.explore,
+                            label: 'Nord',
+                            color: const Color(0xFF00BCD4),
+                            active: false,
+                            onTap: _resetNorth,
+                          ),
+                          const SizedBox(height: 10),
+                          _actionBtn(
+                            icon: Icons.my_location,
+                            label: 'GPS',
+                            color: const Color(0xFF8BC34A),
+                            active: false,
+                            loading: _loading,
+                            onTap: _goToCurrentLocation,
+                          ),
+                          const SizedBox(height: 10),
+                          _actionBtn(
+                            icon: _recording ? Icons.stop : Icons.fiber_manual_record,
+                            label: _recording ? 'Stop' : 'Tracé',
+                            color: const Color(0xFFE53935),
+                            active: _recording,
+                            onTap: _toggleRecording,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Onglet droit du panel gauche
+                  GestureDetector(
+                    onTap: () => setState(() => _showActionPanel = !_showActionPanel),
+                    child: Container(
+                      width: 22,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2D2D2D).withOpacity(0.92),
+                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
+                        border: Border(
+                          right: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                          top: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                          bottom: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                        ),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 8, offset: const Offset(2, 0))],
+                      ),
+                      child: Icon(
+                        _showActionPanel ? Icons.chevron_left : Icons.chevron_right,
+                        color: const Color(0xFFFF6B35),
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── PANEL DROIT — NAVIGATION (grisâtre) ──────────────
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            right: _showNavPanel ? 0 : -70,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Onglet gauche du panel droit
+                  GestureDetector(
+                    onTap: () => setState(() => _showNavPanel = !_showNavPanel),
+                    child: Container(
+                      width: 22,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2D2D2D).withOpacity(0.88),
+                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                        border: Border(
+                          left: BorderSide(color: Colors.white24),
+                          top: BorderSide(color: Colors.white24),
+                          bottom: BorderSide(color: Colors.white24),
+                        ),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 8, offset: const Offset(-2, 0))],
+                      ),
+                      child: Icon(
+                        _showNavPanel ? Icons.chevron_right : Icons.chevron_left,
+                        color: Colors.white54,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 70,
+                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A).withOpacity(0.90),
+                      border: const Border(
+                        top: BorderSide(color: Colors.white12),
+                        bottom: BorderSide(color: Colors.white12),
+                      ),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 12, offset: const Offset(-4, 0))],
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _navBtn(Icons.wb_sunny_rounded, 'Météo', () => Navigator.push(context, MaterialPageRoute(builder: (_) => MeteoPage(
+                            latitude: _currentPosition.latitude,
+                            longitude: _currentPosition.longitude,
+                            windDeg: _windDeg,
+                            windSpeed: _windSpeed,
+                          ))), color: const Color(0xFF87CEEB)),
+                          const SizedBox(height: 10),
+                          _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog, color: const Color(0xFFE53935)),
+                          const SizedBox(height: 10),
+                          _navBtn(Icons.info_outline_rounded, 'À propos', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage())), color: const Color(0xFFFFB347)),
+                          const SizedBox(height: 10),
+                          _navBtn(Icons.help_outline_rounded, 'Aide', _showAide, color: const Color(0xFF9C27B0)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
 
           // ── BARRE D'ÉCHELLE ────────────────────────────────────
           Positioned(
-            bottom: 16,
+            bottom: 20,
             left: 16,
             child: ScaleBar(zoom: _mapZoom, lat: _mapLat),
           ),
 
-          // ── SLIDER OPACITÉ ─────────────────────────────────────
+          // ── SLIDER OPACITÉ (droite, même style + taille que ScaleBar) ──
           Positioned(
-            top: 140,
-            left: 16,
+            bottom: 20,
+            right: 28,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF2D2D2D).withOpacity(0.9),
-                    const Color(0xFF1A1A1A).withOpacity(0.9),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: const Color(0xFFFF6B35).withOpacity(0.2),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
-                    blurRadius: 8,
-                  ),
-                ],
+                color: const Color(0xFF1A1A1A).withOpacity(0.75),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.white24),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.layers, color: Color(0xFFFF6B35), size: 18),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.layers, color: Colors.white54, size: 12),
                   SizedBox(
-                    width: 100,
-                    child: SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: const Color(0xFFFF6B35),
-                        inactiveTrackColor: const Color(0xFF3D3D3D),
-                        thumbColor: const Color(0xFFFF6B35),
-                        overlayColor: const Color(0xFFFF6B35).withOpacity(0.3),
-                        thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 6,
+                    width: 72,
+                    height: 22,
+                    child: ClipRect(
+                      child: OverflowBox(
+                        maxHeight: 44,
+                        alignment: Alignment.center,
+                        child: SliderTheme(
+                          data: SliderThemeData(
+                            activeTrackColor: Colors.white54,
+                            inactiveTrackColor: Colors.white24,
+                            thumbColor: Colors.white70,
+                            overlayShape: SliderComponentShape.noOverlay,
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                            trackHeight: 2,
+                          ),
+                          child: Slider(
+                            value: _opacity,
+                            min: 0.0,
+                            max: 1.0,
+                            onChanged: (val) => setState(() => _opacity = val),
+                          ),
                         ),
-                        trackHeight: 3,
-                      ),
-                      child: Slider(
-                        value: _opacity,
-                        min: 0.0,
-                        max: 1.0,
-                        onChanged: (val) => setState(() => _opacity = val),
                       ),
                     ),
                   ),
                   Text(
                     '${(_opacity * 100).round()}%',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Colors.white60, fontSize: 10,
+                        fontWeight: FontWeight.bold),
                   ),
                 ],
               ),

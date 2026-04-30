@@ -1,15 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'app_globals.dart';
-import 'screens/map_page.dart';
+import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   await _initMBTiles();
   await _loadGeoJson();
   runApp(const EcoMapApp());
@@ -18,15 +20,24 @@ Future<void> main() async {
 Future<void> _initMBTiles() async {
   final dir = await getApplicationDocumentsDirectory();
   final dbPath = '${dir.path}/eco.mbtiles';
-  final data = await rootBundle.load('assets/tiles/eco.mbtiles');
-  final bytes = data.buffer.asUint8List();
-  await File(dbPath).writeAsBytes(bytes);
+  if (!File(dbPath).existsSync()) {
+    final data = await rootBundle.load('assets/tiles/eco.mbtiles');
+    await File(dbPath).writeAsBytes(data.buffer.asUint8List());
+  }
   db = await openDatabase(dbPath, readOnly: true);
+  try {
+    final minR = await db.rawQuery("SELECT value FROM metadata WHERE name='minzoom'");
+    final maxR = await db.rawQuery("SELECT value FROM metadata WHERE name='maxzoom'");
+    if (minR.isNotEmpty) mbtilesMinZoom = int.parse(minR.first['value'] as String);
+    if (maxR.isNotEmpty) mbtilesMaxZoom = int.parse(maxR.first['value'] as String);
+  } catch (_) {}
 }
+
+Map<String, dynamic> _decodeJson(String s) => json.decode(s) as Map<String, dynamic>;
 
 Future<void> _loadGeoJson() async {
   final str = await rootBundle.loadString('assets/eco_zone.geojson');
-  geoJson = json.decode(str) as Map<String, dynamic>;
+  geoJson = await compute(_decodeJson, str);
 }
 
 class EcoMapApp extends StatelessWidget {
@@ -44,7 +55,7 @@ class EcoMapApp extends StatelessWidget {
           secondary: const Color(0xFF8B4513),
         ),
       ),
-      home: const MapPage(),
+      home: const SplashScreen(),
     );
   }
 }

@@ -8,15 +8,15 @@ import '../painters/painters.dart';
 class NavigationPage extends StatefulWidget {
   final List<LatLng> parcours;
   final double score;
+  final double? windDeg;
 
-  const NavigationPage({super.key, required this.parcours, required this.score});
+  const NavigationPage({super.key, required this.parcours, required this.score, this.windDeg});
 
   @override
   State<NavigationPage> createState() => _NavigationPageState();
 }
 
 class _NavigationPageState extends State<NavigationPage> {
-  LatLng? _currentPosition;
   double _currentHeading = 0;
   int _currentWaypointIndex = 0;
   double _distanceToNext = 0;
@@ -60,10 +60,7 @@ class _NavigationPageState extends State<NavigationPage> {
 
   void _updatePosition(Position position) {
     final newPos = LatLng(position.latitude, position.longitude);
-    setState(() {
-      _currentPosition = newPos;
-      _currentHeading = position.heading;
-    });
+    setState(() => _currentHeading = position.heading);
     _updateWaypoint(newPos);
   }
 
@@ -126,6 +123,7 @@ class _NavigationPageState extends State<NavigationPage> {
                 child: CustomPaint(painter: CompassPainter(
                   rotation: -_currentHeading * pi / 180,
                   targetBearing: _bearingToNext,
+                  windDeg: widget.windDeg,
                 )),
               ),
               const SizedBox(height: 40),

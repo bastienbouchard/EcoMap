@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze *)",
+      "Bash(flutter run *)",
+      "Bash(flutter devices *)",
+      "Bash(curl -s \"http://127.0.0.1:51339/RlhU-C_zLnM=/\")",
+      "Bash(flutter pub *)",
+      "PowerShell(Rename-Item *)",
+      "Bash(python -c \"from PIL import Image; print\\('PIL OK'\\)\")",
+      "Bash(python -m pip install Pillow --quiet)",
+      "Bash(curl -s \"http://127.0.0.1:57808/HDEQyqrDqKk=/\")",
+      "Bash(taskkill /F /IM dart.exe /T)",
+      "Bash(taskkill /F /IM flutter_tool.exe /T)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(Copy-Item *)",
+      "PowerShell($src = \"C:\\\\Users\\\\basti\\\\Downloads\\\\Capture d'écran 2026-04-29 193426.png\"; $dst = \"C:\\\\Users\\\\basti\\\\Downloads\\\\screenshot_temp.png\"; [System.IO.File]::Copy\\($src, $dst, $true\\); Write-Host \"ok\")",
+      "Bash(python extract.py)"
+    ]
+  }
+}

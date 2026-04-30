@@ -1,0 +1,55 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:latlong2/latlong.dart';
+
+class GroupeService {
+  static final _db = FirebaseFirestore.instance;
+  static const _collection = 'groupe_positions';
+
+  // Publie la position de ce chasseur
+  static Future<void> publierPosition({
+    required String groupeId,
+    required String nom,
+    required LatLng position,
+  }) async {
+    await _db.collection(_collection).doc('${groupeId}_$nom').set({
+      'groupeId': groupeId,
+      'nom': nom,
+      'lat': position.latitude,
+      'lon': position.longitude,
+      'ts': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Écoute les positions des autres membres du groupe
+  static Stream<List<MembreGroupe>> ecouterGroupe(String groupeId, String monNom) {
+    return _db
+        .collection(_collection)
+        .where('groupeId', isEqualTo: groupeId)
+        .snapshots()
+        .map((snap) => snap.docs
+            .where((d) => d['nom'] != monNom) // exclure sa propre position
+            .map((d) => MembreGroupe(
+                  nom: d['nom'] as String,
+                  position: LatLng(
+                    (d['lat'] as num).toDouble(),
+                    (d['lon'] as num).toDouble(),
+                  ),
+                  ts: (d['ts'] as Timestamp?)?.toDate(),
+                ))
+            .toList());
+  }
+
+  // Supprime la position quand on quitte
+  static Future<void> quitter(String groupeId, String nom) async {
+    await _db.collection(_collection).doc('${groupeId}_$nom').delete();
+  }
+}
+
+class MembreGroupe {
+  final String nom;
+  final LatLng position;
+  final DateTime? ts;
+
+  MembreGroupe({required this.nom, required this.position, this.ts});
+}

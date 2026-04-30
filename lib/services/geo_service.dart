@@ -121,31 +121,226 @@ bool crossesWaterBody(LatLng from, LatLng to, Map<String, dynamic> geoJsonData) 
 
 bool hasSteepSlope(LatLng from, LatLng to, Map<String, dynamic> geoJsonData) {
   final features = geoJsonData['features'] as List;
-  int? elevationFrom, elevationTo;
+  // Vérifie uniquement la destination — vérifier le départ bloquerait tous les pas
+  // si on part d'une zone à pente forte
   for (final feat in features) {
     final props = feat['properties'] as Map;
     final geom = feat['geometry'] as Map;
-    if (pointInGeometry(from, geom)) {
-      final pente = props['cl_pent']?.toString();
-      if (pente == 'D' || pente == 'E') return true;
-      final alt = props['altitude'];
-      if (alt != null) elevationFrom = int.tryParse(alt.toString());
-    }
     if (pointInGeometry(to, geom)) {
       final pente = props['cl_pent']?.toString();
       if (pente == 'D' || pente == 'E') return true;
-      final alt = props['altitude'];
-      if (alt != null) elevationTo = int.tryParse(alt.toString());
-    }
-  }
-  if (elevationFrom != null && elevationTo != null) {
-    final distance = const Distance().as(LengthUnit.Meter, from, to);
-    if (distance > 0) {
-      final slope = ((elevationTo - elevationFrom).abs() / distance) * 100;
-      if (slope > 30) return true;
+      break;
     }
   }
   return false;
+}
+
+// ── PARCOURS ISOLATE ───────────────────────────────────────────────────────
+
+Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
+  final lat = params['lat'] as double;
+  final lon = params['lon'] as double;
+  final windRad = params['windRad'] as double;
+  final targetDist = params['targetDist'] as double;
+  final geoJsonData = params['geoJson'] as Map<String, dynamic>;
+  final features = geoJsonData['features'] as List;
+  final rawHotspots = (params['hotspots'] as List?)
+      ?.map((e) => (e as List).map((v) => (v as num).toDouble()).toList())
+      .toList() ?? [];
+
+  List<List<double>> points = [[lat, lon]];
+  double curLat = lat, curLon = lon;
+  double totalDist = 0;
+  int totalScore = 0, nbPoints = 0, blockedAttempts = 0;
+  final stepDist = targetDist / 28;
+
+  String habitatKey(Map props) =>
+      '${props['type_couv'] ?? ''}_${props['gr_ess'] ?? ''}_${props['cl_age'] ?? ''}';
+
+  // F = feuillu (nourriture), B = résineux/humide (couchette), M = mixte, X = autre
+  String habitatType(Map props) {
+    final couv = (props['type_couv'] ?? '').toString().toUpperCase();
+    final drai = (props['cl_drai'] ?? '').toString();
+    final depSur = (props['dep_sur'] ?? '').toString();
+    final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+    if (couv == 'R') return 'B';
+    if (drai == '5' || drai == '6' || depSur.startsWith('3') || depSur.startsWith('4') ||
+        typeEco.contains('RIV')) return 'B';
+    if (couv == 'F') return 'F';
+    if (couv == 'M') return 'M';
+    return 'X';
+  }
+
+  // Évalue l'habitat, le type et le score à une position donnée
+  ({int score, String habitat, String type, bool blocked}) evalPoint(double pLat, double pLon) {
+    for (final feat in features) {
+      if (pointInGeometry(LatLng(pLat, pLon), feat['geometry'] as Map)) {
+        final props = feat['properties'] as Map;
+        final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+        final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+        if (typeEco.contains('EAU') || codeCouv == 'EE' || typeEco.contains('RIV')) {
+          return (score: 0, habitat: '', type: 'X', blocked: true);
+        }
+        return (score: scoreOrignal(props), habitat: habitatKey(props),
+                type: habitatType(props), blocked: false);
+      }
+    }
+    return (score: 0, habitat: '', type: 'X', blocked: false);
+  }
+
+  final startEval = evalPoint(lat, lon);
+  String currentHabitat = startEval.habitat;
+  String currentType = startEval.type;
+
+  // Direction face au vent — contrainte principale (jamais dans le dos du vent)
+  final upwindRad = windRad;
+
+  // État d'ondulation — alterne gauche/droite, se retourne aux transitions
+  int oscillationDir = 1;
+  int stepsInDir = 0;
+  const phaseSteps = 3;
+
+  for (int step = 0; step < 80 && totalDist < targetDist; step++) {
+    stepsInDir++;
+    if (stepsInDir >= phaseSteps) {
+      oscillationDir = -oscillationDir;
+      stepsInDir = 0;
+    }
+
+    // Direction vers le hotspot le plus proche, pour bonus secondaire
+    double? hotspotRad;
+    if (rawHotspots.isNotEmpty) {
+      double minDist = double.infinity;
+      List<double>? nearest;
+      for (final h in rawHotspots) {
+        final d = (h[0] - curLat) * (h[0] - curLat) + (h[1] - curLon) * (h[1] - curLon);
+        if (d < minDist) { minDist = d; nearest = h; }
+      }
+      if (nearest != null) {
+        final dlat = nearest[0] - curLat;
+        final dlon = (nearest[1] - curLon) * cos(curLat * pi / 180);
+        hotspotRad = atan2(dlon, dlat);
+      }
+    }
+
+    // Détecte si on est actuellement sur une lisière F↔B forte (4 sondes cardinales)
+    bool nearStrongEdge = false;
+    for (double testAngle = 0; testAngle < 2 * pi; testAngle += pi / 2) {
+      final pLat = curLat + (90.0 / 111000) * cos(testAngle);
+      final pLon = curLon + (90.0 / 111000) * sin(testAngle) / cos(curLat * pi / 180);
+      final pEval = evalPoint(pLat, pLon);
+      if (!pEval.blocked &&
+          ((pEval.type == 'F' && currentType == 'B') ||
+           (pEval.type == 'B' && currentType == 'F'))) {
+        nearStrongEdge = true;
+        break;
+      }
+    }
+
+    // Contrainte principale : ±90° autour du vent (jamais dans le dos).
+    // Sur lisière F↔B forte : jusqu'à ±120° pour longer l'edge perpendiculairement.
+    final maxDelta = nearStrongEdge ? 120.0 : 90.0;
+
+    int bestScore = -1;
+    double? bestLat, bestLon;
+    double bestAngleDelta = 180;
+    String bestHabitat = '';
+    String bestType = 'X';
+
+    for (double angleDelta = -maxDelta; angleDelta <= maxDelta; angleDelta += 7.5) {
+      final angle = upwindRad + angleDelta * pi / 180;
+      final sLat = (stepDist / 111000) * cos(angle);
+      final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
+      final cLat = curLat + sLat;
+      final cLon = curLon + sLon;
+
+      final eval = evalPoint(cLat, cLon);
+      if (eval.blocked) continue;
+
+      // 1. Score habitat
+      final habitatScore = eval.score;
+
+      // 2. Bonus vent : face au vent = max, perpendiculaire = 0
+      final windBonus = ((90 - angleDelta.abs()) / 90 * 4).round().clamp(0, 4);
+
+      // 3. Bonus hotspot : préfère les angles du cône ±90° qui rapprochent d'un hotspot
+      int hotspotBonus = 0;
+      if (hotspotRad != null) {
+        final hotDelta = ((angle - hotspotRad) * 180 / pi + 360) % 360;
+        final hotNorm = hotDelta > 180 ? hotDelta - 360 : hotDelta;
+        if (hotNorm.abs() < 60) hotspotBonus = 4;
+        else if (hotNorm.abs() < 90) hotspotBonus = 2;
+      }
+
+      // 4. Bonus ondulation — zigzag marqué pour longer les lisières
+      final oscBonus = (angleDelta * oscillationDir > 10) ? 8 : 0;
+
+      // 5. Bonus lisière F↔B — dominant (transitions feuillu↔résineux/humide)
+      int transBonus = 0;
+      if (eval.habitat.isNotEmpty && eval.habitat != currentHabitat) {
+        final bothFB = (eval.type == 'F' && currentType == 'B') ||
+                       (eval.type == 'B' && currentType == 'F');
+        final mixte = eval.type == 'M' || currentType == 'M';
+        transBonus = bothFB ? 22 : mixte ? 11 : 3;
+      }
+
+      // 6. Bonus bordure — longe activement la lisière F↔B (2 sondes perp. à 90m)
+      int edgeBonus = 0;
+      for (final sign in [1.0, -1.0]) {
+        final perpAngle = angle + sign * pi / 2;
+        final pLat = cLat + (90.0 / 111000) * cos(perpAngle);
+        final pLon = cLon + (90.0 / 111000) * sin(perpAngle) / cos(curLat * pi / 180);
+        final perpEval = evalPoint(pLat, pLon);
+        if (!perpEval.blocked && perpEval.type != eval.type) {
+          final fb = (perpEval.type == 'F' || perpEval.type == 'B') &&
+                     (eval.type == 'F' || eval.type == 'B');
+          edgeBonus = fb ? 14 : 6;
+          break;
+        }
+      }
+
+      final candidateScore =
+          habitatScore + windBonus + hotspotBonus + oscBonus + transBonus + edgeBonus;
+
+      if (candidateScore > bestScore ||
+          (candidateScore == bestScore && angleDelta.abs() < bestAngleDelta)) {
+        bestScore = candidateScore;
+        bestLat = cLat;
+        bestLon = cLon;
+        bestAngleDelta = angleDelta.abs();
+        bestHabitat = eval.habitat;
+        bestType = eval.type;
+      }
+    }
+
+    if (bestLat != null && bestLon != null) {
+      final dist = const Distance().as(
+          LengthUnit.Meter, LatLng(curLat, curLon), LatLng(bestLat, bestLon));
+      totalDist += dist;
+      points.add([bestLat, bestLon]);
+      curLat = bestLat;
+      curLon = bestLon;
+      // Retourne l'oscillation à chaque croisement de lisière (zigzag organique)
+      if (bestHabitat.isNotEmpty && bestHabitat != currentHabitat && stepsInDir >= 2) {
+        oscillationDir = -oscillationDir;
+        stepsInDir = 0;
+      }
+      currentHabitat = bestHabitat;
+      currentType = bestType;
+      totalScore += bestScore.clamp(0, 999);
+      nbPoints++;
+    } else {
+      blockedAttempts++;
+      if (blockedAttempts >= 4) break;
+    }
+  }
+
+  const scoreMaxPossible = 28.0;
+  final scorePct = nbPoints > 0
+      ? (totalScore / nbPoints / scoreMaxPossible * 100).clamp(0.0, 100.0)
+      : 0.0;
+
+  return {'points': points, 'scorePct': scorePct};
 }
 
 // ── ISOLATE FUNCTIONS (top-level pour compute()) ───────────────────────────
@@ -157,7 +352,7 @@ List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
     try {
       final props = feat['properties'] as Map;
       final score = scoreOrignal(props);
-      if (score < 4) continue; // Ne pas rendre les zones sans intérêt
+      if (score < 8) continue;
       final geom = feat['geometry'];
       final type = geom['type'];
       final color = scoreColor(score);
@@ -181,9 +376,9 @@ List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
   return result;
 }
 
-List<List<double>> buildHotspotsDataIsolate(Map<String, dynamic> geoJsonData) {
+List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJsonData) {
   final features = geoJsonData['features'] as List;
-  final List<List<double>> result = [];
+  final List<Map<String, dynamic>> result = [];
   for (final feat in features) {
     try {
       final props = feat['properties'] as Map;
@@ -202,7 +397,12 @@ List<List<double>> buildHotspotsDataIsolate(Map<String, dynamic> geoJsonData) {
         sumLon += (c[0] as num).toDouble();
         sumLat += (c[1] as num).toDouble();
       }
-      result.add([score.toDouble(), sumLat / ring.length, sumLon / ring.length]);
+      result.add({
+        's': score,
+        'la': sumLat / ring.length,
+        'lo': sumLon / ring.length,
+        'p': Map<String, dynamic>.from(props),
+      });
     } catch (e) {}
   }
   return result;

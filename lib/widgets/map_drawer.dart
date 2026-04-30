@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import '../screens/meteo_page.dart';
+import '../screens/parcours_page.dart';
+import '../screens/about_page.dart';
 
 class MapDrawer extends StatelessWidget {
-  final bool showPolygons;
-  final ValueChanged<bool> onPolygonsChanged;
-  final double opacity;
-  final ValueChanged<double> onOpacityChanged;
+  final double latitude;
+  final double longitude;
+  final double? windDeg;
+  final double? windSpeed;
+  final List<Map<String, dynamic>> observations;
+  final void Function(LatLng pos) onObservationTap;
+  final void Function(int idx) onDeleteObservation;
   final double distanceParcours;
   final ValueChanged<double> onDistanceChanged;
   final bool loadingParcours;
@@ -12,98 +19,69 @@ class MapDrawer extends StatelessWidget {
 
   const MapDrawer({
     super.key,
-    required this.showPolygons,
-    required this.onPolygonsChanged,
-    required this.opacity,
-    required this.onOpacityChanged,
+    required this.latitude,
+    required this.longitude,
+    required this.windDeg,
+    required this.windSpeed,
+    required this.observations,
+    required this.onObservationTap,
+    required this.onDeleteObservation,
     required this.distanceParcours,
     required this.onDistanceChanged,
     required this.loadingParcours,
     required this.onGenerateParcours,
   });
 
+  void _navigate(BuildContext context, Widget page) {
+    Navigator.pop(context);
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Drawer(
       backgroundColor: const Color(0xFF1A1A1A),
       child: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.zero,
+        child: Column(
           children: [
-            _buildHeader(context),
-            _section('Couches', [
-              SwitchListTile(
-                title: const Text('Zones d\'habitat', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('Zones colorées par qualité d\'habitat', style: TextStyle(color: Colors.white38, fontSize: 11)),
-                value: showPolygons,
-                activeColor: const Color(0xFF2D5016),
-                onChanged: onPolygonsChanged,
-                contentPadding: EdgeInsets.zero,
-                dense: true,
+            _buildHeader(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.only(top: 8),
+                children: [
+                  _navItem(context, Icons.map_rounded, 'Accueil',
+                      color: const Color(0xFFFF6B35),
+                      onTap: () => Navigator.pop(context)),
+                  _navItem(context, Icons.wb_sunny_rounded, 'Météo',
+                      color: const Color(0xFF87CEEB),
+                      onTap: () => _navigate(context, MeteoPage(
+                        latitude: latitude,
+                        longitude: longitude,
+                        windDeg: windDeg,
+                        windSpeed: windSpeed,
+                      ))),
+                  _navItem(context, Icons.route_rounded, 'Générateur de parcours',
+                      color: const Color(0xFF5A8A1E),
+                      onTap: () => _navigate(context, ParcoursPage(
+                        distance: distanceParcours,
+                        onDistanceChanged: onDistanceChanged,
+                        loading: loadingParcours,
+                        onGenerate: onGenerateParcours,
+                      ))),
+                  const Divider(color: Color(0xFF2D2D2D), indent: 20, endIndent: 20),
+                  _navItem(context, Icons.info_outline_rounded, 'À propos',
+                      color: const Color(0xFF9E9E9E),
+                      onTap: () => _navigate(context, const AboutPage())),
+                ],
               ),
-              const SizedBox(height: 4),
-              Row(children: [
-                const Icon(Icons.layers, color: Color(0xFFFF6B35), size: 16),
-                const SizedBox(width: 8),
-                const Text('Opacité carte', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                const Spacer(),
-                Text('${(opacity * 100).round()}%', style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 13)),
-              ]),
-              _opacitySlider(context),
-            ]),
-            _section('Génération de parcours', [
-              const Text(
-                'Génère un itinéraire optimisé selon l\'habitat de l\'orignal et le vent.',
-                style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              Row(children: [
-                const Text('Distance:', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                Expanded(child: _distanceSlider(context)),
-                Text('${distanceParcours.toStringAsFixed(1)} km',
-                  style: const TextStyle(color: Color(0xFFFF6B35), fontWeight: FontWeight.bold, fontSize: 12)),
-              ]),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: loadingParcours ? null : () {
-                    Navigator.pop(context);
-                    onGenerateParcours();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF6B35),
-                    disabledBackgroundColor: const Color(0xFF8B4513),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                  child: loadingParcours
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(Icons.gps_fixed, size: 16),
-                          SizedBox(width: 8),
-                          Text('Générer le parcours', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ]),
-                ),
-              ),
-            ]),
-            _section('À propos', [
-              const Text(
-                'EcoMap analyse les données écoforestières du Québec (IEQM) pour identifier les meilleurs habitats d\'orignal selon les critères scientifiques : couverture végétale, espèces, âge du peuplement, drainage et proximité des cours d\'eau.',
-                style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.5),
-              ),
-              const SizedBox(height: 8),
-              const Text('Données: PRODUITS_IEQM_22D', style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
-            ]),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -114,57 +92,36 @@ class MapDrawer extends StatelessWidget {
         Image.asset('assets/logo.png', height: 40),
         const SizedBox(width: 12),
         const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('EcoMap', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          Text('OrignalScan', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
           Text('Habitat orignal', style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12)),
         ]),
       ]),
     );
   }
 
-  Widget _section(String title, List<Widget> children) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-        const SizedBox(height: 10),
-        ...children,
-        const SizedBox(height: 8),
-        const Divider(color: Color(0xFF2D2D2D)),
-      ]),
-    );
-  }
-
-  Widget _opacitySlider(BuildContext context) {
-    return SliderTheme(
-      data: SliderThemeData(
-        activeTrackColor: const Color(0xFFFF6B35),
-        inactiveTrackColor: const Color(0xFF3D3D3D),
-        thumbColor: const Color(0xFFFF6B35),
-        overlayColor: const Color(0xFFFF6B35).withOpacity(0.2),
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-        trackHeight: 3,
+  Widget _navItem(BuildContext context, IconData icon, String label,
+      {required VoidCallback onTap, Color color = const Color(0xFFFF6B35)}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.28)),
       ),
-      child: Slider(value: opacity, min: 0, max: 1, onChanged: onOpacityChanged),
-    );
-  }
-
-  Widget _distanceSlider(BuildContext context) {
-    return SliderTheme(
-      data: SliderThemeData(
-        activeTrackColor: const Color(0xFFFF6B35),
-        inactiveTrackColor: const Color(0xFF3D3D3D),
-        thumbColor: const Color(0xFFFF6B35),
-        overlayColor: const Color(0xFFFF6B35).withOpacity(0.2),
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-        trackHeight: 3,
-      ),
-      child: Slider(
-        value: distanceParcours,
-        min: 1.0,
-        max: 10.0,
-        divisions: 18,
-        label: '${distanceParcours.toStringAsFixed(1)} km',
-        onChanged: onDistanceChanged,
+      child: ListTile(
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        trailing: Icon(Icons.chevron_right, color: color.withOpacity(0.5), size: 18),
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       ),
     );
   }

@@ -37,8 +37,9 @@ class CrosshairPainter extends CustomPainter {
 class CompassPainter extends CustomPainter {
   final double rotation;
   final double targetBearing;
+  final double? windDeg;
 
-  const CompassPainter({required this.rotation, required this.targetBearing});
+  const CompassPainter({required this.rotation, required this.targetBearing, this.windDeg});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -97,11 +98,38 @@ class CompassPainter extends CustomPainter {
     canvas.drawPath(arrowPath, Paint()..color = Colors.white..strokeWidth = 2..style = PaintingStyle.stroke);
     canvas.restore();
 
+    // Flèche vent — entièrement à l'extérieur du cercle, tourne en espace absolu
+    // +180° : la flèche pointe vers la SOURCE du vent (d'où il arrive)
+    if (windDeg != null) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate((windDeg! + 180) * pi / 180);
+      final windFill = Paint()
+        ..color = const Color(0xFF87CEEB).withOpacity(0.92)
+        ..style = PaintingStyle.fill;
+      final windStroke = Paint()
+        ..color = Colors.white.withOpacity(0.6)
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke;
+      // Flèche entièrement hors du cercle — pointe vers l'extérieur (source du vent)
+      final windPath = ui.Path()
+        ..moveTo(0, -(radius + 22))  // pointe (loin du cercle)
+        ..lineTo(-10, -(radius + 6)) // aile gauche (près du cercle)
+        ..lineTo(0, -(radius + 12))  // encoche
+        ..lineTo(10, -(radius + 6))  // aile droite
+        ..close();
+      canvas.drawPath(windPath, windFill);
+      canvas.drawPath(windPath, windStroke);
+      canvas.restore();
+    }
+
     canvas.drawCircle(center, 6, Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill);
     canvas.drawCircle(center, 6, Paint()..color = Colors.white..strokeWidth = 2..style = PaintingStyle.stroke);
   }
 
   @override
   bool shouldRepaint(CompassPainter oldDelegate) =>
-      oldDelegate.rotation != rotation || oldDelegate.targetBearing != targetBearing;
+      oldDelegate.rotation != rotation ||
+      oldDelegate.targetBearing != targetBearing ||
+      oldDelegate.windDeg != windDeg;
 }
