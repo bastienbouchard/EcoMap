@@ -136,7 +136,10 @@ class _MapPageState extends State<MapPage> {
 
       // Position initiale
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 60),
+        ),
       );
       if (mounted) {
         final gpsPos = LatLng(pos.latitude, pos.longitude);
@@ -181,26 +184,37 @@ class _MapPageState extends State<MapPage> {
   Future<void> _goToCurrentLocation() async {
     setState(() => _loading = true);
     try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Active la localisation dans les paramètres du téléphone'),
+            backgroundColor: Color(0xFFFF6B35),
+          ));
+        }
+        return;
+      }
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
         if (mounted) {
           setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permission de localisation refusée'),
-              backgroundColor: Color(0xFFFF6B35),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Permission de localisation refusée'),
+            backgroundColor: Color(0xFFFF6B35),
+          ));
         }
         return;
       }
 
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 60),
         ),
       );
       if (mounted) {
@@ -216,7 +230,7 @@ class _MapPageState extends State<MapPage> {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur GPS: ${e.toString()}'),
+            content: Text('GPS : ${e.toString()}'),
             backgroundColor: const Color(0xFFFF6B35),
           ),
         );
@@ -1111,15 +1125,15 @@ class _MapPageState extends State<MapPage> {
                     final idx = entry.key;
                     final pos = entry.value;
                     final score = idx < _hotspotInfos.length ? _hotspotInfos[idx].score : 0;
-                    final bgColor = score >= 18
-                        ? const Color(0xFF1A3A08)
+                    final flameColor = score >= 18
+                        ? const Color(0xFFFF3D00)
                         : score >= 13
-                            ? const Color(0xFF2D5016)
-                            : const Color(0xFF5A8A1E);
+                            ? const Color(0xFFFF6B35)
+                            : const Color(0xFFFFB347);
                     return Marker(
                       point: pos,
-                      width: 48,
-                      height: 48,
+                      width: 56,
+                      height: 56,
                       child: GestureDetector(
                         onTap: () {
                           if (idx < _hotspotInfos.length) {
@@ -1127,19 +1141,23 @@ class _MapPageState extends State<MapPage> {
                           }
                         },
                         child: Container(
-                          width: 48,
-                          height: 48,
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
-                            color: bgColor,
+                            color: const Color(0xFF1A1A1A),
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [BoxShadow(color: bgColor.withOpacity(0.5), blurRadius: 6)],
+                            border: Border.all(color: flameColor, width: 3),
+                            boxShadow: [
+                              BoxShadow(color: flameColor.withOpacity(0.7), blurRadius: 12, spreadRadius: 2),
+                              const BoxShadow(color: Colors.black54, blurRadius: 4),
+                            ],
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text('🔥', style: TextStyle(fontSize: 16, height: 1.1)),
-                              Text('$score', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, height: 1.1)),
+                              Icon(Icons.local_fire_department, color: flameColor, size: 26),
+                              Text('$score', style: TextStyle(color: flameColor, fontSize: 10,
+                                  fontWeight: FontWeight.bold, height: 1)),
                             ],
                           ),
                         ),
@@ -1169,6 +1187,24 @@ class _MapPageState extends State<MapPage> {
                     ]),
                   )).toList(),
                 ),
+              // ── POSITION ACTUELLE (point bleu) ────────────────
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _currentPosition,
+                    width: 20,
+                    height: 20,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4A90E2),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 4)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
 
@@ -1194,29 +1230,6 @@ class _MapPageState extends State<MapPage> {
               color: Colors.black.withOpacity(0.45),
             ),
           ),
-
-          // ── SCORE PARCOURS (haut droit, conditionnel) ─────────
-          if (_showParcours && _parcoursScore > 0)
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _parcoursScore > 60
-                      ? const Color(0xFF2D5016)
-                      : _parcoursScore > 35
-                      ? const Color(0xFFFF6B35)
-                      : const Color(0xFF8B4513),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
-                ),
-                child: Text(
-                  '${_parcoursScore.round()}%',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ),
-            ),
 
           // ── BARRE PARCOURS ACTIF ──────────────────────────────
           if (_showParcours)

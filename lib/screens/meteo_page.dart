@@ -160,6 +160,15 @@ class _MeteoPageState extends State<MeteoPage> {
 
           const SizedBox(height: 12),
 
+          // ── PHASE LUNAIRE ──────────────────────────────────────
+          _card(children: [
+            _sectionTitle('Phase lunaire'),
+            const SizedBox(height: 12),
+            _moonCard(),
+          ]),
+
+          const SizedBox(height: 12),
+
           // ── PRÉVISIONS 3 JOURS ─────────────────────────────────
           _card(children: [
             _sectionTitle('Prévisions — 3 prochains jours'),
@@ -295,6 +304,101 @@ class _MeteoPageState extends State<MeteoPage> {
     return Text(title,
         style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 13,
             fontWeight: FontWeight.bold, letterSpacing: 0.5));
+  }
+
+  Widget _moonCard() {
+    final ref = DateTime.utc(2000, 1, 6, 18, 14);
+    final age = DateTime.now().toUtc().difference(ref).inSeconds / 86400.0 % 29.53059;
+    final illum = ((1 - cos(2 * pi * age / 29.53059)) / 2 * 100).round();
+
+    String emoji, name, tip;
+    Color tipColor;
+    int score;
+
+    if (age < 1.85) {
+      emoji = '🌑'; name = 'Nouvelle lune';
+      tip = 'Orignaux très actifs de jour — conditions idéales';
+      tipColor = const Color(0xFF7DC95E); score = 5;
+    } else if (age < 7.38) {
+      emoji = '🌒'; name = 'Premier croissant';
+      tip = 'Bonne activité diurne — profitez du matin';
+      tipColor = const Color(0xFF7DC95E); score = 4;
+    } else if (age < 11.08) {
+      emoji = '🌓'; name = 'Premier quartier';
+      tip = 'Activité mixte — la matinée reste favorable';
+      tipColor = const Color(0xFFFF6B35); score = 3;
+    } else if (age < 14.77) {
+      emoji = '🌔'; name = 'Gibbeuse croissante';
+      tip = 'Orignaux plus nocturnes — activité réduite le jour';
+      tipColor = Colors.white54; score = 2;
+    } else if (age < 16.61) {
+      emoji = '🌕'; name = 'Pleine lune';
+      tip = 'Nocturne — les orignaux bougent peu de jour';
+      tipColor = Colors.white38; score = 1;
+    } else if (age < 22.15) {
+      emoji = '🌖'; name = 'Gibbeuse décroissante';
+      tip = 'Activité en hausse — orignaux actifs en soirée';
+      tipColor = Colors.white54; score = 2;
+    } else if (age < 25.84) {
+      emoji = '🌗'; name = 'Dernier quartier';
+      tip = 'Bonne activité diurne — en amélioration';
+      tipColor = const Color(0xFFFF6B35); score = 3;
+    } else {
+      emoji = '🌘'; name = 'Dernier croissant';
+      tip = 'Très bonne activité diurne — conditions favorables';
+      tipColor = const Color(0xFF7DC95E); score = 4;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 52)),
+          const SizedBox(width: 16),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: const TextStyle(color: Colors.white, fontSize: 16,
+                  fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text('Illumination : $illum %',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              const SizedBox(height: 6),
+              Row(children: List.generate(5, (i) => Icon(
+                i < score ? Icons.star_rounded : Icons.star_outline_rounded,
+                color: i < score ? const Color(0xFFFF6B35) : const Color(0xFF3D3D3D),
+                size: 16,
+              ))),
+            ],
+          )),
+        ]),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: illum / 100,
+            backgroundColor: const Color(0xFF3D3D3D),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE8D5A3)),
+            minHeight: 5,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: tipColor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: tipColor.withOpacity(0.3)),
+          ),
+          child: Row(children: [
+            Icon(Icons.pets, color: tipColor, size: 14),
+            const SizedBox(width: 8),
+            Expanded(child: Text(tip,
+                style: TextStyle(color: tipColor, fontSize: 12, height: 1.3))),
+          ]),
+        ),
+      ],
+    );
   }
 
   Widget _timeRow(String emoji, String label, String time, String legalLabel, String legalTime) {

@@ -15,7 +15,16 @@
       "PowerShell(Stop-Process *)",
       "PowerShell(Copy-Item *)",
       "PowerShell($src = \"C:\\\\Users\\\\basti\\\\Downloads\\\\Capture d'écran 2026-04-29 193426.png\"; $dst = \"C:\\\\Users\\\\basti\\\\Downloads\\\\screenshot_temp.png\"; [System.IO.File]::Copy\\($src, $dst, $true\\); Write-Host \"ok\")",
-      "Bash(python extract.py)"
+      "Bash(python extract.py)",
+      "Bash(xargs wc *)",
+      "Bash(adb *)",
+      "Bash(where adb *)",
+      "Read(//c/Users/basti/**)",
+      "Bash(/c/Users/basti/AppData/Local/Android/Sdk/platform-tools/adb.exe *)",
+      "Bash(\"/c/Users/basti/AppData/Local/Android/Sdk/platform-tools/adb.exe\" kill-server *)",
+      "Bash(\"/c/Users/basti/AppData/Local/Android/Sdk/platform-tools/adb.exe\" start-server *)",
+      "Bash(/c/Users/basti/AppData/Local/Android/Sdk/platform-tools/adb.exe devices *)",
+      "Bash(flutter build *)"
     ]
   }
 }
