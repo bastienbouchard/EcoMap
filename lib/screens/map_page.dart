@@ -326,35 +326,36 @@ class _MapPageState extends State<MapPage> {
   List<LatLng> _computeHotspots() {
     if (_rawHotspots.isEmpty) return [];
 
-    // Filtre par la vue visible si possible
     List<HotspotInfo> candidates = [];
+
+    // Essaie visibleBounds d'abord, sinon calcule la zone depuis le centre + zoom
     try {
       final b = _mapController.camera.visibleBounds;
-      final south = b.southWest.latitude;
-      final north = b.northEast.latitude;
-      final west = b.southWest.longitude;
-      final east = b.northEast.longitude;
       candidates = _rawHotspots
           .where((h) =>
-              h.position.latitude >= south &&
-              h.position.latitude <= north &&
-              h.position.longitude >= west &&
-              h.position.longitude <= east)
+              h.position.latitude >= b.southWest.latitude &&
+              h.position.latitude <= b.northEast.latitude &&
+              h.position.longitude >= b.southWest.longitude &&
+              h.position.longitude <= b.northEast.longitude)
           .toList()
         ..sort((a, b) => b.score.compareTo(a.score));
     } catch (_) {}
 
-    // Fallback : rien en vue → les 5 plus proches du centre
+    // Fallback : calcul de la zone visible depuis zoom + centre
     if (candidates.isEmpty) {
       try {
         final center = _mapController.camera.center;
-        candidates = _rawHotspots.toList()
-          ..sort((a, b) => const Distance()
-              .as(LengthUnit.Meter, center, a.position)
-              .compareTo(const Distance().as(LengthUnit.Meter, center, b.position)));
-      } catch (_) {
-        candidates = _rawHotspots.toList()..sort((a, b) => b.score.compareTo(a.score));
-      }
+        final zoom = _mapController.camera.zoom;
+        final delta = 360.0 / (1 << zoom.round());
+        candidates = _rawHotspots
+            .where((h) =>
+                h.position.latitude >= center.latitude - delta &&
+                h.position.latitude <= center.latitude + delta &&
+                h.position.longitude >= center.longitude - delta * 1.5 &&
+                h.position.longitude <= center.longitude + delta * 1.5)
+            .toList()
+          ..sort((a, b) => b.score.compareTo(a.score));
+      } catch (_) {}
     }
 
     final List<LatLng> result = [];
@@ -663,8 +664,8 @@ class _MapPageState extends State<MapPage> {
       const SnackBar(content: Text('Groupe quitté'), backgroundColor: Color(0xFF8B4513)));
   }
 
-  void _toggleHotspots() {
-    if (_showHotspots) {
+  void _toggleHotspots({bool forceRefresh = false}) {
+    if (_showHotspots && !forceRefresh) {
       setState(() { _showHotspots = false; _hotspots = []; });
       return;
     }
@@ -679,8 +680,10 @@ class _MapPageState extends State<MapPage> {
     final spots = _computeHotspots();
     setState(() { _hotspots = spots; _showHotspots = true; });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${spots.length} point${spots.length > 1 ? 's' : ''} chaud${spots.length > 1 ? 's' : ''} dans cette zone'),
-      backgroundColor: const Color(0xFF2D5016),
+      content: Text(spots.isEmpty
+          ? 'Aucun spot ici — navigue vers une zone forestière'
+          : '${spots.length} point${spots.length > 1 ? 's' : ''} chaud${spots.length > 1 ? 's' : ''} dans cette zone'),
+      backgroundColor: spots.isEmpty ? const Color(0xFF8B4513) : const Color(0xFF2D5016),
       duration: const Duration(seconds: 2),
     ));
   }
@@ -749,10 +752,12 @@ class _MapPageState extends State<MapPage> {
     required Color color,
     required bool active,
     required VoidCallback onTap,
+    VoidCallback? onLongPress,
     bool loading = false,
   }) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1335,6 +1340,9 @@ class _MapPageState extends State<MapPage> {
                             color: const Color(0xFFFF6B35),
                             active: _showHotspots,
                             onTap: _toggleHotspots,
+                            onLongPress: _showHotspots
+                                ? () => _toggleHotspots(forceRefresh: true)
+                                : null,
                           ),
                           const SizedBox(height: 10),
                           _actionBtn(
@@ -1490,54 +1498,111 @@ class _MapPageState extends State<MapPage> {
             child: ScaleBar(zoom: _mapZoom, lat: _mapLat),
           ),
 
-          // ── SLIDER OPACITÉ (droite, même style + taille que ScaleBar) ──
+          // ── SLIDERS ZOOM + OPACITÉ (droite) ──────────────────────
           Positioned(
             bottom: 20,
             right: 28,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A).withOpacity(0.75),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.layers, color: Colors.white54, size: 12),
-                  SizedBox(
-                    width: 72,
-                    height: 22,
-                    child: ClipRect(
-                      child: OverflowBox(
-                        maxHeight: 44,
-                        alignment: Alignment.center,
-                        child: SliderTheme(
-                          data: SliderThemeData(
-                            activeTrackColor: Colors.white54,
-                            inactiveTrackColor: Colors.white24,
-                            thumbColor: Colors.white70,
-                            overlayShape: SliderComponentShape.noOverlay,
-                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                            trackHeight: 2,
-                          ),
-                          child: Slider(
-                            value: _opacity,
-                            min: 0.0,
-                            max: 1.0,
-                            onChanged: (val) => setState(() => _opacity = val),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Slider zoom
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A).withOpacity(0.75),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.zoom_in, color: Colors.white54, size: 12),
+                      SizedBox(
+                        width: 72,
+                        height: 22,
+                        child: ClipRect(
+                          child: OverflowBox(
+                            maxHeight: 44,
+                            alignment: Alignment.center,
+                            child: SliderTheme(
+                              data: SliderThemeData(
+                                activeTrackColor: Colors.white54,
+                                inactiveTrackColor: Colors.white24,
+                                thumbColor: Colors.white70,
+                                overlayShape: SliderComponentShape.noOverlay,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                                trackHeight: 2,
+                              ),
+                              child: Slider(
+                                value: _mapZoom.clamp(8.0, 19.0),
+                                min: 8.0,
+                                max: 19.0,
+                                onChanged: (val) {
+                                  _mapController.move(_mapController.camera.center, val);
+                                  setState(() => _mapZoom = val);
+                                },
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      Text(
+                        'z${_mapZoom.round()}',
+                        style: const TextStyle(color: Colors.white60, fontSize: 10,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '${(_opacity * 100).round()}%',
-                    style: const TextStyle(color: Colors.white60, fontSize: 10,
-                        fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                // Slider opacité
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A).withOpacity(0.75),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.white24),
                   ),
-                ],
-              ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.layers, color: Colors.white54, size: 12),
+                      SizedBox(
+                        width: 72,
+                        height: 22,
+                        child: ClipRect(
+                          child: OverflowBox(
+                            maxHeight: 44,
+                            alignment: Alignment.center,
+                            child: SliderTheme(
+                              data: SliderThemeData(
+                                activeTrackColor: Colors.white54,
+                                inactiveTrackColor: Colors.white24,
+                                thumbColor: Colors.white70,
+                                overlayShape: SliderComponentShape.noOverlay,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                                trackHeight: 2,
+                              ),
+                              child: Slider(
+                                value: _opacity,
+                                min: 0.0,
+                                max: 1.0,
+                                onChanged: (val) => setState(() => _opacity = val),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${(_opacity * 100).round()}%',
+                        style: const TextStyle(color: Colors.white60, fontSize: 10,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -39,12 +40,37 @@ class AboutPage extends StatelessWidget {
           ]),
           const SizedBox(height: 12),
           _card(children: [
-            _title('Sources de données'),
+            _title('Données écoforestières'),
             const SizedBox(height: 8),
-            _dataRow('Données forestières', 'PRODUITS_IEQM_22D'),
-            _dataRow('Météo & vent', 'Open-Meteo API'),
-            _dataRow('Carte de base', 'OpenStreetMap'),
-            _dataRow('Tuiles hors-ligne', 'MBTiles custom'),
+            const Text(
+              'Données écoforestières fournies par le Ministère des Ressources naturelles et des Forêts (MRNF), diffusées sur Données Québec.',
+              style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.6),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          _card(children: [
+            _title('Nous suivre'),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => launchUrl(
+                Uri.parse('https://www.facebook.com/profile.php?id=61588826944605'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: Row(children: [
+                const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 28),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Page Facebook OrignalScan',
+                        style: TextStyle(color: Color(0xFF1877F2), fontSize: 13,
+                            fontWeight: FontWeight.bold)),
+                    Text('Suivez-nous pour les dernières nouvelles',
+                        style: TextStyle(color: Colors.white54, fontSize: 11)),
+                  ]),
+                ),
+                const Icon(Icons.open_in_new, color: Colors.white38, size: 16),
+              ]),
+            ),
           ]),
           const SizedBox(height: 12),
           _card(children: [

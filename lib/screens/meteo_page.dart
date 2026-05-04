@@ -39,7 +39,7 @@ class _MeteoPageState extends State<MeteoPage> {
         '&longitude=${widget.longitude}'
         '&daily=wind_speed_10m_max,wind_direction_10m_dominant,'
         'temperature_2m_max,temperature_2m_min,precipitation_sum,'
-        'sunrise,sunset'
+        'cloud_cover_mean,sunrise,sunset'
         '&timezone=auto'
         '&forecast_days=4',
       );
@@ -57,6 +57,7 @@ class _MeteoPageState extends State<MeteoPage> {
             'tempMax': (daily['temperature_2m_max'][i] as num?)?.toDouble() ?? 0.0,
             'tempMin': (daily['temperature_2m_min'][i] as num?)?.toDouble() ?? 0.0,
             'precip': (daily['precipitation_sum'][i] as num?)?.toDouble() ?? 0.0,
+            'cloud': (daily['cloud_cover_mean'][i] as num?)?.toInt() ?? 0,
             'sunrise': daily['sunrise'][i] as String?,
             'sunset': daily['sunset'][i] as String?,
           });
@@ -229,8 +230,32 @@ class _MeteoPageState extends State<MeteoPage> {
                                   fontWeight: FontWeight.bold)),
                           Text('${(f['tempMin'] as double).toStringAsFixed(0)}°',
                               style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                          const SizedBox(height: 4),
+                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(
+                              (f['cloud'] as int) < 25
+                                  ? Icons.wb_sunny
+                                  : (f['cloud'] as int) < 60
+                                      ? Icons.wb_cloudy
+                                      : Icons.cloud,
+                              color: (f['cloud'] as int) < 25
+                                  ? const Color(0xFFFFD700)
+                                  : (f['cloud'] as int) < 60
+                                      ? Colors.white54
+                                      : Colors.white38,
+                              size: 11,
+                            ),
+                            const SizedBox(width: 2),
+                            Text('${f['cloud']}%',
+                                style: TextStyle(
+                                  color: (f['cloud'] as int) < 25
+                                      ? const Color(0xFFFFD700)
+                                      : Colors.white38,
+                                  fontSize: 9,
+                                )),
+                          ]),
                           if ((f['precip'] as double) > 0.5) ...[
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text('💧 ${(f['precip'] as double).toStringAsFixed(0)} mm',
                                 style: const TextStyle(color: Colors.white38, fontSize: 9)),
                           ],
