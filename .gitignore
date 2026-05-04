@@ -8,6 +8,8 @@ build/
 # Android
 android/.gradle
 android/local.properties
+android/*.hprof
+android/hs_err_pid*.log
 
 # iOS
 ios/Pods/
