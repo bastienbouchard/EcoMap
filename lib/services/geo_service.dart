@@ -12,35 +12,63 @@ int scoreOrignal(Map props) {
   final origine = (props['origine'] ?? '').toString().toUpperCase();
   final age = (props['cl_age'] ?? '').toString().toUpperCase();
   final drai = (props['cl_drai'] ?? '').toString();
+  final dens = (props['cl_dens'] ?? '').toString().toUpperCase();
+  final haut = (props['cl_haut'] ?? '').toString().toUpperCase();
 
+  // Type de couvert
   if (couv == 'F') score += 4;
   if (couv == 'M') score += 3;
   if (couv == 'R') score += 2;
 
-  if (ess.contains('PE')) score += 5;
-  if (ess.contains('AU')) score += 4;
-  if (ess.contains('SA')) score += 4;
-  if (ess.contains('BP')) score += 3;
-  if (ess.contains('EB')) score += 1;
+  // Essences — alimentation et abri orignal
+  if (ess.contains('PE')) score += 5;  // peuplier
+  if (ess.contains('AU')) score += 4;  // aulne
+  if (ess.contains('SA')) score += 4;  // saule
+  if (ess.contains('BP')) score += 3;  // bouleau à papier
+  if (ess.contains('ERR')) score += 3; // érable rouge
+  if (ess.contains('BJ')) score += 2;  // bouleau jaune
+  if (ess.contains('EB')) score += 1;  // épinette blanche
+  if (ess.contains('EN')) score += 2;  // épinette noire (abri)
+  if (ess.contains('MEL')) score += 2; // mélèze (zones humides)
 
-  if (origine == 'CP') score += 5;
-  if (origine == 'BR') score += 4;
-  if (origine == 'EP') score += 2;
+  // Origine du peuplement
+  if (origine == 'CP') score += 5;  // coupe — régénération idéale orignal
+  if (origine == 'BR') score += 4;  // brûlis — excellente nourriture
+  if (origine == 'EP') score += 3;  // épidémie
+  if (origine == 'CH') score += 2;  // chablis
 
-  if (age == 'J') score += 5;
-  if (age == '10' || age == '20') score += 4;
-  if (age == 'JIN') score += 2;
-  if (age == '30') score += 2;
+  // Classe d'âge — jeune forêt = meilleure alimentation
+  if (age == 'J' || age == 'JIN') score += 5;
+  if (age == '10') score += 5;
+  if (age == '20') score += 4;
+  if (age == '30') score += 3;
+  if (age == '40') score += 2;
+  if (age == '50') score += 1;
+  // 60+ = forêt mature, moins intéressant pour nourriture mais bon abri
 
-  if (drai == '4' || drai == '5') score += 4;
+  // Drainage — zones humides favorisées
+  if (drai == '4' || drai == '5') score += 4;  // mal drainé/tourbeux
+  if (drai == '3') score += 2;                   // imparfaitement drainé
+  if (drai == '6') score += 5;                   // inondé/marécageux
 
+  // Densité — densité moyenne préférée (abri sans obstruction)
+  if (dens == 'B') score += 2;  // clairsemé
+  if (dens == 'C') score += 3;  // semi-dense
+  if (dens == 'D') score += 1;  // dense
+
+  // Hauteur — forêt basse/moyenne (jeune régénération)
+  if (haut == 'A') score += 3;  // < 7m
+  if (haut == 'B') score += 2;  // 7-12m
+
+  // Dépôt de surface et type écologique
   final depSur = (props['dep_sur'] ?? '').toString();
   final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
   if (depSur.startsWith('3') || depSur.startsWith('4') ||
       typeEco.contains('RIV') || drai == '6') {
-    score += 3;
+    score += 3;  // zones riveraines/tourbières
   }
 
+  // Pénalités
   final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
   final milieu = (props['milieu'] ?? '').toString().toUpperCase();
   if (couv == 'ANT' || typeEco.contains('URB') ||
@@ -144,6 +172,28 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   final targetDist = params['targetDist'] as double;
   final geoJsonData = params['geoJson'] as Map<String, dynamic>;
   final features = geoJsonData['features'] as List;
+
+  // Pre-compute water body centroids for cheap proximity checks during route eval
+  final List<List<double>> waterCentroids = [];
+  for (final feat in features) {
+    try {
+      final props = feat['properties'] as Map;
+      final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+      final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+      if (!(typeEco.contains('EAU') || codeCouv.contains('EAU') ||
+            typeEco.contains('RIV') || codeCouv == 'EE')) continue;
+      final geom = feat['geometry'] as Map;
+      final gType = geom['type'];
+      List<dynamic> ring;
+      if (gType == 'Polygon') ring = geom['coordinates'][0] as List;
+      else if (gType == 'MultiPolygon') ring = geom['coordinates'][0][0] as List;
+      else continue;
+      double sLat = 0, sLon = 0;
+      for (final c in ring) { sLon += (c[0] as num).toDouble(); sLat += (c[1] as num).toDouble(); }
+      waterCentroids.add([sLat / ring.length, sLon / ring.length]);
+    } catch (_) {}
+  }
+
   final rawHotspots = (params['hotspots'] as List?)
       ?.map((e) => (e as List).map((v) => (v as num).toDouble()).toList())
       .toList() ?? [];
@@ -260,6 +310,20 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       // 1. Score habitat
       final habitatScore = eval.score;
 
+      // 7. Proximity eau — orignal très lié aux zones riveraines
+      int waterBonus = 0;
+      if (waterCentroids.isNotEmpty) {
+        double minSqDist = double.infinity;
+        for (final wc in waterCentroids) {
+          final d = (cLat - wc[0]) * (cLat - wc[0]) + (cLon - wc[1]) * (cLon - wc[1]);
+          if (d < minSqDist) minSqDist = d;
+        }
+        final degDist = sqrt(minSqDist);
+        if (degDist < 150.0 / 111000) waterBonus = 8;
+        else if (degDist < 400.0 / 111000) waterBonus = 4;
+        else if (degDist < 800.0 / 111000) waterBonus = 2;
+      }
+
       // 2. Bonus vent : face au vent = max, perpendiculaire = 0
       final windBonus = ((90 - angleDelta.abs()) / 90 * 4).round().clamp(0, 4);
 
@@ -300,7 +364,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
 
       final candidateScore =
-          habitatScore + windBonus + hotspotBonus + oscBonus + transBonus + edgeBonus;
+          habitatScore + windBonus + hotspotBonus + oscBonus + transBonus + edgeBonus + waterBonus;
 
       if (candidateScore > bestScore ||
           (candidateScore == bestScore && angleDelta.abs() < bestAngleDelta)) {
@@ -335,7 +399,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     }
   }
 
-  const scoreMaxPossible = 28.0;
+  const scoreMaxPossible = 35.0;
   final scorePct = nbPoints > 0
       ? (totalScore / nbPoints / scoreMaxPossible * 100).clamp(0.0, 100.0)
       : 0.0;
@@ -374,6 +438,82 @@ List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
     } catch (e) {}
   }
   return result;
+}
+
+// ── PINCH POINTS ───────────────────────────────────────────────────────────
+// Détecte les corridors naturels (col de bouteille) où l'orignal passe.
+// Un pinch = bon habitat flanqué de barrières (eau/ouvert) sur deux côtés opposés.
+List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
+  final lat    = params['lat'] as double;
+  final lon    = params['lon'] as double;
+  final radius = (params['radiusM'] as num?)?.toDouble() ?? 3000.0;
+  final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
+
+  const stepM = 180.0;
+  final stepLat = stepM / 111000;
+  final stepLon = stepM / 111000 / cos(lat * pi / 180);
+  final latN = (radius / stepM).ceil();
+  final lonN = (radius / stepM).ceil();
+
+  // Returns -1 for water, 0 for unknown, else scoreOrignal
+  int scoreAt(double pLat, double pLon) {
+    for (final feat in features) {
+      if (!pointInGeometry(LatLng(pLat, pLon), feat['geometry'] as Map)) continue;
+      final props = feat['properties'] as Map;
+      final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+      final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+      if (typeEco.contains('EAU') || codeCouv == 'EE') return -1;
+      return scoreOrignal(props);
+    }
+    return 0;
+  }
+
+  bool isBarrier(int s) => s == -1 || s < 5;
+  bool isGood(int s) => s >= 10;
+
+  final List<Map<String, dynamic>> result = [];
+  final Set<String> seen = {};
+
+  for (int i = -latN; i <= latN; i++) {
+    for (int j = -lonN; j <= lonN; j++) {
+      final pLat = lat + i * stepLat;
+      final pLon = lon + j * stepLon;
+      final distM = sqrt(pow((pLat - lat) * 111000, 2) +
+                         pow((pLon - lon) * 111000 * cos(lat * pi / 180), 2));
+      if (distM > radius) continue;
+
+      final center = scoreAt(pLat, pLon);
+      if (center < 10) continue; // le pinch lui-même doit être bon habitat
+
+      final n = scoreAt(pLat + stepLat, pLon);
+      final s = scoreAt(pLat - stepLat, pLon);
+      final e = scoreAt(pLat, pLon + stepLon);
+      final w = scoreAt(pLat, pLon - stepLon);
+
+      final nsBlocked = isBarrier(n) && isBarrier(s);
+      final ewBlocked = isBarrier(e) && isBarrier(w);
+      final nBlocked  = isBarrier(n) && (isGood(s) || isGood(e) || isGood(w));
+      final sBlocked  = isBarrier(s) && (isGood(n) || isGood(e) || isGood(w));
+      final eBlocked  = isBarrier(e) && (isGood(w) || isGood(n) || isGood(s));
+      final wBlocked  = isBarrier(w) && (isGood(e) || isGood(n) || isGood(s));
+
+      final isPinch = nsBlocked || ewBlocked ||
+          (nBlocked && sBlocked) || (eBlocked && wBlocked) ||
+          (nBlocked && eBlocked) || (nBlocked && wBlocked) ||
+          (sBlocked && eBlocked) || (sBlocked && wBlocked);
+
+      if (!isPinch) continue;
+
+      // Déduplique à 360m
+      final key = '${(pLat * 3000).round()}_${(pLon * 3000).round()}';
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      result.add({'lat': pLat, 'lon': pLon, 'score': center});
+    }
+  }
+
+  result.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+  return result.take(20).toList();
 }
 
 List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJsonData) {
