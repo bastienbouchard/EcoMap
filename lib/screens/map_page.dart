@@ -17,6 +17,7 @@ import '../providers/mbtiles_provider.dart';
 import '../widgets/scale_bar.dart';
 import '../widgets/hotspot_detail_sheet.dart';
 import 'about_page.dart';
+import 'territoire_download_page.dart';
 import 'chat_page.dart';
 import 'meteo_page.dart';
 import 'navigation_page.dart';
@@ -1478,6 +1479,8 @@ class _MapPageState extends State<MapPage> {
                           ))), color: const Color(0xFF87CEEB)),
                           const SizedBox(height: 10),
                           _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog, color: const Color(0xFFE53935)),
+                          const SizedBox(height: 10),
+                          _navBtn(Icons.download_rounded, 'Territoire', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TerritoireDownloadPage())), color: const Color(0xFF4CAF50)),
                           const SizedBox(height: 10),
                           _navBtn(Icons.info_outline_rounded, 'À propos', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage())), color: const Color(0xFFFFB347)),
                           const SizedBox(height: 10),
