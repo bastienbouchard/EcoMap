@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import '../app_globals.dart';
@@ -24,10 +25,11 @@ class MBTilesImageProvider extends ImageProvider<MBTilesImageProvider> {
   }
 
   Future<ImageInfo> _loadTile(ImageDecoderCallback decode) async {
+    if (kIsWeb || db == null) return _emptyTile();
     final z = coords.z;
     final x = coords.x;
     final y = (1 << z) - 1 - coords.y;
-    final result = await db.query(
+    final result = await db!.query(
       'tiles',
       columns: ['tile_data'],
       where: 'zoom_level = ? AND tile_column = ? AND tile_row = ?',

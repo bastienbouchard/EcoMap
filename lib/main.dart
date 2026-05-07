@@ -11,8 +11,10 @@ import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  await _initMBTiles();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+  if (!kIsWeb) await _initMBTiles();
   await _loadGeoJson();
   runApp(const EcoMapApp());
 }

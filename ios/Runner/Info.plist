@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>EcoMap utilise votre position pour afficher votre emplacement sur la carte.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>EcoMap utilise votre position pour la cartographie environnementale.</string>
 </dict>
 </plist>
