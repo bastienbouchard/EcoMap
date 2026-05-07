@@ -28,8 +28,8 @@ Future<void> _initMBTiles() async {
   }
   db = await openDatabase(dbPath, readOnly: true);
   try {
-    final minR = await db.rawQuery("SELECT value FROM metadata WHERE name='minzoom'");
-    final maxR = await db.rawQuery("SELECT value FROM metadata WHERE name='maxzoom'");
+    final minR = await db?.rawQuery("SELECT value FROM metadata WHERE name='minzoom'") ?? [];
+    final maxR = await db?.rawQuery("SELECT value FROM metadata WHERE name='maxzoom'") ?? [];
     if (minR.isNotEmpty) mbtilesMinZoom = int.parse(minR.first['value'] as String);
     if (maxR.isNotEmpty) mbtilesMaxZoom = int.parse(maxR.first['value'] as String);
   } catch (_) {}
