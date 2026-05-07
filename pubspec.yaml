@@ -27,4 +27,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/eco_zone.geojson
+    - assets/feuillets_index.geojson
     - assets/logo.png
