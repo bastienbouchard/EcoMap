@@ -24,12 +24,9 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCq9Uw19VVoHkYUIlFbc2dxcEX8mk3LWU8',
-    bundleId: 'com.bastienbouchard.ecomap',
     projectId: 'moosesense-a84cf',
     storageBucket: 'moosesense-a84cf.firebasestorage.app',
     messagingSenderId: '115558656456',
     appId: '1:115558656456:ios:10c2785cda77235bc038fd',
-    androidClientId: '',
-    iosClientId: '',
   );
 }
