@@ -31,19 +31,26 @@ class AboutPage extends StatelessWidget {
             ]),
           ),
           _card(children: [
-            _title('Analyse écoforestière'),
+            _title('Méthodologie de l\'habitat'),
             const SizedBox(height: 8),
             const Text(
-              'OrignalScan analyse les données écoforestières du Québec (IEQM) pour identifier les meilleurs habitats d\'orignal selon les critères scientifiques :\n\n• Couverture végétale (forêt mixte, résineux)\n• Espèces dominantes (peuplier, aulne, saule)\n• Âge du peuplement\n• Classe de drainage\n• Proximité des cours d\'eau',
+              'L\'algorithme de scoring est basé sur les principes de l\'écologie de l\'orignal documentés par le MRNF et les universités québécoises (UQAR, UQAM) :\n\n'
+              '• Alimentation — L\'orignal est un herbivore brouteur. Il préfère les jeunes peuplements feuillus (peuplier faux-tremble, aulne rugueux, saule, bouleau à papier) qui poussent dans les coupes et brûlis récents (5–25 ans).\n\n'
+              '• Abri — Les résineux denses (épinette, sapin) servent de protection thermique en hiver et de couvert de sécurité.\n\n'
+              '• Eau — L\'orignal est étroitement lié aux milieux riverains, marécages et tourbières pour la végétation aquatique (été) et la thermorégulation.\n\n'
+              '• Lisières — Les transitions entre feuillu et résineux concentrent l\'activité : nourriture et abri à portée.',
               style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.6),
             ),
           ]),
           const SizedBox(height: 12),
           _card(children: [
-            _title('Données écoforestières'),
+            _title('Sources scientifiques'),
             const SizedBox(height: 8),
             const Text(
-              'Données écoforestières fournies par le Ministère des Ressources naturelles et des Forêts (MRNF), diffusées sur Données Québec.',
+              '• Courtois R., Dussault C. et al. — Sélection d\'habitat de l\'orignal en forêt boréale aménagée, UQAR / MFFP.\n\n'
+              '• Dussault C. et al. (2005) — Linking moose habitat selection to limiting factors. Ecography 28.\n\n'
+              '• Ouellet J.-P. et al. — Études sur l\'orignal au Québec, Université de Moncton.\n\n'
+              '• MRNF Québec — Données IEQM (Inventaire Écoforestier du Québec Méridional), diffusées sur Données Québec.',
               style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.6),
             ),
           ]),
@@ -74,12 +81,22 @@ class AboutPage extends StatelessWidget {
           ]),
           const SizedBox(height: 12),
           _card(children: [
-            _title('Score d\'habitat'),
+            _title('Légende des couleurs'),
             const SizedBox(height: 8),
-            _scoreRow('18+', 'Excellent', const Color(0xFF1A3A08)),
-            _scoreRow('13–17', 'Très bon', const Color(0xFF2D5016)),
-            _scoreRow('8–12', 'Bon', const Color(0xFF5A8A1E)),
-            _scoreRow('4–7', 'Moyen', const Color(0xFF8B7355)),
+            _scoreRow('Blanc', 'Coupe / Régénération — meilleure nourriture', Colors.white),
+            const SizedBox(height: 2),
+            _scoreRow('Bleu', 'Riverain / Marécageux — eau et végétation aquatique', Color(0xFF1565C0)),
+            const SizedBox(height: 2),
+            _scoreRow('Jaune', 'Feuillu — alimentation (peuplier, bouleau, érable)', Color(0xFFFFD600)),
+            const SizedBox(height: 2),
+            _scoreRow('Orange', 'Mixte — transition nourriture + abri', Color(0xFFFF6D00)),
+            const SizedBox(height: 2),
+            _scoreRow('Vert', 'Résineux — abri et couvert hivernal', Color(0xFF1B5E20)),
+            const SizedBox(height: 8),
+            const Text(
+              'L\'opacité de chaque couleur augmente avec le score orignal — plus c\'est opaque, meilleur est l\'habitat.',
+              style: TextStyle(color: Colors.white38, fontSize: 11, height: 1.5),
+            ),
           ]),
         ],
       ),
