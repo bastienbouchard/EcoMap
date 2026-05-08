@@ -4,9 +4,29 @@ import '../models/hotspot_info.dart';
 
 void showHotspotDetail(BuildContext context, HotspotInfo info) {
   final p = info.props;
-  final couv = (p['type_couv'] ?? '—').toString();
+  const couvLabels = {'F': 'Feuillu', 'M': 'Mixte', 'R': 'Résineux'};
+  final couvCode = (p['type_couv'] ?? '').toString();
+  final couv = couvLabels[couvCode] ?? (couvCode.isEmpty ? '—' : couvCode);
+
   final ess = (p['gr_ess'] ?? '—').toString();
-  final age = (p['cl_age'] ?? '—').toString();
+
+  const ageLabels = {
+    'J': '< 10 ans', 'JIN': '< 10 ans',
+    '10': '10–20 ans', '20': '20–30 ans', '30': '30–40 ans',
+    '40': '40–50 ans', '50': '50–60 ans', '60': '60–80 ans',
+    '80': '80–100 ans', '100': '> 100 ans', 'VIN': 'Vieux',
+  };
+  final ageCode = (p['cl_age'] ?? '').toString();
+  final age = ageLabels[ageCode.toUpperCase()] ?? (ageCode.isEmpty ? '—' : ageCode);
+
+  const draiLabels = {
+    '0': 'Excessif', '1': 'Rapide', '2': 'Bien drainé',
+    '3': 'Modéré', '4': 'Imparfait', '5': 'Mauvais / tourbeux',
+    '6': 'Très mauvais / inondé',
+  };
+  final draiCode = (p['cl_drai'] ?? '').toString();
+  final drai = draiLabels[draiCode] ?? (draiCode.isEmpty ? '—' : draiCode);
+
   final origineCode = (p['origine'] ?? '').toString();
   const origineLabels = {
     'CP': 'Coupe',
@@ -19,23 +39,21 @@ void showHotspotDetail(BuildContext context, HotspotInfo info) {
     'MS': 'Mortalité',
   };
   final origine = origineLabels[origineCode] ?? (origineCode.isEmpty ? '—' : origineCode);
-  final drai = (p['cl_drai'] ?? '—').toString();
-  final depSur = (p['dep_sur'] ?? '—').toString();
+  final depSur = (p['dep_sur'] ?? '').toString();
   final typeEco = (p['type_eco'] ?? '—').toString();
 
-  int sCouv = couv == 'F' ? 4 : couv == 'M' ? 3 : couv == 'R' ? 2 : 0;
+  int sCouv = couvCode == 'F' ? 4 : couvCode == 'M' ? 3 : couvCode == 'R' ? 2 : 0;
   int sEss = 0;
   final essU = ess.toUpperCase();
   if (essU.contains('PE')) sEss = 5;
   else if (essU.contains('AU') || essU.contains('SA')) sEss = 4;
   else if (essU.contains('BP')) sEss = 3;
   else if (essU.contains('EB')) sEss = 1;
-  final ageU = age.toUpperCase();
-  int sAge = ageU == 'J' ? 5 : (ageU == '10' || ageU == '20') ? 4 : (ageU == 'JIN' || ageU == '30') ? 2 : 0;
+  int sAge = ageCode == 'J' || ageCode == 'JIN' ? 5 : (ageCode == '10' || ageCode == '20') ? 4 : ageCode == '30' ? 2 : 0;
   int sOri = origineCode == 'CP' ? 5 : origineCode == 'BR' ? 4 : origineCode == 'EP' ? 2 : 0;
-  int sDrai = (drai == '4' || drai == '5') ? 4 : 0;
+  int sDrai = (draiCode == '4' || draiCode == '5') ? 4 : draiCode == '6' ? 5 : 0;
   int sEau = (depSur.startsWith('3') || depSur.startsWith('4') ||
-      typeEco.toUpperCase().contains('RIV') || drai == '6') ? 3 : 0;
+      typeEco.toUpperCase().contains('RIV') || draiCode == '6') ? 3 : 0;
 
   final bars = [
     ('Couverture', sCouv),
@@ -79,7 +97,6 @@ void showHotspotDetail(BuildContext context, HotspotInfo info) {
             _chip('Âge: $age'),
             _chip('Perturbation: $origine'),
             _chip('Drainage: $drai'),
-            _chip('Type éco: $typeEco'),
           ]),
           const SizedBox(height: 16),
           SizedBox(
