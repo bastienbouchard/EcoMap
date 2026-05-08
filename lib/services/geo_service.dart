@@ -85,12 +85,44 @@ int scoreOrignal(Map props) {
   return score.clamp(0, 999);
 }
 
-Color scoreColor(int score) {
-  if (score >= 18) return const Color(0xFF1A3A08).withOpacity(0.8);
-  if (score >= 13) return const Color(0xFF2D5016).withOpacity(0.7);
-  if (score >= 8)  return const Color(0xFF5A8A1E).withOpacity(0.6);
-  if (score >= 4)  return const Color(0xFF8B7355).withOpacity(0.5);
-  return const Color(0xFF6B4423).withOpacity(0.2);
+Color polygonColor(Map props) {
+  final score = scoreOrignal(props);
+  if (score < 1) return Colors.transparent;
+
+  final couv    = (props['type_couv'] ?? '').toString().toUpperCase();
+  final origine = (props['origine']   ?? '').toString().toUpperCase();
+  final age     = (props['cl_age']    ?? '').toString().toUpperCase();
+  final drai    = (props['cl_drai']   ?? '').toString();
+  final depSur  = (props['dep_sur']   ?? '').toString();
+  final typeEco = (props['type_eco']  ?? '').toString().toUpperCase();
+
+  // Opacité proportionnelle au score (0.3 → 0.85)
+  final opacity = (0.3 + score.clamp(0, 20) / 20 * 0.55).clamp(0.3, 0.85);
+
+  // Coupe / régénération → blanc
+  if (origine == 'CP' || origine == 'BR' ||
+      age == 'J' || age == 'JIN' || age == '10') {
+    return Colors.white.withOpacity(opacity);
+  }
+
+  // Zone riveraine / marécageuse → bleu
+  if (drai == '5' || drai == '6' ||
+      depSur.startsWith('3') || depSur.startsWith('4') ||
+      typeEco.contains('RIV')) {
+    return const Color(0xFF1565C0).withOpacity(opacity);
+  }
+
+  // Feuillu → jaune/or
+  if (couv == 'F') return const Color(0xFFFFD600).withOpacity(opacity);
+
+  // Mixte → orange
+  if (couv == 'M') return const Color(0xFFFF6D00).withOpacity(opacity);
+
+  // Résineux → vert foncé
+  if (couv == 'R') return const Color(0xFF1B5E20).withOpacity(opacity);
+
+  // Autre → vert neutre discret
+  return const Color(0xFF5A8A1E).withOpacity(opacity * 0.4);
 }
 
 // ── GÉOMÉTRIE ──────────────────────────────────────────────────────────────
@@ -419,7 +451,7 @@ List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
       if (score < 1) continue;
       final geom = feat['geometry'];
       final type = geom['type'];
-      final color = scoreColor(score);
+      final color = polygonColor(props);
       List<List<LatLng>> rings = [];
       if (type == 'Polygon') {
         for (final ring in geom['coordinates']) {
