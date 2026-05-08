@@ -94,19 +94,8 @@ class _MapPageState extends State<MapPage> {
     super.initState();
     _initLocation();
     _fetchWind();
-    // Charge le territoire téléchargé s'il existe, sinon utilise le bundlé
-    Future.delayed(const Duration(seconds: 3), () async {
-      final list = await TerritoireService.listTerritoires();
-      if (list.isNotEmpty) {
-        final data = await TerritoireService.loadTerritoire(list.last['id'] as String);
-        if (data != null) geoJson = data;
-      }
-      compute(buildPolygonsIsolate, geoJson).then((polys) {
-        if (mounted) setState(() => _polygonsCache = polys);
-      });
-      compute(buildPolygonLabelsIsolate, geoJson).then((labels) {
-        if (mounted) setState(() => _polygonLabels = labels);
-      });
+    Future.delayed(const Duration(seconds: 1), () async {
+      await _reloadTerritoire();
     });
     compute(buildHotspotsDataIsolate, geoJson).then((raw) {
       if (mounted) {
@@ -689,10 +678,18 @@ class _MapPageState extends State<MapPage> {
 
   Future<void> _reloadTerritoire() async {
     final list = await TerritoireService.listTerritoires();
-    if (list.isEmpty || !mounted) return;
-    final data = await TerritoireService.loadTerritoire(list.last['id'] as String);
-    if (data == null || !mounted) return;
-    geoJson = data;
+    if (!mounted) return;
+    if (list.isEmpty) {
+      geoJson = {'type': 'FeatureCollection', 'features': []};
+      if (mounted) setState(() { _polygonsCache = []; _polygonLabels = []; });
+      return;
+    }
+    final allFeatures = <dynamic>[];
+    for (final t in list) {
+      final data = await TerritoireService.loadTerritoire(t['id'] as String);
+      if (data != null) allFeatures.addAll(data['features'] as List);
+    }
+    geoJson = {'type': 'FeatureCollection', 'features': allFeatures};
     final polys = await compute(buildPolygonsIsolate, geoJson);
     final labels = await compute(buildPolygonLabelsIsolate, geoJson);
     if (mounted) setState(() { _polygonsCache = polys; _polygonLabels = labels; });
@@ -1595,31 +1592,31 @@ class _MapPageState extends State<MapPage> {
               children: [
                 // Slider zoom
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.75),
-                    borderRadius: BorderRadius.circular(6),
+                    color: const Color(0xFF1A1A1A).withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.white24),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.zoom_in, color: Colors.white54, size: 12),
+                      const Icon(Icons.zoom_in, color: Colors.white70, size: 16),
                       SizedBox(
-                        width: 72,
-                        height: 22,
+                        width: 120,
+                        height: 28,
                         child: ClipRect(
                           child: OverflowBox(
-                            maxHeight: 44,
+                            maxHeight: 52,
                             alignment: Alignment.center,
                             child: SliderTheme(
                               data: SliderThemeData(
-                                activeTrackColor: Colors.white54,
+                                activeTrackColor: const Color(0xFFFF6B35),
                                 inactiveTrackColor: Colors.white24,
-                                thumbColor: Colors.white70,
+                                thumbColor: Colors.white,
                                 overlayShape: SliderComponentShape.noOverlay,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                                trackHeight: 2,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                                trackHeight: 3,
                               ),
                               child: Slider(
                                 value: _mapZoom.clamp(8.0, 19.0),
@@ -1636,40 +1633,40 @@ class _MapPageState extends State<MapPage> {
                       ),
                       Text(
                         'z${_mapZoom.round()}',
-                        style: const TextStyle(color: Colors.white60, fontSize: 10,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12,
                             fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 // Slider opacité
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.75),
-                    borderRadius: BorderRadius.circular(6),
+                    color: const Color(0xFF1A1A1A).withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.white24),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.layers, color: Colors.white54, size: 12),
+                      const Icon(Icons.layers, color: Colors.white70, size: 16),
                       SizedBox(
-                        width: 72,
-                        height: 22,
+                        width: 120,
+                        height: 28,
                         child: ClipRect(
                           child: OverflowBox(
-                            maxHeight: 44,
+                            maxHeight: 52,
                             alignment: Alignment.center,
                             child: SliderTheme(
                               data: SliderThemeData(
-                                activeTrackColor: Colors.white54,
+                                activeTrackColor: const Color(0xFFFF6B35),
                                 inactiveTrackColor: Colors.white24,
-                                thumbColor: Colors.white70,
+                                thumbColor: Colors.white,
                                 overlayShape: SliderComponentShape.noOverlay,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                                trackHeight: 2,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                                trackHeight: 3,
                               ),
                               child: Slider(
                                 value: _opacity,
@@ -1683,7 +1680,7 @@ class _MapPageState extends State<MapPage> {
                       ),
                       Text(
                         '${(_opacity * 100).round()}%',
-                        style: const TextStyle(color: Colors.white60, fontSize: 10,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12,
                             fontWeight: FontWeight.bold),
                       ),
                     ],

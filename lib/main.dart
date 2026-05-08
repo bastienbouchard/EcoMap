@@ -39,8 +39,7 @@ Future<void> _initMBTiles() async {
 Map<String, dynamic> _decodeJson(String s) => json.decode(s) as Map<String, dynamic>;
 
 Future<void> _loadGeoJson() async {
-  final str = await rootBundle.loadString('assets/eco_zone.geojson');
-  geoJson = await compute(_decodeJson, str);
+  geoJson = {'type': 'FeatureCollection', 'features': []};
 }
 
 class EcoMapApp extends StatelessWidget {
