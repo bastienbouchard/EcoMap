@@ -7,7 +7,18 @@ void showHotspotDetail(BuildContext context, HotspotInfo info) {
   final couv = (p['type_couv'] ?? '—').toString();
   final ess = (p['gr_ess'] ?? '—').toString();
   final age = (p['cl_age'] ?? '—').toString();
-  final origine = (p['origine'] ?? '—').toString();
+  final origineCode = (p['origine'] ?? '').toString();
+  const origineLabels = {
+    'CP': 'Coupe',
+    'BR': 'Brûlis',
+    'EP': 'Épidémie',
+    'CH': 'Chablis',
+    'DT': 'Dépérissement',
+    'ENS': 'Enfeuillement',
+    'P': 'Plantation',
+    'MS': 'Mortalité',
+  };
+  final origine = origineLabels[origineCode] ?? (origineCode.isEmpty ? '—' : origineCode);
   final drai = (p['cl_drai'] ?? '—').toString();
   final depSur = (p['dep_sur'] ?? '—').toString();
   final typeEco = (p['type_eco'] ?? '—').toString();
@@ -21,16 +32,16 @@ void showHotspotDetail(BuildContext context, HotspotInfo info) {
   else if (essU.contains('EB')) sEss = 1;
   final ageU = age.toUpperCase();
   int sAge = ageU == 'J' ? 5 : (ageU == '10' || ageU == '20') ? 4 : (ageU == 'JIN' || ageU == '30') ? 2 : 0;
-  int sOri = origine == 'CP' ? 5 : origine == 'BR' ? 4 : origine == 'EP' ? 2 : 0;
+  int sOri = origineCode == 'CP' ? 5 : origineCode == 'BR' ? 4 : origineCode == 'EP' ? 2 : 0;
   int sDrai = (drai == '4' || drai == '5') ? 4 : 0;
   int sEau = (depSur.startsWith('3') || depSur.startsWith('4') ||
       typeEco.toUpperCase().contains('RIV') || drai == '6') ? 3 : 0;
 
   final bars = [
     ('Couverture', sCouv),
-    ('Espèces', sEss),
+    ('Peuplement', sEss),
     ('Âge', sAge),
-    ('Origine', sOri),
+    ('Perturbation', sOri),
     ('Drainage', sDrai),
     ('Cours d\'eau', sEau),
   ];
@@ -64,9 +75,9 @@ void showHotspotDetail(BuildContext context, HotspotInfo info) {
           const SizedBox(height: 16),
           Wrap(spacing: 8, runSpacing: 6, children: [
             _chip('Couverture: $couv'),
-            _chip('Espèces: $ess'),
+            _chip('Peuplement: $ess'),
             _chip('Âge: $age'),
-            _chip('Origine: $origine'),
+            _chip('Perturbation: $origine'),
             _chip('Drainage: $drai'),
             _chip('Type éco: $typeEco'),
           ]),
