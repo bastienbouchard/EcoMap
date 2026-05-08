@@ -717,13 +717,13 @@ class _MapPageState extends State<MapPage> {
       });
       if (result.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Aucun corridor détecté — navigue vers une zone avec eau ou coupes'),
+          content: Text('Aucun emplacement détecté — navigue vers une zone avec eau ou coupes'),
           backgroundColor: Color(0xFF8B4513),
           duration: Duration(seconds: 3),
         ));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${result.length} corridors détectés dans un rayon de 3 km'),
+          content: Text('${result.length} emplacements de tour détectés dans un rayon de 3 km'),
           backgroundColor: const Color(0xFF2D5016),
           duration: const Duration(seconds: 2),
         ));
@@ -978,7 +978,7 @@ class _MapPageState extends State<MapPage> {
               _AideItem('📍 GPS', 'Centre la carte sur ta position actuelle.'),
               _AideItem('⏺ Tracé', 'Enregistre ton déplacement GPS. Appuie sur Stop pour sauvegarder.'),
               _AideItem('! Obs.', 'Ajoute une observation terrain (frottage, traces, souille…) au centre de l\'écran.'),
-              _AideItem('🔻 Cols', 'Détecte les corridors naturels (pinch points) dans un rayon de 3 km — endroits où l\'orignal est forcé de passer.'),
+              _AideItem('🏕 Tour', 'Détecte les meilleurs emplacements pour une tour de chasse dans un rayon de 3 km — corridors naturels où l\'orignal est forcé de passer entre des barrières (eau, coupes, terrain ouvert).'),
               _AideItem('Slider', 'Contrôle la transparence de la couche de scoring habitat.'),
             ],
           ),
@@ -991,6 +991,13 @@ class _MapPageState extends State<MapPage> {
         ],
       ),
     );
+  }
+
+  Widget _obsIcon(String note) {
+    if (note.contains('Traces')) return const CustomPaint(size: Size(26, 26), painter: MooseTrackPainter());
+    if (note.contains('Souille')) return const CustomPaint(size: Size(26, 26), painter: MudHolePainter());
+    if (note.contains('Cache')) return const CustomPaint(size: Size(26, 26), painter: HuntingTowerPainter());
+    return Text(note.split(' ').first, style: const TextStyle(fontSize: 20, height: 1));
   }
 
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
@@ -1148,12 +1155,7 @@ class _MapPageState extends State<MapPage> {
                             border: Border.all(color: const Color(0xFFFFB347), width: 2),
                             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)],
                           ),
-                          child: Center(
-                            child: Text(
-                              note.split(' ').first,
-                              style: const TextStyle(fontSize: 20, height: 1),
-                            ),
-                          ),
+                          child: Center(child: _obsIcon(note)),
                         ),
                       ),
                     );
@@ -1427,8 +1429,8 @@ class _MapPageState extends State<MapPage> {
                           ),
                           const SizedBox(height: 6),
                           _actionBtn(
-                            icon: Icons.filter_alt,
-                            label: 'Cols',
+                            icon: Icons.cabin,
+                            label: 'Tour',
                             color: const Color(0xFF4CAF50),
                             active: _showPinchPoints,
                             loading: _loadingPinch,

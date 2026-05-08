@@ -133,3 +133,93 @@ class CompassPainter extends CustomPainter {
       oldDelegate.targetBearing != targetBearing ||
       oldDelegate.windDeg != windDeg;
 }
+
+// ── ICÔNES OBSERVATIONS ───────────────────────────────────────────────────────
+
+class MooseTrackPainter extends CustomPainter {
+  const MooseTrackPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = const Color(0xFF1A0A00)..style = PaintingStyle.fill;
+    final w = size.width; final h = size.height;
+    // Orteil gauche — forme allongée effilée en bas
+    final left = Path()
+      ..moveTo(w * .50, h * .08)
+      ..cubicTo(w * .30, h * .08, w * .12, h * .28, w * .14, h * .62)
+      ..cubicTo(w * .15, h * .80, w * .28, h * .96, w * .38, h * .96)
+      ..cubicTo(w * .48, h * .96, w * .50, h * .76, w * .50, h * .58)
+      ..close();
+    // Orteil droit
+    final right = Path()
+      ..moveTo(w * .50, h * .08)
+      ..cubicTo(w * .70, h * .08, w * .88, h * .28, w * .86, h * .62)
+      ..cubicTo(w * .85, h * .80, w * .72, h * .96, w * .62, h * .96)
+      ..cubicTo(w * .52, h * .96, w * .50, h * .76, w * .50, h * .58)
+      ..close();
+    canvas.drawPath(left, p);
+    canvas.drawPath(right, p);
+  }
+  @override bool shouldRepaint(_) => false;
+}
+
+class MudHolePainter extends CustomPainter {
+  const MudHolePainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    // Boue extérieure
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(w * .50, h * .58), width: w * .90, height: h * .68),
+      Paint()..color = const Color(0xFF4A2800)..style = PaintingStyle.fill,
+    );
+    // Centre plus sombre
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(w * .50, h * .60), width: w * .50, height: h * .36),
+      Paint()..color = const Color(0xFF1E0E00)..style = PaintingStyle.fill,
+    );
+    // Ondulations
+    final rp = Paint()..color = const Color(0xFF6B3A10)..style = PaintingStyle.stroke..strokeWidth = 1.2;
+    canvas.drawOval(Rect.fromCenter(center: Offset(w * .50, h * .56), width: w * .70, height: h * .50), rp);
+    // Bulles
+    final bp = Paint()..color = const Color(0xFF8B5E2A)..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(w * .33, h * .46), 2.5, bp);
+    canvas.drawCircle(Offset(w * .65, h * .52), 2.0, bp);
+    canvas.drawCircle(Offset(w * .48, h * .68), 1.8, bp);
+  }
+  @override bool shouldRepaint(_) => false;
+}
+
+class HuntingTowerPainter extends CustomPainter {
+  const HuntingTowerPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final wood = const Color(0xFF5D3A1A);
+    final fill = Paint()..color = wood..style = PaintingStyle.fill;
+    final stroke = Paint()..color = wood..style = PaintingStyle.stroke..strokeWidth = 2.0..strokeCap = StrokeCap.round;
+
+    // Cabine
+    canvas.drawRect(Rect.fromLTWH(w * .22, h * .04, w * .56, h * .36), fill);
+    canvas.drawRect(Rect.fromLTWH(w * .22, h * .04, w * .56, h * .36),
+      Paint()..color = const Color(0xFF3E1F00)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+    // Fenêtre
+    canvas.drawRect(Rect.fromLTWH(w * .38, h * .11, w * .24, h * .20),
+      Paint()..color = const Color(0xFFFFE082)..style = PaintingStyle.fill);
+    // Plancher de la cabine
+    canvas.drawLine(Offset(w * .20, h * .40), Offset(w * .80, h * .40), stroke);
+    // Jambes
+    canvas.drawLine(Offset(w * .28, h * .40), Offset(w * .10, h * .96), stroke);
+    canvas.drawLine(Offset(w * .72, h * .40), Offset(w * .90, h * .96), stroke);
+    // Entretoise
+    canvas.drawLine(Offset(w * .12, h * .72), Offset(w * .88, h * .72),
+      Paint()..color = wood..style = PaintingStyle.stroke..strokeWidth = 1.5..strokeCap = StrokeCap.round);
+    // Échelle (deux montants + 3 barreaux)
+    final ladder = Paint()..color = wood..style = PaintingStyle.stroke..strokeWidth = 1.2..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(w * .41, h * .40), Offset(w * .41, h * .96), ladder);
+    canvas.drawLine(Offset(w * .59, h * .40), Offset(w * .59, h * .96), ladder);
+    for (final y in [.52, .64, .76]) {
+      canvas.drawLine(Offset(w * .41, h * y), Offset(w * .59, h * y), ladder);
+    }
+  }
+  @override bool shouldRepaint(_) => false;
+}
