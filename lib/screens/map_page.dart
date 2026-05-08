@@ -1596,40 +1596,7 @@ class _MapPageState extends State<MapPage> {
             child: ScaleBar(zoom: _mapZoom, lat: _mapLat),
           ),
 
-          // ── BOUTON SATELLITE ──────────────────────────────────
-          Positioned(
-            bottom: 72,
-            right: 28,
-            child: GestureDetector(
-              onTap: () => setState(() => _satellite = !_satellite),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _satellite ? const Color(0xFF4A90E2) : const Color(0xFF1A1A1A).withOpacity(0.90),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _satellite ? const Color(0xFF4A90E2) : Colors.white38),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _satellite ? 'Terrain' : 'Satellite',
-                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // ── SLIDERS ZOOM + OPACITÉ (droite) ──────────────────────
+          // ── SLIDERS ZOOM + SATELLITE (droite) ────────────────────
           Positioned(
             bottom: 20,
             right: 28,
@@ -1637,6 +1604,30 @@ class _MapPageState extends State<MapPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                // Bouton satellite
+                GestureDetector(
+                  onTap: () => setState(() => _satellite = !_satellite),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: _satellite ? const Color(0xFF4A90E2) : const Color(0xFF1A1A1A).withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _satellite ? const Color(0xFF4A90E2) : Colors.white24),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(_satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
+                            color: Colors.white, size: 18),
+                        const SizedBox(width: 6),
+                        Text(_satellite ? 'Terrain' : 'Satellite',
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
                 // Slider zoom
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
