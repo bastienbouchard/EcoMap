@@ -117,7 +117,7 @@ class TerritoireService {
               allFeatures.add(feat);
             }
           } catch (_) {
-            allFeatures.add(feat);
+            // ignore les features avec géométrie invalide
           }
         }
       } catch (e) {
