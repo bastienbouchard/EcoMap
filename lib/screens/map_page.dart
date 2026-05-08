@@ -81,6 +81,9 @@ class _MapPageState extends State<MapPage> {
   bool _recording = false;
   List<LatLng> _trackPoints = [];
   final List<({DateTime date, List<LatLng> points})> _savedTracks = [];
+  bool _showPinchPoints = false;
+  List<Map<String, dynamic>> _pinchPoints = [];
+  bool _loadingPinch = false;
   bool _showActionPanel = false;
   bool _showNavPanel = false;
 
@@ -689,6 +692,44 @@ class _MapPageState extends State<MapPage> {
     ));
   }
 
+  Future<void> _togglePinchPoints() async {
+    if (_showPinchPoints) {
+      setState(() { _showPinchPoints = false; _pinchPoints = []; });
+      return;
+    }
+    setState(() => _loadingPinch = true);
+    try {
+      final center = _mapController.camera.center;
+      final result = await compute(findPinchPointsIsolate, {
+        'lat': center.latitude,
+        'lon': center.longitude,
+        'radiusM': 3000.0,
+        'geoJson': geoJson,
+      });
+      if (!mounted) return;
+      setState(() {
+        _pinchPoints = result;
+        _showPinchPoints = true;
+        _loadingPinch = false;
+      });
+      if (result.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Aucun corridor détecté — navigue vers une zone avec eau ou coupes'),
+          backgroundColor: Color(0xFF8B4513),
+          duration: Duration(seconds: 3),
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${result.length} corridors détectés dans un rayon de 3 km'),
+          backgroundColor: const Color(0xFF4A148C),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loadingPinch = false);
+    }
+  }
+
   void _toggleRecording() {
     if (_recording) {
       final pts = List<LatLng>.from(_trackPoints);
@@ -953,6 +994,7 @@ class _MapPageState extends State<MapPage> {
               _AideItem('📍 GPS', 'Centre la carte sur ta position actuelle.'),
               _AideItem('⏺ Tracé', 'Enregistre ton déplacement GPS. Appuie sur Stop pour sauvegarder.'),
               _AideItem('! Obs.', 'Ajoute une observation terrain (frottage, traces, souille…) au centre de l\'écran.'),
+              _AideItem('🔻 Cols', 'Détecte les corridors naturels (pinch points) dans un rayon de 3 km — endroits où l\'orignal est forcé de passer.'),
               _AideItem('Slider', 'Contrôle la transparence de la couche de scoring habitat.'),
             ],
           ),
@@ -1166,6 +1208,40 @@ class _MapPageState extends State<MapPage> {
                                   fontWeight: FontWeight.bold, height: 1)),
                             ],
                           ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              // Corridors / pinch points
+              if (_showPinchPoints && _pinchPoints.isNotEmpty)
+                MarkerLayer(
+                  markers: _pinchPoints.map((p) {
+                    final pos = LatLng(p['lat'] as double, p['lon'] as double);
+                    return Marker(
+                      point: pos,
+                      width: 48,
+                      height: 48,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A1A1A),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF9C27B0), width: 2.5),
+                          boxShadow: [
+                            BoxShadow(color: const Color(0xFF9C27B0).withOpacity(0.6),
+                                blurRadius: 10, spreadRadius: 1),
+                            const BoxShadow(color: Colors.black54, blurRadius: 4),
+                          ],
+                        ),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.filter_alt, color: Color(0xFF9C27B0), size: 22),
+                            Text('col', style: TextStyle(color: Color(0xFF9C27B0),
+                                fontSize: 9, fontWeight: FontWeight.bold, height: 1)),
+                          ],
                         ),
                       ),
                     );
@@ -1388,6 +1464,15 @@ class _MapPageState extends State<MapPage> {
                             color: const Color(0xFFE53935),
                             active: _recording,
                             onTap: _toggleRecording,
+                          ),
+                          const SizedBox(height: 10),
+                          _actionBtn(
+                            icon: Icons.filter_alt,
+                            label: 'Cols',
+                            color: const Color(0xFF9C27B0),
+                            active: _showPinchPoints,
+                            loading: _loadingPinch,
+                            onTap: _togglePinchPoints,
                           ),
                         ],
                       ),
