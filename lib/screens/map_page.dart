@@ -54,6 +54,7 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   static const double _opacity = 0.7;
+  bool _satellite = false;
   final MapController _mapController = MapController();
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
   bool _loading = false;
@@ -1063,8 +1064,10 @@ class _MapPageState extends State<MapPage> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.ecomap',
+                urlTemplate: _satellite
+                    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.bastienbouchard.ecomap',
               ),
               Opacity(
                 opacity: _opacity,
@@ -1562,6 +1565,13 @@ class _MapPageState extends State<MapPage> {
                           const SizedBox(height: 10),
                           _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog),
                           const SizedBox(height: 10),
+                          _navBtn(
+                            _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
+                            _satellite ? 'Terrain' : 'Satellite',
+                            () => setState(() => _satellite = !_satellite),
+                            color: _satellite ? const Color(0xFF4A90E2) : const Color(0xFFBDBDBD),
+                          ),
+                          const SizedBox(height: 10),
                           _navBtn(Icons.download_rounded, 'Carte éco', () async {
                             await Navigator.push(context, MaterialPageRoute(builder: (_) => TerritoireDownloadPage(initialCenter: _mapController.camera.center, initialZoom: _mapController.camera.zoom)));
                             _reloadTerritoire();
@@ -1584,6 +1594,39 @@ class _MapPageState extends State<MapPage> {
             bottom: 20,
             left: 16,
             child: ScaleBar(zoom: _mapZoom, lat: _mapLat),
+          ),
+
+          // ── BOUTON SATELLITE ──────────────────────────────────
+          Positioned(
+            bottom: 72,
+            right: 28,
+            child: GestureDetector(
+              onTap: () => setState(() => _satellite = !_satellite),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _satellite ? const Color(0xFF4A90E2) : const Color(0xFF1A1A1A).withOpacity(0.90),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _satellite ? const Color(0xFF4A90E2) : Colors.white38),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _satellite ? 'Terrain' : 'Satellite',
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
 
           // ── SLIDERS ZOOM + OPACITÉ (droite) ──────────────────────

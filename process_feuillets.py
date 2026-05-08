@@ -99,6 +99,10 @@ def download_gpkg(url, tmp_dir):
 
 
 def process_feuillet(code, nom, url):
+    done_marker = os.path.join(OUTPUT_DIR, f".done_{code}")
+    if os.path.exists(done_marker):
+        print(f"\n=== {code} - {nom} — déjà fait, ignoré ===", flush=True)
+        return
     print(f"\n=== {code} - {nom} ===", flush=True)
     with tempfile.TemporaryDirectory() as tmp:
         gpkg = download_gpkg(url, tmp)
@@ -137,6 +141,7 @@ def process_feuillet(code, nom, url):
                 lat += TILE_SIZE
             lon += TILE_SIZE
         print(f"  {tile_count} tuiles créées pour {code}", flush=True)
+        open(done_marker, 'w').close()  # marque ce feuillet comme terminé
 
 
 def main():

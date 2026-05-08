@@ -33,7 +33,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     final bounds = _mapController.camera.visibleBounds;
 
     final nomCtrl = TextEditingController(
-      text: 'Zone ${DateTime.now().day}-${DateTime.now().month}',
+      text: 'Zone ${DateTime.now().day}-${DateTime.now().month}_${DateTime.now().hour}h${DateTime.now().minute.toString().padLeft(2,'0')}',
     );
 
     final nom = await showDialog<String>(
