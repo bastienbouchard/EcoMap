@@ -18,6 +18,7 @@ import '../widgets/scale_bar.dart';
 import '../widgets/hotspot_detail_sheet.dart';
 import 'about_page.dart';
 import 'territoire_download_page.dart';
+import '../services/territoire_service.dart';
 import 'chat_page.dart';
 import 'meteo_page.dart';
 import 'navigation_page.dart';
@@ -693,6 +694,16 @@ class _MapPageState extends State<MapPage> {
       backgroundColor: spots.isEmpty ? const Color(0xFF8B4513) : const Color(0xFF2D5016),
       duration: const Duration(seconds: 2),
     ));
+  }
+
+  Future<void> _reloadTerritoire() async {
+    final list = await TerritoireService.listTerritoires();
+    if (list.isEmpty || !mounted) return;
+    final data = await TerritoireService.loadTerritoire(list.last['id'] as String);
+    if (data == null || !mounted) return;
+    geoJson = data;
+    final polys = await compute(buildPolygonsIsolate, geoJson);
+    if (mounted) setState(() => _polygonsCache = polys);
   }
 
   Future<void> _togglePinchPoints() async {
@@ -1549,7 +1560,10 @@ class _MapPageState extends State<MapPage> {
                           const SizedBox(height: 10),
                           _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog),
                           const SizedBox(height: 10),
-                          _navBtn(Icons.download_rounded, 'Territoire', () => Navigator.push(context, MaterialPageRoute(builder: (_) => TerritoireDownloadPage(initialCenter: _mapController.camera.center, initialZoom: _mapController.camera.zoom)))),
+                          _navBtn(Icons.download_rounded, 'Territoire', () async {
+                            await Navigator.push(context, MaterialPageRoute(builder: (_) => TerritoireDownloadPage(initialCenter: _mapController.camera.center, initialZoom: _mapController.camera.zoom)));
+                            _reloadTerritoire();
+                          }),
                           const SizedBox(height: 10),
                           _navBtn(Icons.info_outline_rounded, 'À propos', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()))),
                           const SizedBox(height: 10),
