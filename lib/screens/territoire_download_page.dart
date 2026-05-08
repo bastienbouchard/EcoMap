@@ -112,7 +112,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               children: [
                 FlutterMap(
                   mapController: _mapController,
-                  options: const MapOptions(
+                  options: MapOptions(
                     initialCenter: widget.initialCenter,
                     initialZoom: widget.initialZoom,
                   ),
