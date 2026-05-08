@@ -79,7 +79,7 @@ class TerritoireService {
     int done = 0;
 
     for (final tile in tiles) {
-      onStatus?.call('Tuile $tile (${done + 1}/${tiles.length})...');
+      onStatus?.call('Secteur ${done + 1} sur ${tiles.length} — téléchargement...');
       try {
         final url = Uri.parse('$_cdnBase/$tile');
         final resp = await http.get(url).timeout(const Duration(seconds: 30));
