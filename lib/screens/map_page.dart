@@ -721,7 +721,7 @@ class _MapPageState extends State<MapPage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('${result.length} corridors détectés dans un rayon de 3 km'),
-          backgroundColor: const Color(0xFF4A148C),
+          backgroundColor: const Color(0xFF2D5016),
           duration: const Duration(seconds: 2),
         ));
       }
@@ -761,32 +761,13 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  Widget _obsBtn() {
-    return GestureDetector(
-      onTap: _addObservation,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: const Color(0xFF2D2D2D),
-              borderRadius: BorderRadius.circular(25),
-              border: Border.all(color: const Color(0xFFFFB347).withOpacity(0.5)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
-            ),
-            child: const Center(
-              child: Text('!', style: TextStyle(color: Color(0xFFFFB347),
-                  fontSize: 28, fontWeight: FontWeight.bold, height: 1)),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text('Obs.', style: TextStyle(color: Color(0xFFFFB347), fontSize: 10)),
-        ],
-      ),
-    );
-  }
+  Widget _obsBtn() => _actionBtn(
+    icon: Icons.push_pin_rounded,
+    label: 'Obs.',
+    color: const Color(0xFFFF6B35),
+    active: false,
+    onTap: _addObservation,
+  );
 
   Widget _actionBtn({
     required IconData icon,
@@ -1010,7 +991,7 @@ class _MapPageState extends State<MapPage> {
   }
 
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
-      {Color color = const Color(0xFFFF6B35)}) {
+      {Color color = const Color(0xFFBDBDBD)}) {
     return GestureDetector(
       onTap: () {
         setState(() { _showActionPanel = false; _showNavPanel = false; });
@@ -1228,9 +1209,9 @@ class _MapPageState extends State<MapPage> {
                         decoration: BoxDecoration(
                           color: const Color(0xFF1A1A1A),
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF9C27B0), width: 2.5),
+                          border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
                           boxShadow: [
-                            BoxShadow(color: const Color(0xFF9C27B0).withOpacity(0.6),
+                            BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.5),
                                 blurRadius: 10, spreadRadius: 1),
                             const BoxShadow(color: Colors.black54, blurRadius: 4),
                           ],
@@ -1238,8 +1219,8 @@ class _MapPageState extends State<MapPage> {
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.filter_alt, color: Color(0xFF9C27B0), size: 22),
-                            Text('col', style: TextStyle(color: Color(0xFF9C27B0),
+                            Icon(Icons.filter_alt, color: Color(0xFF4CAF50), size: 22),
+                            Text('col', style: TextStyle(color: Color(0xFF4CAF50),
                                 fontSize: 9, fontWeight: FontWeight.bold, height: 1)),
                           ],
                         ),
@@ -1425,7 +1406,7 @@ class _MapPageState extends State<MapPage> {
                           _actionBtn(
                             icon: Icons.route_rounded,
                             label: 'Parcours',
-                            color: const Color(0xFF5A8A1E),
+                            color: const Color(0xFF4CAF50),
                             active: _showParcours,
                             loading: _loadingParcours,
                             onTap: _showParcours
@@ -1434,28 +1415,20 @@ class _MapPageState extends State<MapPage> {
                           ),
                           const SizedBox(height: 10),
                           _actionBtn(
+                            icon: Icons.filter_alt,
+                            label: 'Cols',
+                            color: const Color(0xFF4CAF50),
+                            active: _showPinchPoints,
+                            loading: _loadingPinch,
+                            onTap: _togglePinchPoints,
+                          ),
+                          const SizedBox(height: 10),
+                          _actionBtn(
                             icon: Icons.people,
                             label: 'Groupe',
-                            color: const Color(0xFF4A90E2),
+                            color: const Color(0xFFFF6B35),
                             active: _groupeActif,
                             onTap: _sharePosition,
-                          ),
-                          const SizedBox(height: 10),
-                          _actionBtn(
-                            icon: Icons.explore,
-                            label: 'Nord',
-                            color: const Color(0xFF00BCD4),
-                            active: false,
-                            onTap: _resetNorth,
-                          ),
-                          const SizedBox(height: 10),
-                          _actionBtn(
-                            icon: Icons.my_location,
-                            label: 'GPS',
-                            color: const Color(0xFF8BC34A),
-                            active: false,
-                            loading: _loading,
-                            onTap: _goToCurrentLocation,
                           ),
                           const SizedBox(height: 10),
                           _actionBtn(
@@ -1467,12 +1440,20 @@ class _MapPageState extends State<MapPage> {
                           ),
                           const SizedBox(height: 10),
                           _actionBtn(
-                            icon: Icons.filter_alt,
-                            label: 'Cols',
-                            color: const Color(0xFF9C27B0),
-                            active: _showPinchPoints,
-                            loading: _loadingPinch,
-                            onTap: _togglePinchPoints,
+                            icon: Icons.my_location,
+                            label: 'GPS',
+                            color: const Color(0xFFBDBDBD),
+                            active: false,
+                            loading: _loading,
+                            onTap: _goToCurrentLocation,
+                          ),
+                          const SizedBox(height: 10),
+                          _actionBtn(
+                            icon: Icons.explore,
+                            label: 'Nord',
+                            color: const Color(0xFFBDBDBD),
+                            active: false,
+                            onTap: _resetNorth,
                           ),
                         ],
                       ),
@@ -1482,7 +1463,7 @@ class _MapPageState extends State<MapPage> {
                   GestureDetector(
                     onTap: () => setState(() => _showActionPanel = !_showActionPanel),
                     child: Container(
-                      width: 22,
+                      width: 28,
                       height: 64,
                       decoration: BoxDecoration(
                         color: const Color(0xFF2D2D2D).withOpacity(0.92),
@@ -1521,7 +1502,7 @@ class _MapPageState extends State<MapPage> {
                   GestureDetector(
                     onTap: () => setState(() => _showNavPanel = !_showNavPanel),
                     child: Container(
-                      width: 22,
+                      width: 28,
                       height: 64,
                       decoration: BoxDecoration(
                         color: const Color(0xFF2D2D2D).withOpacity(0.88),
@@ -1561,15 +1542,15 @@ class _MapPageState extends State<MapPage> {
                             longitude: _currentPosition.longitude,
                             windDeg: _windDeg,
                             windSpeed: _windSpeed,
-                          ))), color: const Color(0xFF87CEEB)),
+                          )))),
                           const SizedBox(height: 10),
-                          _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog, color: const Color(0xFFE53935)),
+                          _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog),
                           const SizedBox(height: 10),
-                          _navBtn(Icons.download_rounded, 'Territoire', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TerritoireDownloadPage())), color: const Color(0xFF4CAF50)),
+                          _navBtn(Icons.download_rounded, 'Territoire', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TerritoireDownloadPage()))),
                           const SizedBox(height: 10),
-                          _navBtn(Icons.info_outline_rounded, 'À propos', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage())), color: const Color(0xFFFFB347)),
+                          _navBtn(Icons.info_outline_rounded, 'À propos', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()))),
                           const SizedBox(height: 10),
-                          _navBtn(Icons.help_outline_rounded, 'Aide', _showAide, color: const Color(0xFF9C27B0)),
+                          _navBtn(Icons.help_outline_rounded, 'Aide', _showAide),
                         ],
                       ),
                     ),
