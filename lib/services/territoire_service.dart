@@ -4,13 +4,41 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
-const _functionUrl =
-    'https://us-central1-moosesense-a84cf.cloudfunctions.net/get_ecoforestier';
+const _cdnBase = 'https://pub-5c51ef289e6943dbb647c2a2d1baa3bf.r2.dev';
 
 class TerritoireService {
   static Future<String> _territoirePath(String id) async {
     final dir = await getApplicationDocumentsDirectory();
     return '${dir.path}/territoires/$id.geojson';
+  }
+
+  // Construit le nom de tuile pour une cellule 0.5° x 0.5°
+  static String _tileName(double lat, double lon) {
+    final latFloor = (lat * 2).floor() / 2;
+    final lonFloor = (lon * 2).floor() / 2;
+    final latInt = latFloor.floor();
+    final latFrac = ((latFloor - latInt) * 10).round();
+    final lonAbs = lonFloor.abs();
+    final lonInt = lonAbs.floor();
+    final lonFrac = ((lonAbs - lonInt) * 10).round();
+    final lonSign = lon < 0 ? 'm' : '';
+    return '${latInt}d${latFrac}_$lonSign${lonInt}d$lonFrac.geojson.gz';
+  }
+
+  // Retourne toutes les tuiles qui couvrent le bounding box
+  static List<String> _tilesForBbox(
+      double minLat, double minLon, double maxLat, double maxLon) {
+    final tiles = <String>[];
+    var lat = (minLat * 2).floor() / 2.0;
+    while (lat <= maxLat) {
+      var lon = (minLon * 2).floor() / 2.0;
+      while (lon <= maxLon) {
+        tiles.add(_tileName(lat, lon));
+        lon += 0.5;
+      }
+      lat += 0.5;
+    }
+    return tiles;
   }
 
   static Future<List<Map<String, dynamic>>> listTerritoires() async {
@@ -46,27 +74,62 @@ class TerritoireService {
     required double maxLon,
     void Function(String)? onStatus,
   }) async {
-    onStatus?.call('Connexion au serveur...');
+    final tiles = _tilesForBbox(minLat, minLon, maxLat, maxLon);
+    final allFeatures = <dynamic>[];
+    int done = 0;
 
-    final uri = Uri.parse(_functionUrl).replace(queryParameters: {
-      'min_lat': minLat.toString(),
-      'min_lon': minLon.toString(),
-      'max_lat': maxLat.toString(),
-      'max_lon': maxLon.toString(),
-    });
+    for (final tile in tiles) {
+      onStatus?.call('Tuile $tile (${done + 1}/${tiles.length})...');
+      try {
+        final url = Uri.parse('$_cdnBase/$tile');
+        final resp = await http.get(url).timeout(const Duration(seconds: 30));
+        if (resp.statusCode == 404) { done++; continue; } // tuile vide/inexistante
+        if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode} pour $tile');
 
-    onStatus?.call('Téléchargement des polygones forestiers...');
-    final resp = await http.get(uri).timeout(const Duration(minutes: 10));
+        // Décompresse gzip
+        final bytes = resp.bodyBytes;
+        final decompressed = gzip.decode(bytes);
+        final jsonStr = utf8.decode(decompressed);
+        final data = json.decode(jsonStr) as Map<String, dynamic>;
+        final features = data['features'] as List? ?? [];
 
-    if (resp.statusCode != 200) {
-      throw Exception('Erreur serveur: ${resp.statusCode}');
+        // Filtre: garde seulement les polygones dans le bbox exact
+        for (final feat in features) {
+          try {
+            final geom = feat['geometry'] as Map;
+            final coords = geom['type'] == 'Polygon'
+                ? (geom['coordinates'] as List)[0] as List
+                : ((geom['coordinates'] as List)[0] as List)[0] as List;
+            final lon = (coords[0][0] as num).toDouble();
+            final lat = (coords[0][1] as num).toDouble();
+            if (lat >= minLat && lat <= maxLat &&
+                lon >= minLon && lon <= maxLon) {
+              allFeatures.add(feat);
+            }
+          } catch (_) {
+            allFeatures.add(feat); // garde si on peut pas filtrer
+          }
+        }
+      } catch (e) {
+        // Tuile non disponible — on continue
+      }
+      done++;
     }
 
-    onStatus?.call('Sauvegarde locale...');
+    if (allFeatures.isEmpty) {
+      throw Exception('Aucune donnée forestière dans cette zone — essaie une zone du Québec couverte');
+    }
+
+    onStatus?.call('Sauvegarde (${allFeatures.length} polygones)...');
+    final geojson = json.encode({
+      'type': 'FeatureCollection',
+      'features': allFeatures,
+    });
+
     final path = await _territoirePath(nom);
     final file = File(path);
     await file.parent.create(recursive: true);
-    await file.writeAsString(resp.body);
+    await file.writeAsString(geojson);
     onStatus?.call('Terminé !');
   }
 
