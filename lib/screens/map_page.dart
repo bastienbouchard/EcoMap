@@ -1603,13 +1603,14 @@ class _MapPageState extends State<MapPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.zoom_in, color: Colors.white70, size: 16),
+                      const Icon(Icons.zoom_in, color: Colors.white, size: 22),
+                      const SizedBox(width: 4),
                       SizedBox(
-                        width: 120,
-                        height: 28,
+                        width: 110,
+                        height: 32,
                         child: ClipRect(
                           child: OverflowBox(
-                            maxHeight: 52,
+                            maxHeight: 56,
                             alignment: Alignment.center,
                             child: SliderTheme(
                               data: SliderThemeData(
@@ -1617,8 +1618,8 @@ class _MapPageState extends State<MapPage> {
                                 inactiveTrackColor: Colors.white24,
                                 thumbColor: Colors.white,
                                 overlayShape: SliderComponentShape.noOverlay,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+                                trackHeight: 4,
                               ),
                               child: Slider(
                                 value: _mapZoom.clamp(8.0, 19.0),
@@ -1635,7 +1636,7 @@ class _MapPageState extends State<MapPage> {
                       ),
                       Text(
                         'z${_mapZoom.round()}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12,
+                        style: const TextStyle(color: Colors.white, fontSize: 14,
                             fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -1653,13 +1654,14 @@ class _MapPageState extends State<MapPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.layers, color: Colors.white70, size: 16),
+                      const Icon(Icons.layers, color: Colors.white, size: 22),
+                      const SizedBox(width: 4),
                       SizedBox(
-                        width: 120,
-                        height: 28,
+                        width: 110,
+                        height: 32,
                         child: ClipRect(
                           child: OverflowBox(
-                            maxHeight: 52,
+                            maxHeight: 56,
                             alignment: Alignment.center,
                             child: SliderTheme(
                               data: SliderThemeData(
@@ -1667,8 +1669,8 @@ class _MapPageState extends State<MapPage> {
                                 inactiveTrackColor: Colors.white24,
                                 thumbColor: Colors.white,
                                 overlayShape: SliderComponentShape.noOverlay,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+                                trackHeight: 4,
                               ),
                               child: Slider(
                                 value: _opacity,
@@ -1682,7 +1684,7 @@ class _MapPageState extends State<MapPage> {
                       ),
                       Text(
                         '${(_opacity * 100).round()}%',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12,
+                        style: const TextStyle(color: Colors.white, fontSize: 14,
                             fontWeight: FontWeight.bold),
                       ),
                     ],
