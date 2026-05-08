@@ -1549,7 +1549,7 @@ class _MapPageState extends State<MapPage> {
                           const SizedBox(height: 10),
                           _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog),
                           const SizedBox(height: 10),
-                          _navBtn(Icons.download_rounded, 'Territoire', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TerritoireDownloadPage()))),
+                          _navBtn(Icons.download_rounded, 'Territoire', () => Navigator.push(context, MaterialPageRoute(builder: (_) => TerritoireDownloadPage(initialCenter: _mapController.camera.center, initialZoom: _mapController.camera.zoom)))),
                           const SizedBox(height: 10),
                           _navBtn(Icons.info_outline_rounded, 'À propos', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()))),
                           const SizedBox(height: 10),

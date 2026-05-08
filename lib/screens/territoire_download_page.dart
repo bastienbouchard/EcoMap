@@ -4,7 +4,9 @@ import 'package:latlong2/latlong.dart';
 import '../services/territoire_service.dart';
 
 class TerritoireDownloadPage extends StatefulWidget {
-  const TerritoireDownloadPage({super.key});
+  final LatLng initialCenter;
+  final double initialZoom;
+  const TerritoireDownloadPage({super.key, required this.initialCenter, required this.initialZoom});
 
   @override
   State<TerritoireDownloadPage> createState() => _TerritoireDownloadPageState();
@@ -111,8 +113,8 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                 FlutterMap(
                   mapController: _mapController,
                   options: const MapOptions(
-                    initialCenter: LatLng(48.29, -71.32),
-                    initialZoom: 10,
+                    initialCenter: widget.initialCenter,
+                    initialZoom: widget.initialZoom,
                   ),
                   children: [
                     TileLayer(

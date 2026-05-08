@@ -33,6 +33,33 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    window.ecoMapDecompressGzip = function(bytes, onSuccess, onError) {
+      try {
+        const ds = new DecompressionStream('gzip');
+        const writer = ds.writable.getWriter();
+        const reader = ds.readable.getReader();
+        writer.write(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+        writer.close();
+        const chunks = [];
+        function pump() {
+          return reader.read().then(function(r) {
+            if (r.done) {
+              const total = chunks.reduce(function(a, c) { return a + c.length; }, 0);
+              const all = new Uint8Array(total);
+              let off = 0;
+              for (const c of chunks) { all.set(c, off); off += c.length; }
+              onSuccess(new TextDecoder().decode(all));
+            } else {
+              chunks.push(r.value);
+              return pump();
+            }
+          });
+        }
+        pump().catch(function(e) { onError(String(e)); });
+      } catch(e) { onError(String(e)); }
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

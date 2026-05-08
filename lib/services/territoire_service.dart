@@ -1,10 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show Directory, File;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'gzip_helper.dart';
 
 const _cdnBase = 'https://pub-5c51ef289e6943dbb647c2a2d1baa3bf.r2.dev';
+
+final Map<String, Map<String, dynamic>> _webCache = {};
 
 class TerritoireService {
   static Future<String> _territoirePath(String id) async {
@@ -12,7 +15,6 @@ class TerritoireService {
     return '${dir.path}/territoires/$id.geojson';
   }
 
-  // Construit le nom de tuile pour une cellule 0.5° x 0.5°
   static String _tileName(double lat, double lon) {
     final latFloor = (lat * 2).floor() / 2;
     final lonFloor = (lon * 2).floor() / 2;
@@ -25,7 +27,6 @@ class TerritoireService {
     return '${latInt}d${latFrac}_$lonSign${lonInt}d$lonFrac.geojson.gz';
   }
 
-  // Retourne toutes les tuiles qui couvrent le bounding box
   static List<String> _tilesForBbox(
       double minLat, double minLon, double maxLat, double maxLon) {
     final tiles = <String>[];
@@ -42,7 +43,9 @@ class TerritoireService {
   }
 
   static Future<List<Map<String, dynamic>>> listTerritoires() async {
-    if (kIsWeb) return [];
+    if (kIsWeb) {
+      return _webCache.keys.map((k) => {'id': k, 'taille_mb': '?'}).toList();
+    }
     final dir = await getApplicationDocumentsDirectory();
     final folder = Directory('${dir.path}/territoires');
     if (!folder.existsSync()) return [];
@@ -59,7 +62,7 @@ class TerritoireService {
   }
 
   static Future<Map<String, dynamic>?> loadTerritoire(String id) async {
-    if (kIsWeb) return null;
+    if (kIsWeb) return _webCache[id];
     final path = await _territoirePath(id);
     final file = File(path);
     if (!file.existsSync()) return null;
@@ -77,7 +80,6 @@ class TerritoireService {
     final tiles = _tilesForBbox(minLat, minLon, maxLat, maxLon);
     final allFeatures = <dynamic>[];
     int done = 0;
-
     final errors = <String>[];
 
     for (final tile in tiles) {
@@ -92,13 +94,11 @@ class TerritoireService {
           continue;
         }
 
-        // Décompresse gzip — si déjà décompressé par le client, essaie directement
         String jsonStr;
         try {
-          final decompressed = gzip.decode(resp.bodyBytes);
-          jsonStr = utf8.decode(decompressed);
+          jsonStr = await decompressGzip(resp.bodyBytes);
         } catch (_) {
-          jsonStr = resp.body; // fallback: déjà décompressé
+          jsonStr = resp.body;
         }
 
         final data = json.decode(jsonStr) as Map<String, dynamic>;
@@ -131,22 +131,28 @@ class TerritoireService {
       throw Exception('Aucune donnée dans cette zone.$detail');
     }
 
-
     onStatus?.call('Sauvegarde (${allFeatures.length} polygones)...');
-    final geojson = json.encode({
+    final geojson = {
       'type': 'FeatureCollection',
       'features': allFeatures,
-    });
+    };
 
-    final path = await _territoirePath(nom);
-    final file = File(path);
-    await file.parent.create(recursive: true);
-    await file.writeAsString(geojson);
+    if (kIsWeb) {
+      _webCache[nom] = geojson;
+    } else {
+      final path = await _territoirePath(nom);
+      final file = File(path);
+      await file.parent.create(recursive: true);
+      await file.writeAsString(json.encode(geojson));
+    }
     onStatus?.call('Terminé !');
   }
 
   static Future<void> deleteTerritoire(String id) async {
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      _webCache.remove(id);
+      return;
+    }
     final path = await _territoirePath(id);
     final file = File(path);
     if (file.existsSync()) file.deleteSync();
