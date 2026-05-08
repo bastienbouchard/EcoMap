@@ -93,26 +93,13 @@ class _MapPageState extends State<MapPage> {
     super.initState();
     _initLocation();
     _fetchWind();
-    // Tracé de test pour l'émulateur
-    _savedTracks.add((
-      date: DateTime(2026, 4, 25, 8, 30),
-      points: [
-        const LatLng(48.2917, -71.3220),
-        const LatLng(48.2924, -71.3202),
-        const LatLng(48.2933, -71.3185),
-        const LatLng(48.2942, -71.3170),
-        const LatLng(48.2951, -71.3175),
-        const LatLng(48.2958, -71.3195),
-        const LatLng(48.2963, -71.3225),
-        const LatLng(48.2955, -71.3258),
-        const LatLng(48.2943, -71.3272),
-        const LatLng(48.2929, -71.3265),
-        const LatLng(48.2917, -71.3240),
-        const LatLng(48.2917, -71.3220),
-      ],
-    ));
-    // Calculs lourds dans des isolates background — ne bloque plus le thread UI
-    Future.delayed(const Duration(seconds: 3), () {
+    // Charge le territoire téléchargé s'il existe, sinon utilise le bundlé
+    Future.delayed(const Duration(seconds: 3), () async {
+      final list = await TerritoireService.listTerritoires();
+      if (list.isNotEmpty) {
+        final data = await TerritoireService.loadTerritoire(list.last['id'] as String);
+        if (data != null) geoJson = data;
+      }
       compute(buildPolygonsIsolate, geoJson).then((polys) {
         if (mounted) setState(() => _polygonsCache = polys);
       });
