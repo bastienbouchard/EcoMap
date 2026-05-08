@@ -53,7 +53,7 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  double _opacity = 0.5;
+  static const double _opacity = 0.7;
   final MapController _mapController = MapController();
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
   bool _loading = false;
@@ -1074,7 +1074,7 @@ class _MapPageState extends State<MapPage> {
                   maxNativeZoom: mbtilesMaxZoom,
                 ),
               ),
-              if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _opacity > 0.02)
+              if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
                 PolygonLayer(polygons: _polygonsCache, simplificationTolerance: 0),
               if (_polygonLabels.isNotEmpty && _mapZoom >= 14)
                 MarkerLayer(markers: _polygonLabels.map((l) => Marker(
@@ -1091,9 +1091,9 @@ class _MapPageState extends State<MapPage> {
                     Polyline(
                       points: _parcours,
                       color: const Color(0xFFFF6B35),
-                      strokeWidth: 5,
+                      strokeWidth: 7,
                       borderColor: Colors.white,
-                      borderStrokeWidth: 1,
+                      borderStrokeWidth: 2,
                     ),
                   ],
                 ),
@@ -1103,9 +1103,9 @@ class _MapPageState extends State<MapPage> {
                     Polyline(
                       points: _trackPoints,
                       color: const Color(0xFFE53935),
-                      strokeWidth: 4,
+                      strokeWidth: 6,
                       borderColor: Colors.white,
-                      borderStrokeWidth: 1,
+                      borderStrokeWidth: 2,
                     ),
                   ],
                 ),
@@ -1638,54 +1638,6 @@ class _MapPageState extends State<MapPage> {
                       ),
                       Text(
                         'z${_mapZoom.round()}',
-                        style: const TextStyle(color: Colors.white, fontSize: 14,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Slider opacité
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.layers, color: Colors.white, size: 22),
-                      const SizedBox(width: 4),
-                      SizedBox(
-                        width: 110,
-                        height: 32,
-                        child: ClipRect(
-                          child: OverflowBox(
-                            maxHeight: 56,
-                            alignment: Alignment.center,
-                            child: SliderTheme(
-                              data: SliderThemeData(
-                                activeTrackColor: const Color(0xFFFF6B35),
-                                inactiveTrackColor: Colors.white24,
-                                thumbColor: Colors.white,
-                                overlayShape: SliderComponentShape.noOverlay,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-                                trackHeight: 4,
-                              ),
-                              child: Slider(
-                                value: _opacity,
-                                min: 0.0,
-                                max: 1.0,
-                                onChanged: (val) => setState(() => _opacity = val),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${(_opacity * 100).round()}%',
                         style: const TextStyle(color: Colors.white, fontSize: 14,
                             fontWeight: FontWeight.bold),
                       ),
