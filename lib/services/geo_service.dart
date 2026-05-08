@@ -319,9 +319,9 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
     }
 
-    // Contrainte principale : ±90° autour du vent (jamais dans le dos).
-    // Sur lisière F↔B forte : jusqu'à ±120° pour longer l'edge perpendiculairement.
-    final maxDelta = nearStrongEdge ? 120.0 : 90.0;
+    // Contrainte principale : ±60° autour du vent de face (vent de face ou légèrement de côté).
+    // Sur lisière F↔B forte : jusqu'à ±80° pour longer l'edge sans perdre l'avantage du vent.
+    final maxDelta = nearStrongEdge ? 80.0 : 60.0;
 
     int bestScore = -1;
     double? bestLat, bestLon;
@@ -357,7 +357,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
 
       // 2. Bonus vent : face au vent = max, perpendiculaire = 0
-      final windBonus = ((90 - angleDelta.abs()) / 90 * 4).round().clamp(0, 4);
+      final windBonus = ((60 - angleDelta.abs()) / 60 * 5).round().clamp(0, 5);
 
       // 3. Bonus hotspot : préfère les angles du cône ±90° qui rapprochent d'un hotspot
       int hotspotBonus = 0;
