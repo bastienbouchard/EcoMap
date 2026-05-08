@@ -87,8 +87,6 @@ int scoreOrignal(Map props) {
 
 Color polygonColor(Map props) {
   final score = scoreOrignal(props);
-  if (score < 1) return Colors.transparent;
-
   final couv    = (props['type_couv'] ?? '').toString().toUpperCase();
   final origine = (props['origine']   ?? '').toString().toUpperCase();
   final age     = (props['cl_age']    ?? '').toString().toUpperCase();
@@ -96,8 +94,18 @@ Color polygonColor(Map props) {
   final depSur  = (props['dep_sur']   ?? '').toString();
   final typeEco = (props['type_eco']  ?? '').toString().toUpperCase();
 
-  // Opacité proportionnelle au score (0.3 → 0.85)
-  final opacity = (0.3 + score.clamp(0, 20) / 20 * 0.55).clamp(0.3, 0.85);
+  // Toujours cacher les zones vraiment non-forestières ou pénalisées
+  final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+  if (typeEco.contains('EAU') || codeCouv == 'EE') return Colors.transparent;
+  if (typeEco.contains('URB') || typeEco.contains('AGR')) return Colors.transparent;
+
+  // Si aucun type de couvert connu ET score nul → transparent
+  if (couv.isEmpty && score < 1) return Colors.transparent;
+
+  // Opacité proportionnelle au score — minimum 0.25 pour ne pas disparaître
+  final opacity = score >= 1
+      ? (0.35 + score.clamp(0, 20) / 20 * 0.50).clamp(0.35, 0.85)
+      : 0.25;
 
   // Coupe / régénération → blanc
   if (origine == 'CP' || origine == 'BR' ||
@@ -121,8 +129,10 @@ Color polygonColor(Map props) {
   // Résineux → vert foncé
   if (couv == 'R') return const Color(0xFF1B5E20).withOpacity(opacity);
 
-  // Autre → vert neutre discret
-  return const Color(0xFF5A8A1E).withOpacity(opacity * 0.4);
+  // Autre couvert avec score > 0 → vert neutre discret
+  if (score > 0) return const Color(0xFF5A8A1E).withOpacity(0.25);
+
+  return Colors.transparent;
 }
 
 // ── GÉOMÉTRIE ──────────────────────────────────────────────────────────────
@@ -447,11 +457,10 @@ List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
   for (final feat in features) {
     try {
       final props = feat['properties'] as Map;
-      final score = scoreOrignal(props);
-      if (score < 1) continue;
+      final color = polygonColor(props);
+      if (color == Colors.transparent) continue;
       final geom = feat['geometry'];
       final type = geom['type'];
-      final color = polygonColor(props);
       List<List<LatLng>> rings = [];
       if (type == 'Polygon') {
         for (final ring in geom['coordinates']) {

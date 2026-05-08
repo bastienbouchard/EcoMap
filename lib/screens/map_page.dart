@@ -1573,13 +1573,6 @@ class _MapPageState extends State<MapPage> {
                           const SizedBox(height: 10),
                           _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog),
                           const SizedBox(height: 10),
-                          _navBtn(
-                            _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
-                            _satellite ? 'Terrain' : 'Satellite',
-                            () => setState(() => _satellite = !_satellite),
-                            color: _satellite ? const Color(0xFF4A90E2) : const Color(0xFFBDBDBD),
-                          ),
-                          const SizedBox(height: 10),
                           _navBtn(Icons.download_rounded, 'Carte éco', () async {
                             await Navigator.push(context, MaterialPageRoute(builder: (_) => TerritoireDownloadPage(initialCenter: _mapController.camera.center, initialZoom: _mapController.camera.zoom)));
                             _reloadTerritoire();
