@@ -1082,10 +1082,10 @@ class _MapPageState extends State<MapPage> {
               if (_polygonLabels.isNotEmpty && _mapZoom >= 14)
                 MarkerLayer(markers: _polygonLabels.map((l) => Marker(
                   point: LatLng(l['lat'] as double, l['lon'] as double),
-                  width: 40, height: 14,
+                  width: 60, height: 20,
                   child: Text(l['label'] as String,
-                    style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold,
-                      shadows: [Shadow(color: Colors.black, blurRadius: 2)]),
+                    style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold,
+                      shadows: [Shadow(color: Colors.black, blurRadius: 3), Shadow(color: Colors.black, blurRadius: 6)]),
                     textAlign: TextAlign.center, overflow: TextOverflow.clip),
                 )).toList()),
               if (_showParcours && _parcours.isNotEmpty)
