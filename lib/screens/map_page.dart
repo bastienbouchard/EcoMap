@@ -97,18 +97,6 @@ class _MapPageState extends State<MapPage> {
     Future.delayed(const Duration(seconds: 1), () async {
       await _reloadTerritoire();
     });
-    compute(buildHotspotsDataIsolate, geoJson).then((raw) {
-      if (mounted) {
-        setState(() {
-          _rawHotspots = raw.map((e) => HotspotInfo(
-            position: LatLng(e['la'] as double, e['lo'] as double),
-            score: e['s'] as int,
-            props: e['p'] as Map,
-          )).toList();
-          if (_showHotspots) _hotspots = _computeHotspots();
-        });
-      }
-    });
   }
 
   Future<void> _initLocation() async {
@@ -692,7 +680,19 @@ class _MapPageState extends State<MapPage> {
     geoJson = {'type': 'FeatureCollection', 'features': allFeatures};
     final polys = await compute(buildPolygonsIsolate, geoJson);
     final labels = await compute(buildPolygonLabelsIsolate, geoJson);
-    if (mounted) setState(() { _polygonsCache = polys; _polygonLabels = labels; });
+    final rawHS = await compute(buildHotspotsDataIsolate, geoJson);
+    if (!mounted) return;
+    final parsedHS = rawHS.map((e) => HotspotInfo(
+      position: LatLng(e['la'] as double, e['lo'] as double),
+      score: e['s'] as int,
+      props: e['p'] as Map,
+    )).toList();
+    setState(() {
+      _polygonsCache = polys;
+      _polygonLabels = labels;
+      _rawHotspots = parsedHS;
+      if (_showHotspots) _hotspots = _computeHotspots();
+    });
   }
 
   Future<void> _togglePinchPoints() async {
