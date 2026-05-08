@@ -574,11 +574,32 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
 
 List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJsonData) {
   final features = geoJsonData['features'] as List;
+
+  // Pré-calcul des centroïdes des plans d'eau
+  final List<List<double>> waterCentroids = [];
+  for (final feat in features) {
+    try {
+      final props = feat['properties'] as Map;
+      final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+      final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+      if (!typeEco.contains('EAU') && codeCouv != 'EE' && !typeEco.contains('RIV')) continue;
+      final geom = feat['geometry'] as Map;
+      final type = geom['type'];
+      List<dynamic> ring;
+      if (type == 'Polygon') ring = geom['coordinates'][0] as List;
+      else if (type == 'MultiPolygon') ring = geom['coordinates'][0][0] as List;
+      else continue;
+      double sLat = 0, sLon = 0;
+      for (final c in ring) { sLon += (c[0] as num).toDouble(); sLat += (c[1] as num).toDouble(); }
+      waterCentroids.add([sLat / ring.length, sLon / ring.length]);
+    } catch (_) {}
+  }
+
   final List<Map<String, dynamic>> result = [];
   for (final feat in features) {
     try {
       final props = feat['properties'] as Map;
-      final score = scoreOrignal(props);
+      int score = scoreOrignal(props);
       if (score < 3) continue;
       final geom = feat['geometry'] as Map;
       final type = geom['type'];
@@ -593,10 +614,26 @@ List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJson
         sumLon += (c[0] as num).toDouble();
         sumLat += (c[1] as num).toDouble();
       }
+      final lat = sumLat / ring.length;
+      final lon = sumLon / ring.length;
+
+      // Bonus proximité eau (même logique que parcours)
+      if (waterCentroids.isNotEmpty) {
+        double minSqDist = double.infinity;
+        for (final wc in waterCentroids) {
+          final d = (lat - wc[0]) * (lat - wc[0]) + (lon - wc[1]) * (lon - wc[1]);
+          if (d < minSqDist) minSqDist = d;
+        }
+        final degDist = sqrt(minSqDist);
+        if (degDist < 150.0 / 111000) score += 8;
+        else if (degDist < 400.0 / 111000) score += 4;
+        else if (degDist < 800.0 / 111000) score += 2;
+      }
+
       result.add({
         's': score,
-        'la': sumLat / ring.length,
-        'lo': sumLon / ring.length,
+        'la': lat,
+        'lo': lon,
         'p': Map<String, dynamic>.from(props),
       });
     } catch (e) {}
