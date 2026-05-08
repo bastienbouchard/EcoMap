@@ -788,11 +788,11 @@ class _MapPageState extends State<MapPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: active ? color.withOpacity(0.25) : const Color(0xFF2D2D2D),
-              borderRadius: BorderRadius.circular(25),
+              borderRadius: BorderRadius.circular(21),
               border: Border.all(
                 color: active ? color : color.withOpacity(0.4),
                 width: active ? 2 : 1,
@@ -800,9 +800,9 @@ class _MapPageState extends State<MapPage> {
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
             ),
             child: loading
-                ? Center(child: SizedBox(width: 22, height: 22,
+                ? Center(child: SizedBox(width: 20, height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2.5, color: color)))
-                : Icon(icon, color: active ? color : color.withOpacity(0.8), size: 24),
+                : Icon(icon, color: active ? color : color.withOpacity(0.8), size: 20),
           ),
           const SizedBox(height: 4),
           Text(label, style: TextStyle(color: active ? color : Colors.white54, fontSize: 10)),
@@ -1398,12 +1398,12 @@ class _MapPageState extends State<MapPage> {
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 12, offset: const Offset(4, 0))],
                     ),
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _obsBtn(),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                           _actionBtn(
                             icon: Icons.local_fire_department,
                             label: 'Spots',
@@ -1414,7 +1414,7 @@ class _MapPageState extends State<MapPage> {
                                 ? () => _toggleHotspots(forceRefresh: true)
                                 : null,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                           _actionBtn(
                             icon: Icons.route_rounded,
                             label: 'Parcours',
@@ -1425,7 +1425,7 @@ class _MapPageState extends State<MapPage> {
                                 ? () => setState(() => _showParcours = false)
                                 : _showParcoursDialog,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                           _actionBtn(
                             icon: Icons.filter_alt,
                             label: 'Cols',
@@ -1434,7 +1434,7 @@ class _MapPageState extends State<MapPage> {
                             loading: _loadingPinch,
                             onTap: _togglePinchPoints,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                           _actionBtn(
                             icon: Icons.people,
                             label: 'Groupe',
@@ -1442,7 +1442,7 @@ class _MapPageState extends State<MapPage> {
                             active: _groupeActif,
                             onTap: _sharePosition,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                           _actionBtn(
                             icon: _recording ? Icons.stop : Icons.fiber_manual_record,
                             label: _recording ? 'Stop' : 'Tracé',
@@ -1450,7 +1450,7 @@ class _MapPageState extends State<MapPage> {
                             active: _recording,
                             onTap: _toggleRecording,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                           _actionBtn(
                             icon: Icons.my_location,
                             label: 'GPS',
@@ -1459,7 +1459,7 @@ class _MapPageState extends State<MapPage> {
                             loading: _loading,
                             onTap: _goToCurrentLocation,
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                           _actionBtn(
                             icon: Icons.explore,
                             label: 'Nord',
@@ -1558,7 +1558,7 @@ class _MapPageState extends State<MapPage> {
                           const SizedBox(height: 10),
                           _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog),
                           const SizedBox(height: 10),
-                          _navBtn(Icons.download_rounded, 'Territoire', () async {
+                          _navBtn(Icons.download_rounded, 'Carte éco', () async {
                             await Navigator.push(context, MaterialPageRoute(builder: (_) => TerritoireDownloadPage(initialCenter: _mapController.camera.center, initialZoom: _mapController.camera.zoom)));
                             _reloadTerritoire();
                           }),

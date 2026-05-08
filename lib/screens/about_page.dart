@@ -38,7 +38,7 @@ class AboutPage extends StatelessWidget {
               '• Alimentation — L\'orignal est un herbivore brouteur. Il préfère les jeunes peuplements feuillus (peuplier faux-tremble, aulne rugueux, saule, bouleau à papier) qui poussent dans les coupes et brûlis récents (5–25 ans).\n\n'
               '• Abri — Les résineux denses (épinette, sapin) servent de protection thermique en hiver et de couvert de sécurité.\n\n'
               '• Eau — L\'orignal est étroitement lié aux milieux riverains, marécages et tourbières pour la végétation aquatique (été) et la thermorégulation.\n\n'
-              '• Lisières — Les transitions entre feuillu et résineux concentrent l\'activité : nourriture et abri à portée.',
+              '• Transitions — Les zones de transition entre feuillu et résineux concentrent l\'activité : nourriture et abri à portée.',
               style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.6),
             ),
           ]),
