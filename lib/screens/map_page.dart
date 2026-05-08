@@ -64,6 +64,7 @@ class _MapPageState extends State<MapPage> {
   double _distanceParcours = 2.0;
   bool _showParcours = false;
   List<Polygon> _polygonsCache = [];
+  List<Map<String, dynamic>> _polygonLabels = [];
   double _parcoursScore = 0;
   bool _showHotspots = false;
   List<LatLng> _hotspots = [];
@@ -102,6 +103,9 @@ class _MapPageState extends State<MapPage> {
       }
       compute(buildPolygonsIsolate, geoJson).then((polys) {
         if (mounted) setState(() => _polygonsCache = polys);
+      });
+      compute(buildPolygonLabelsIsolate, geoJson).then((labels) {
+        if (mounted) setState(() => _polygonLabels = labels);
       });
     });
     compute(buildHotspotsDataIsolate, geoJson).then((raw) {
@@ -690,7 +694,8 @@ class _MapPageState extends State<MapPage> {
     if (data == null || !mounted) return;
     geoJson = data;
     final polys = await compute(buildPolygonsIsolate, geoJson);
-    if (mounted) setState(() => _polygonsCache = polys);
+    final labels = await compute(buildPolygonLabelsIsolate, geoJson);
+    if (mounted) setState(() { _polygonsCache = polys; _polygonLabels = labels; });
   }
 
   Future<void> _togglePinchPoints() async {
@@ -1065,6 +1070,15 @@ class _MapPageState extends State<MapPage> {
               ),
               if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _opacity > 0.02)
                 PolygonLayer(polygons: _polygonsCache, simplificationTolerance: 0),
+              if (_polygonLabels.isNotEmpty && _mapZoom >= 14)
+                MarkerLayer(markers: _polygonLabels.map((l) => Marker(
+                  point: LatLng(l['lat'] as double, l['lon'] as double),
+                  width: 40, height: 14,
+                  child: Text(l['label'] as String,
+                    style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold,
+                      shadows: [Shadow(color: Colors.black, blurRadius: 2)]),
+                    textAlign: TextAlign.center, overflow: TextOverflow.clip),
+                )).toList()),
               if (_showParcours && _parcours.isNotEmpty)
                 PolylineLayer(
                   polylines: [

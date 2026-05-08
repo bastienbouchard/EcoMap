@@ -416,7 +416,7 @@ List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
     try {
       final props = feat['properties'] as Map;
       final score = scoreOrignal(props);
-      if (score < 8) continue;
+      if (score < 1) continue;
       final geom = feat['geometry'];
       final type = geom['type'];
       final color = scoreColor(score);
@@ -436,6 +436,30 @@ List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
         result.add(Polygon(points: ring, color: color, borderColor: Colors.transparent, borderStrokeWidth: 0));
       }
     } catch (e) {}
+  }
+  return result;
+}
+
+// Retourne les étiquettes de peuplement (centroïde + texte) pour zoom élevé
+List<Map<String, dynamic>> buildPolygonLabelsIsolate(Map<String, dynamic> geoJsonData) {
+  final features = geoJsonData['features'] as List;
+  final result = <Map<String, dynamic>>[];
+  for (final feat in features) {
+    try {
+      final props = feat['properties'] as Map;
+      final ess = (props['gr_ess'] ?? '').toString();
+      final age = (props['cl_age'] ?? '').toString();
+      final dens = (props['cl_dens'] ?? '').toString();
+      final label = [ess, age, dens].where((s) => s.isNotEmpty).join('');
+      if (label.isEmpty) continue;
+      final geom = feat['geometry'];
+      final ring = geom['type'] == 'Polygon'
+          ? (geom['coordinates'] as List)[0] as List
+          : ((geom['coordinates'] as List)[0] as List)[0] as List;
+      double sumLat = 0, sumLon = 0;
+      for (final c in ring) { sumLon += (c[0] as num).toDouble(); sumLat += (c[1] as num).toDouble(); }
+      result.add({'lat': sumLat / ring.length, 'lon': sumLon / ring.length, 'label': label});
+    } catch (_) {}
   }
   return result;
 }
