@@ -91,6 +91,22 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   }
 
   Future<void> _delete(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text('Supprimer la carte ?', style: TextStyle(color: Colors.white)),
+        content: Text('« $id » sera supprimée de l\'appareil.',
+            style: const TextStyle(color: Colors.white60)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
+          TextButton(onPressed: () => Navigator.pop(context, true),
+              child: const Text('Supprimer', style: TextStyle(color: Colors.redAccent))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
     await TerritoireService.deleteTerritoire(id);
     await _loadTerritoires();
   }
@@ -101,7 +117,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF2A2A2A),
-        title: const Text('Télécharger territoire', style: TextStyle(color: Colors.white)),
+        title: const Text('Cartes éco', style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Column(
@@ -179,7 +195,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                 children: [
                   const Padding(
                     padding: EdgeInsets.all(12),
-                    child: Text('Territoires téléchargés',
+                    child: Text('Cartes téléchargées',
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                   Expanded(
@@ -193,8 +209,8 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                           subtitle: Text('${t['taille_mb']} MB',
                               style: const TextStyle(color: Colors.white54)),
                           trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.white38),
-                            onPressed: () => _delete(t['id']),
+                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                            onPressed: () => _delete(t['id'] as String),
                           ),
                         );
                       },

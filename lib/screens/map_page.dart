@@ -723,7 +723,7 @@ class _MapPageState extends State<MapPage> {
         ));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${result.length} emplacements de tour détectés dans un rayon de 3 km'),
+          content: Text('${result.length} emplacements d\'affût détectés dans un rayon de 3 km'),
           backgroundColor: const Color(0xFF2D5016),
           duration: const Duration(seconds: 2),
         ));
@@ -978,7 +978,7 @@ class _MapPageState extends State<MapPage> {
               _AideItem('📍 GPS', 'Centre la carte sur ta position actuelle.'),
               _AideItem('⏺ Tracé', 'Enregistre ton déplacement GPS. Appuie sur Stop pour sauvegarder.'),
               _AideItem('! Obs.', 'Ajoute une observation terrain (frottage, traces, souille…) au centre de l\'écran.'),
-              _AideItem('🏕 Tour', 'Détecte les meilleurs emplacements pour une tour de chasse dans un rayon de 3 km — corridors naturels où l\'orignal est forcé de passer entre des barrières (eau, coupes, terrain ouvert).'),
+              _AideItem('🏕 Affût', 'Détecte les meilleurs emplacements pour un affût dans un rayon de 3 km — corridors naturels où l\'orignal est forcé de passer entre des barrières (eau, coupes, terrain ouvert).'),
               _AideItem('Slider', 'Contrôle la transparence de la couche de scoring habitat.'),
             ],
           ),
@@ -1430,7 +1430,7 @@ class _MapPageState extends State<MapPage> {
                           const SizedBox(height: 6),
                           _actionBtn(
                             icon: Icons.cabin,
-                            label: 'Tour',
+                            label: 'Affût',
                             color: const Color(0xFF4CAF50),
                             active: _showPinchPoints,
                             loading: _loadingPinch,
