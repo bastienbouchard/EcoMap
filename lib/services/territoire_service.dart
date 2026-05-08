@@ -78,22 +78,32 @@ class TerritoireService {
     final allFeatures = <dynamic>[];
     int done = 0;
 
+    final errors = <String>[];
+
     for (final tile in tiles) {
       onStatus?.call('Secteur ${done + 1} sur ${tiles.length} — téléchargement...');
       try {
         final url = Uri.parse('$_cdnBase/$tile');
         final resp = await http.get(url).timeout(const Duration(seconds: 30));
-        if (resp.statusCode == 404) { done++; continue; } // tuile vide/inexistante
-        if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode} pour $tile');
+        if (resp.statusCode == 404) { done++; continue; }
+        if (resp.statusCode != 200) {
+          errors.add('$tile: HTTP ${resp.statusCode}');
+          done++;
+          continue;
+        }
 
-        // Décompresse gzip
-        final bytes = resp.bodyBytes;
-        final decompressed = gzip.decode(bytes);
-        final jsonStr = utf8.decode(decompressed);
+        // Décompresse gzip — si déjà décompressé par le client, essaie directement
+        String jsonStr;
+        try {
+          final decompressed = gzip.decode(resp.bodyBytes);
+          jsonStr = utf8.decode(decompressed);
+        } catch (_) {
+          jsonStr = resp.body; // fallback: déjà décompressé
+        }
+
         final data = json.decode(jsonStr) as Map<String, dynamic>;
         final features = data['features'] as List? ?? [];
 
-        // Filtre: garde seulement les polygones dans le bbox exact
         for (final feat in features) {
           try {
             final geom = feat['geometry'] as Map;
@@ -107,18 +117,20 @@ class TerritoireService {
               allFeatures.add(feat);
             }
           } catch (_) {
-            allFeatures.add(feat); // garde si on peut pas filtrer
+            allFeatures.add(feat);
           }
         }
       } catch (e) {
-        // Tuile non disponible — on continue
+        errors.add('$tile: $e');
       }
       done++;
     }
 
     if (allFeatures.isEmpty) {
-      throw Exception('Aucune donnée forestière dans cette zone — essaie une zone du Québec couverte');
+      final detail = errors.isNotEmpty ? '\n${errors.take(3).join('\n')}' : '';
+      throw Exception('Aucune donnée dans cette zone.$detail');
     }
+
 
     onStatus?.call('Sauvegarde (${allFeatures.length} polygones)...');
     final geojson = json.encode({
