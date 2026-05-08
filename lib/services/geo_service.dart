@@ -107,9 +107,9 @@ Color polygonColor(Map props) {
       ? (0.35 + score.clamp(0, 20) / 20 * 0.50).clamp(0.35, 0.85)
       : 0.25;
 
-  // Coupe / régénération → blanc
-  if (origine == 'CP' || origine == 'BR' ||
-      age == 'J' || age == 'JIN' || age == '10') {
+  // Coupe récente / jeune régénération → blanc
+  // Seulement les JEUNES peuplements — pas les vieilles coupes régénérées (age 40+)
+  if (age == 'J' || age == 'JIN' || age == '10' || age == '20') {
     return Colors.white.withOpacity(opacity);
   }
 
