@@ -188,17 +188,21 @@ class _MapPageState extends State<MapPage> {
   Future<void> _goToCurrentLocation() async {
     setState(() => _loading = true);
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (mounted) {
-          setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Active la localisation dans les paramètres du téléphone'),
-            backgroundColor: Color(0xFFFF6B35),
-          ));
+      // Sur web, on saute le check isLocationServiceEnabled (peu fiable)
+      if (!kIsWeb) {
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          if (mounted) {
+            setState(() => _loading = false);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Active la localisation dans les paramètres'),
+              backgroundColor: Color(0xFFFF6B35),
+            ));
+          }
+          return;
         }
-        return;
       }
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -208,7 +212,7 @@ class _MapPageState extends State<MapPage> {
         if (mounted) {
           setState(() => _loading = false);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Permission de localisation refusée'),
+            content: Text('Permission de localisation refusée par le navigateur'),
             backgroundColor: Color(0xFFFF6B35),
           ));
         }
@@ -218,9 +222,8 @@ class _MapPageState extends State<MapPage> {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 60),
         ),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (mounted) {
         setState(() {
           _currentPosition = LatLng(pos.latitude, pos.longitude);
@@ -234,7 +237,7 @@ class _MapPageState extends State<MapPage> {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('GPS : ${e.toString()}'),
+            content: Text('GPS: autorise la localisation dans ton navigateur'),
             backgroundColor: const Color(0xFFFF6B35),
           ),
         );
