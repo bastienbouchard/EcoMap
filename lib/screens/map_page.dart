@@ -410,7 +410,7 @@ class _MapPageState extends State<MapPage> {
                     border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
                   ),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(t.$1, style: const TextStyle(fontSize: 18)),
+                    _obsIcon('${t.$1} ${t.$2}', size: 22),
                     const SizedBox(width: 6),
                     Text(t.$2, style: const TextStyle(color: Colors.white, fontSize: 13)),
                   ]),
@@ -993,12 +993,13 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  Widget _obsIcon(String note) {
-    Widget _cp(CustomPainter p) => SizedBox(width: 26, height: 26, child: CustomPaint(painter: p));
+  Widget _obsIcon(String note, {double size = 26}) {
+    Widget _cp(CustomPainter p) => SizedBox(width: size, height: size, child: CustomPaint(painter: p));
     if (note.contains('Traces')) return _cp(const MooseTrackPainter());
     if (note.contains('Souille')) return _cp(const MudHolePainter());
     if (note.contains('Cache')) return _cp(const HuntingTowerPainter());
-    return Text(note.split(' ').first, style: const TextStyle(fontSize: 20, height: 1));
+    final emoji = note.split(' ').first;
+    return Text(emoji, style: TextStyle(fontSize: size * 0.76, height: 1));
   }
 
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
@@ -1151,9 +1152,9 @@ class _MapPageState extends State<MapPage> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF2D1A00),
+                            color: Colors.white,
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFFFB347), width: 2),
+                            border: Border.all(color: const Color(0xFFFF6B35), width: 2),
                             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)],
                           ),
                           child: Center(child: _obsIcon(note)),
