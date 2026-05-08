@@ -1,14 +1,12 @@
-import 'dart:async';
-import 'dart:js' as js;
+import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 
 Future<String> decompressGzip(List<int> bytes) {
-  final completer = Completer<String>();
   final uint8 = Uint8List.fromList(bytes);
-  js.context.callMethod('ecoMapDecompressGzip', [
-    uint8,
-    js.allowInterop((String result) => completer.complete(result)),
-    js.allowInterop((dynamic err) => completer.completeError('gzip: $err')),
-  ]);
-  return completer.future;
+  final promise = js_util.callMethod(
+    js_util.globalThis,
+    'ecoMapDecompressGzip',
+    [uint8],
+  );
+  return js_util.promiseToFuture<String>(promise);
 }
