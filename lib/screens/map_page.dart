@@ -994,9 +994,10 @@ class _MapPageState extends State<MapPage> {
   }
 
   Widget _obsIcon(String note) {
-    if (note.contains('Traces')) return const CustomPaint(size: Size(26, 26), painter: MooseTrackPainter());
-    if (note.contains('Souille')) return const CustomPaint(size: Size(26, 26), painter: MudHolePainter());
-    if (note.contains('Cache')) return const CustomPaint(size: Size(26, 26), painter: HuntingTowerPainter());
+    Widget _cp(CustomPainter p) => SizedBox(width: 26, height: 26, child: CustomPaint(painter: p));
+    if (note.contains('Traces')) return _cp(const MooseTrackPainter());
+    if (note.contains('Souille')) return _cp(const MudHolePainter());
+    if (note.contains('Cache')) return _cp(const HuntingTowerPainter());
     return Text(note.split(' ').first, style: const TextStyle(fontSize: 20, height: 1));
   }
 
