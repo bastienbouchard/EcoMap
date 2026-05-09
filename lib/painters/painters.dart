@@ -231,7 +231,7 @@ class TrackingPainter extends CustomPainter {
     final w = size.width; final h = size.height;
 
     // Flèche de navigation rouge
-    final arrowFill = Paint()..color = const Color(0xFFE53935)..style = PaintingStyle.fill;
+    final arrowFill = Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill;
     final arrowStroke = Paint()..color = Colors.white..strokeWidth = 1.2..style = PaintingStyle.stroke;
     final arrow = ui.Path()
       ..moveTo(w * .18, h * .08)

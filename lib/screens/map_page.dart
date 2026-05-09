@@ -834,7 +834,7 @@ class _MapPageState extends State<MapPage> {
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 11)),
                         leading: const Icon(Icons.route,
-                            color: Color(0xFFE53935), size: 20),
+                            color: Color(0xFFFF6B35), size: 20),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline,
                               color: Color(0xFFFF6B35), size: 20),
@@ -1095,7 +1095,7 @@ class _MapPageState extends State<MapPage> {
           PolylineLayer(polylines: [
             Polyline(
               points: _trackPoints,
-              color: const Color(0xFFE53935),
+              color: const Color(0xFFFF6B35),
               strokeWidth: 6,
               borderColor: Colors.white,
               borderStrokeWidth: 2,
@@ -1501,12 +1501,12 @@ class _MapPageState extends State<MapPage> {
                     mapActionBtn(
                       icon: Icons.stop,
                       label: _recording ? 'Stop' : 'Tracé',
-                      color: const Color(0xFFE53935),
+                      color: const Color(0xFFFF6B35),
                       active: _recording,
                       onTap: _toggleRecording,
                       customIcon: _recording
                           ? const Icon(Icons.stop,
-                              color: Color(0xFFE53935), size: 22)
+                              color: Color(0xFFFF6B35), size: 22)
                           : const SizedBox(
                               width: 24, height: 24,
                               child: CustomPaint(
