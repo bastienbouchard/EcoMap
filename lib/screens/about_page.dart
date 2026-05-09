@@ -20,7 +20,10 @@ class AboutPage extends StatelessWidget {
           Center(
             child: Column(children: [
               const SizedBox(height: 8),
-              Image.asset('assets/logo.png', height: 72),
+              ColorFiltered(
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                child: Image.asset('assets/logo.png', height: 72),
+              ),
               const SizedBox(height: 12),
               const Text('OrignalScan',
                   style: TextStyle(color: Colors.white, fontSize: 26,
