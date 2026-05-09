@@ -1795,7 +1795,7 @@ class _MapPageState extends State<MapPage> {
                     ),
                   ),
                 ),
-                Text('z${_mapZoom.round()}',
+                Text('${((_mapZoom.clamp(8.0, 19.0) - 8.0) / 11.0 * 100).round()}%',
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
