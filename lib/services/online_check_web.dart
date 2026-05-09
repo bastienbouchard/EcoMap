@@ -1,6 +1,4 @@
-import 'dart:js_interop';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 
-@JS('navigator.onLine')
-external bool get _navigatorOnLine;
-
-bool checkOnline() => _navigatorOnLine;
+bool checkOnline() => html.window.navigator.onLine ?? true;
