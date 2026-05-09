@@ -122,7 +122,11 @@ class _MapPageState extends State<MapPage> {
   void initState() {
     super.initState();
     _isOnline = ConnectivityService.isOnline;
+    // ignore: avoid_print
+    print('[Connectivity] init isOnline=${ConnectivityService.isOnline}');
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
+      // ignore: avoid_print
+      print('[Connectivity] change → $online');
       if (mounted) setState(() => _isOnline = online);
       if (online) _fetchWind();
     });
