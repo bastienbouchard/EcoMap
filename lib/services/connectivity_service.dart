@@ -8,12 +8,8 @@ class ConnectivityService {
   static final _controller = StreamController<bool>.broadcast();
   static Stream<bool> get onStatusChange => _controller.stream;
 
-  static Timer? _timer;
-
   static Future<void> init() async {
-    _isOnline = checkOnline();
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      final online = checkOnline();
+    listenToConnectivity((online) {
       if (online != _isOnline) {
         _isOnline = online;
         _controller.add(_isOnline);
@@ -21,5 +17,5 @@ class ConnectivityService {
     });
   }
 
-  static void dispose() => _timer?.cancel();
+  static void dispose() {}
 }
