@@ -1,30 +1,37 @@
 import 'dart:async';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:http/http.dart' as http;
 
 class ConnectivityService {
-  static final _connectivity = Connectivity();
   static bool _isOnline = true;
   static bool get isOnline => _isOnline;
 
   static final _controller = StreamController<bool>.broadcast();
   static Stream<bool> get onStatusChange => _controller.stream;
 
+  static Timer? _timer;
+
   static Future<void> init() async {
-    try {
-      final result = await _connectivity.checkConnectivity();
-      _isOnline = _isConnected(result);
-      _connectivity.onConnectivityChanged.listen((result) {
-        final online = _isConnected(result);
-        if (online != _isOnline) {
-          _isOnline = online;
-          _controller.add(_isOnline);
-        }
-      });
-    } catch (_) {
-      _isOnline = true; // assume en ligne si on ne peut pas détecter
-    }
+    _isOnline = await _check();
+    // Vérifie toutes les 15 secondes
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      final online = await _check();
+      if (online != _isOnline) {
+        _isOnline = online;
+        _controller.add(_isOnline);
+      }
+    });
   }
 
-  static bool _isConnected(List<ConnectivityResult> result) =>
-      result.any((r) => r != ConnectivityResult.none);
+  static void dispose() => _timer?.cancel();
+
+  static Future<bool> _check() async {
+    try {
+      final resp = await http
+          .head(Uri.parse('https://www.google.com'))
+          .timeout(const Duration(seconds: 4));
+      return resp.statusCode < 500;
+    } catch (_) {
+      return false;
+    }
+  }
 }
