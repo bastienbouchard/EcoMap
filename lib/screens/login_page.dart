@@ -63,7 +63,7 @@ class _LoginPageState extends State<LoginPage> {
     if (raw.contains('weak-password')) return 'Mot de passe trop faible (6 caractères min)';
     if (raw.contains('invalid-email')) return 'Email invalide';
     if (raw.contains('network-request-failed')) return 'Pas de connexion internet';
-    return 'Erreur — réessaie';
+    return raw;
   }
 
   @override
