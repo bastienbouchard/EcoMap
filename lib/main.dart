@@ -10,10 +10,13 @@ import 'app_globals.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'services/auth_service.dart';
+import 'services/connectivity_service.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AuthService.restoreSession();
+  try { await ConnectivityService.init(); } catch (_) {}
   if (!kIsWeb) await _initMBTiles();
   await _loadGeoJson();
   runApp(const EcoMapApp());
