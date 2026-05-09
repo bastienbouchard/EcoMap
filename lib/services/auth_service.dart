@@ -1,11 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   static final _auth = FirebaseAuth.instance;
   static final _db = FirebaseFirestore.instance;
-  static final _google = GoogleSignIn();
 
   static User? get currentUser => _auth.currentUser;
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -17,39 +16,28 @@ class AuthService {
   static Future<UserCredential> createWithEmail(String email, String password) =>
       _auth.createUserWithEmailAndPassword(email: email, password: password);
 
-  // ── Connexion Google ──
+  // ── Connexion Google — popup sur web, flow natif sur mobile ──
   static Future<UserCredential?> signInWithGoogle() async {
-    final googleUser = await _google.signIn();
-    if (googleUser == null) return null;
-    final googleAuth = await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-    return _auth.signInWithCredential(credential);
+    if (kIsWeb) {
+      // Sur web : popup Firebase directement
+      final provider = GoogleAuthProvider();
+      provider.setCustomParameters({'prompt': 'select_account'});
+      return _auth.signInWithPopup(provider);
+    } else {
+      // Sur mobile : google_sign_in natif
+      // ignore: avoid_dynamic_calls
+      throw UnimplementedError('Mobile Google Sign-In pas encore configuré');
+    }
   }
 
   static Future<void> signOut() async {
-    await _google.signOut();
     await _auth.signOut();
   }
 
   static Future<void> resetPassword(String email) =>
       _auth.sendPasswordResetEmail(email: email);
 
-  // ── Statut premium ──
-  static Future<bool> isPremium() async {
-    final user = currentUser;
-    if (user == null) return false;
-    try {
-      final doc = await _db.collection('users').doc(user.uid).get();
-      return doc.data()?['premium'] == true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  // Crée le document utilisateur s'il n'existe pas encore
+  // ── Crée le document utilisateur s'il n'existe pas encore ──
   static Future<void> ensureUserDoc() async {
     final user = currentUser;
     if (user == null) return;
