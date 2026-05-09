@@ -10,15 +10,19 @@ class ConnectivityService {
   static Stream<bool> get onStatusChange => _controller.stream;
 
   static Future<void> init() async {
-    final result = await _connectivity.checkConnectivity();
-    _isOnline = _isConnected(result);
-    _connectivity.onConnectivityChanged.listen((result) {
-      final online = _isConnected(result);
-      if (online != _isOnline) {
-        _isOnline = online;
-        _controller.add(_isOnline);
-      }
-    });
+    try {
+      final result = await _connectivity.checkConnectivity();
+      _isOnline = _isConnected(result);
+      _connectivity.onConnectivityChanged.listen((result) {
+        final online = _isConnected(result);
+        if (online != _isOnline) {
+          _isOnline = online;
+          _controller.add(_isOnline);
+        }
+      });
+    } catch (_) {
+      _isOnline = true; // assume en ligne si on ne peut pas détecter
+    }
   }
 
   static bool _isConnected(List<ConnectivityResult> result) =>

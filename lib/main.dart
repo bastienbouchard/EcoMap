@@ -16,7 +16,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AuthService.restoreSession();
-  await ConnectivityService.init();
+  try { await ConnectivityService.init(); } catch (_) {}
   if (!kIsWeb) await _initMBTiles();
   await _loadGeoJson();
   runApp(const EcoMapApp());
