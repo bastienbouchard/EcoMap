@@ -223,3 +223,39 @@ class HuntingTowerPainter extends CustomPainter {
   }
   @override bool shouldRepaint(_) => false;
 }
+
+class TrackingPainter extends CustomPainter {
+  const TrackingPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+
+    // Flèche de navigation rouge
+    final arrowFill = Paint()..color = const Color(0xFFE53935)..style = PaintingStyle.fill;
+    final arrowStroke = Paint()..color = Colors.white..strokeWidth = 1.2..style = PaintingStyle.stroke;
+    final arrow = ui.Path()
+      ..moveTo(w * .18, h * .08)
+      ..lineTo(w * .08, h * .60)
+      ..lineTo(w * .28, h * .44)
+      ..lineTo(w * .52, h * .58)
+      ..close();
+    canvas.drawPath(arrow, arrowFill);
+    canvas.drawPath(arrow, arrowStroke);
+
+    // Épingle bleue
+    final pinFill = Paint()..color = const Color(0xFF4A90E2)..style = PaintingStyle.fill;
+    final pinStroke = Paint()..color = Colors.white..strokeWidth = 1.2..style = PaintingStyle.stroke;
+    canvas.drawCircle(Offset(w * .72, h * .34), w * .20, pinFill);
+    canvas.drawCircle(Offset(w * .72, h * .34), w * .20, pinStroke);
+    final pin = ui.Path()
+      ..moveTo(w * .55, h * .47)
+      ..lineTo(w * .72, h * .76)
+      ..lineTo(w * .89, h * .47)
+      ..close();
+    canvas.drawPath(pin, pinFill);
+    canvas.drawPath(pin, pinStroke);
+    canvas.drawCircle(Offset(w * .72, h * .34), w * .09,
+        Paint()..color = Colors.white..style = PaintingStyle.fill);
+  }
+  @override bool shouldRepaint(_) => false;
+}

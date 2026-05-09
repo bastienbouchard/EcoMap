@@ -399,8 +399,16 @@ class _MapPageState extends State<MapPage> {
                     border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
                   ),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    _obsIcon('${t.$1} ${t.$2}', size: 22),
-                    const SizedBox(width: 6),
+                    Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFFF6B35), width: 1.5),
+                      ),
+                      child: Center(child: _obsIcon('${t.$1} ${t.$2}', size: 20)),
+                    ),
+                    const SizedBox(width: 8),
                     Text(t.$2, style: const TextStyle(color: Colors.white, fontSize: 13)),
                   ]),
                 ),
@@ -781,6 +789,7 @@ class _MapPageState extends State<MapPage> {
     required VoidCallback onTap,
     VoidCallback? onLongPress,
     bool loading = false,
+    Widget? customIcon,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -803,7 +812,9 @@ class _MapPageState extends State<MapPage> {
             child: loading
                 ? Center(child: SizedBox(width: 20, height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2.5, color: color)))
-                : Icon(icon, color: active ? color : color.withOpacity(0.8), size: 20),
+                : customIcon != null
+                    ? Center(child: customIcon)
+                    : Icon(icon, color: active ? color : color.withOpacity(0.8), size: 20),
           ),
           const SizedBox(height: 4),
           Text(label, style: TextStyle(color: active ? color : Colors.white54, fontSize: 10)),
@@ -985,11 +996,11 @@ class _MapPageState extends State<MapPage> {
               const SizedBox(height: 8),
               _sectionTitle('Essences (2 premières lettres = dominante, 2 suivantes = sous-dominante)'),
               const SizedBox(height: 4),
-              _glossRow('PE', 'Peuplier tremblant ⭐⭐', favoris: true),
-              _glossRow('AU', 'Aulne ⭐⭐', favoris: true),
-              _glossRow('SA', 'Sapin baumier ⭐', favoris: true),
-              _glossRow('BP', 'Bouleau à papier ⭐', favoris: true),
-              _glossRow('ERR', 'Érable rouge ⭐', favoris: true),
+              _glossRow('PE', 'Peuplier tremblant'),
+              _glossRow('AU', 'Aulne'),
+              _glossRow('SA', 'Sapin baumier'),
+              _glossRow('BP', 'Bouleau à papier'),
+              _glossRow('ERR', 'Érable rouge'),
               _glossRow('BJ', 'Bouleau jaune'),
               _glossRow('EN', 'Épinette noire'),
               _glossRow('EB', 'Épinette blanche'),
@@ -1002,9 +1013,9 @@ class _MapPageState extends State<MapPage> {
               const SizedBox(height: 10),
               _sectionTitle('Classes d\'âge'),
               const SizedBox(height: 4),
-              _glossRow('J / JIN', 'Jeune — moins de 10 ans ⭐⭐'),
-              _glossRow('10', '10 à 20 ans ⭐⭐'),
-              _glossRow('20', '20 à 30 ans ⭐'),
+              _glossRow('J / JIN', 'Jeune — moins de 10 ans'),
+              _glossRow('10', '10 à 20 ans'),
+              _glossRow('20', '20 à 30 ans'),
               _glossRow('30', '30 à 40 ans'),
               _glossRow('40', '40 à 50 ans'),
               _glossRow('50', '50 à 60 ans'),
@@ -1016,7 +1027,7 @@ class _MapPageState extends State<MapPage> {
               const SizedBox(height: 4),
               _glossRow('A', 'Éparse (< 25%)'),
               _glossRow('B', 'Clairsemée (25–40%)'),
-              _glossRow('C', 'Semi-dense (40–60%) ⭐'),
+              _glossRow('C', 'Semi-dense (40–60%)'),
               _glossRow('D', 'Dense (60–80%)'),
             ],
           ),
@@ -1042,14 +1053,13 @@ class _MapPageState extends State<MapPage> {
       ),
       child: Text(t, style: const TextStyle(color: Colors.white54, fontSize: 11)));
 
-  Widget _glossRow(String code, String desc, {bool favoris = false}) => Padding(
+  Widget _glossRow(String code, String desc) => Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: Row(children: [
         SizedBox(width: 46,
           child: Text(code, style: const TextStyle(color: Colors.white, fontSize: 11,
               fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
-        Expanded(child: Text(desc, style: TextStyle(
-            color: favoris ? const Color(0xFF7DC95E) : Colors.white60, fontSize: 11))),
+        Expanded(child: Text(desc, style: const TextStyle(color: Colors.white60, fontSize: 11))),
       ]));
 
   Widget _obsIcon(String note, {double size = 26}) {
@@ -1520,6 +1530,10 @@ class _MapPageState extends State<MapPage> {
                             active: _showPinchPoints,
                             loading: _loadingPinch,
                             onTap: _togglePinchPoints,
+                            customIcon: SizedBox(
+                              width: 22, height: 22,
+                              child: CustomPaint(painter: HuntingTowerPainter()),
+                            ),
                           ),
                           const SizedBox(height: 6),
                           _actionBtn(
@@ -1531,11 +1545,17 @@ class _MapPageState extends State<MapPage> {
                           ),
                           const SizedBox(height: 6),
                           _actionBtn(
-                            icon: _recording ? Icons.stop : Icons.fiber_manual_record,
+                            icon: Icons.stop,
                             label: _recording ? 'Stop' : 'Tracé',
                             color: const Color(0xFFE53935),
                             active: _recording,
                             onTap: _toggleRecording,
+                            customIcon: _recording
+                                ? const Icon(Icons.stop, color: Color(0xFFE53935), size: 22)
+                                : SizedBox(
+                                    width: 24, height: 24,
+                                    child: CustomPaint(painter: TrackingPainter()),
+                                  ),
                           ),
                         ],
                       ),
@@ -1628,7 +1648,7 @@ class _MapPageState extends State<MapPage> {
                           const SizedBox(height: 10),
                           _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog),
                           const SizedBox(height: 10),
-                          _navBtn(Icons.download_rounded, 'Carte éco', () async {
+                          _navBtn(Icons.offline_pin_rounded, 'Carte éco', () async {
                             await Navigator.push(context, MaterialPageRoute(builder: (_) => TerritoireDownloadPage(initialCenter: _mapController.camera.center, initialZoom: _mapController.camera.zoom)));
                             _reloadTerritoire();
                           }),
