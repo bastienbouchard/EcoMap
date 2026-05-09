@@ -506,11 +506,6 @@ class _MapPageState extends State<MapPage> {
             ]),
             const Divider(color: Colors.white12, height: 24),
             _groupeTile(
-              Icons.location_on_rounded, 'Position du groupe',
-              'Positions GPS en temps réel',
-              () { Navigator.pop(context); },
-            ),
-            _groupeTile(
               Icons.chat_bubble_rounded, 'Clavardage du groupe',
               'Messages entre chasseurs',
               () {
@@ -519,6 +514,11 @@ class _MapPageState extends State<MapPage> {
                   builder: (_) => ChatPage(groupeId: _groupeId!, monNom: _monNom!),
                 ));
               },
+            ),
+            _groupeTile(
+              Icons.location_on_rounded, 'Position du groupe',
+              'Positions GPS en temps réel',
+              () { Navigator.pop(context); },
             ),
             _groupeTile(
               Icons.pin_drop_rounded, 'Partage des observations',

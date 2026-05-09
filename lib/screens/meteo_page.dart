@@ -353,7 +353,7 @@ class _MeteoPageState extends State<MeteoPage> {
       tip = 'Activité mixte — la matinée reste favorable';
       tipColor = const Color(0xFFFF6B35); score = 3;
     } else if (age < 14.77) {
-      emoji = '🌔'; name = 'Gibbeuse croissante';
+      emoji = '🌔'; name = 'Lune croissante';
       tip = 'Orignaux plus nocturnes — activité réduite le jour';
       tipColor = Colors.white54; score = 2;
     } else if (age < 16.61) {
@@ -361,7 +361,7 @@ class _MeteoPageState extends State<MeteoPage> {
       tip = 'Nocturne — les orignaux bougent peu de jour';
       tipColor = Colors.white38; score = 1;
     } else if (age < 22.15) {
-      emoji = '🌖'; name = 'Gibbeuse décroissante';
+      emoji = '🌖'; name = 'Lune décroissante';
       tip = 'Activité en hausse — orignaux actifs en soirée';
       tipColor = Colors.white54; score = 2;
     } else if (age < 25.84) {

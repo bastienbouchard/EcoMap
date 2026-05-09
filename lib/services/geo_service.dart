@@ -369,13 +369,14 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       // 2. Bonus vent : face au vent = max, perpendiculaire = 0
       final windBonus = ((60 - angleDelta.abs()) / 60 * 5).round().clamp(0, 5);
 
-      // 3. Bonus hotspot : préfère les angles du cône ±90° qui rapprochent d'un hotspot
+      // 3. Bonus hotspot : attire fortement la route vers les points chauds
       int hotspotBonus = 0;
       if (hotspotRad != null) {
         final hotDelta = ((angle - hotspotRad) * 180 / pi + 360) % 360;
         final hotNorm = hotDelta > 180 ? hotDelta - 360 : hotDelta;
-        if (hotNorm.abs() < 60) hotspotBonus = 4;
-        else if (hotNorm.abs() < 90) hotspotBonus = 2;
+        if (hotNorm.abs() < 30) hotspotBonus = 18;
+        else if (hotNorm.abs() < 60) hotspotBonus = 12;
+        else if (hotNorm.abs() < 90) hotspotBonus = 5;
       }
 
       // 4. Bonus ondulation — zigzag marqué pour longer les lisières
