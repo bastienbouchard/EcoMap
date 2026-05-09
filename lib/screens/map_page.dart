@@ -1003,6 +1003,28 @@ class _MapPageState extends State<MapPage> {
     return Text(emoji, style: TextStyle(fontSize: size * 0.76, height: 1));
   }
 
+  Widget _mapIconBtn(IconData icon, VoidCallback onTap, {
+    bool active = false,
+    bool loading = false,
+    Color activeColor = const Color(0xFF4A90E2),
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42, height: 36,
+        color: Colors.transparent,
+        child: Center(
+          child: loading
+              ? SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54))
+              : Icon(icon, color: active ? activeColor : Colors.white70, size: 20),
+        ),
+      ),
+    );
+  }
+
+  Widget _dividerV() => Container(width: 1, height: 20, color: Colors.white24);
+
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
       {Color color = const Color(0xFFBDBDBD)}) {
     return GestureDetector(
@@ -1457,31 +1479,6 @@ class _MapPageState extends State<MapPage> {
                             active: _recording,
                             onTap: _toggleRecording,
                           ),
-                          const SizedBox(height: 6),
-                          _actionBtn(
-                            icon: Icons.my_location,
-                            label: 'GPS',
-                            color: const Color(0xFFBDBDBD),
-                            active: false,
-                            loading: _loading,
-                            onTap: _goToCurrentLocation,
-                          ),
-                          const SizedBox(height: 6),
-                          _actionBtn(
-                            icon: Icons.explore,
-                            label: 'Nord',
-                            color: const Color(0xFFBDBDBD),
-                            active: false,
-                            onTap: _resetNorth,
-                          ),
-                          const SizedBox(height: 6),
-                          _actionBtn(
-                            icon: _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
-                            label: _satellite ? 'Terrain' : 'Sat.',
-                            color: const Color(0xFF4A90E2),
-                            active: _satellite,
-                            onTap: () => setState(() => _satellite = !_satellite),
-                          ),
                         ],
                       ),
                     ),
@@ -1605,28 +1602,29 @@ class _MapPageState extends State<MapPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Bouton satellite
-                GestureDetector(
-                  onTap: () => setState(() => _satellite = !_satellite),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: _satellite ? const Color(0xFF4A90E2) : const Color(0xFF1A1A1A).withOpacity(0.85),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _satellite ? const Color(0xFF4A90E2) : Colors.white24),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(_satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
-                            color: Colors.white, size: 18),
-                        const SizedBox(width: 6),
-                        Text(_satellite ? 'Terrain' : 'Satellite',
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
+                // Rangée Nord / GPS / Satellite
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A).withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white24),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _mapIconBtn(Icons.explore, _resetNorth, active: false),
+                      _dividerV(),
+                      _mapIconBtn(Icons.my_location, _goToCurrentLocation, loading: _loading, active: false),
+                      _dividerV(),
+                      _mapIconBtn(
+                        _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
+                        () => setState(() => _satellite = !_satellite),
+                        active: _satellite,
+                        activeColor: const Color(0xFF4A90E2),
+                      ),
+                    ],
                   ),
                 ),
                 // Slider zoom
