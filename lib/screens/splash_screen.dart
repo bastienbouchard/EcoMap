@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 import 'login_page.dart';
 import 'map_page.dart';
 
@@ -61,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     Future.delayed(const Duration(milliseconds: 2000), () {
       if (!mounted) return;
-      final isLoggedIn = FirebaseAuth.instance.currentUser != null;
+      final isLoggedIn = AuthService.isLoggedIn;
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(

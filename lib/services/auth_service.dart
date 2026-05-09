@@ -1,40 +1,74 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 
+// Authentification via Firebase REST API — pas de plugin natif, fonctionne sur web
 class AuthService {
-  static final _auth = FirebaseAuth.instance;
-  static final _db = FirebaseFirestore.instance;
+  static const _apiKey = 'AIzaSyACM479_zu4rESc_e1J_o6lBs--WzMMTPc';
+  static const _baseUrl = 'https://identitytoolkit.googleapis.com/v1/accounts';
 
-  static User? get currentUser => _auth.currentUser;
-  static Stream<User?> get authStateChanges => _auth.authStateChanges();
+  static String? _uid;
+  static String? _email;
 
-  // ── Connexion email/mot de passe ──
-  static Future<UserCredential> signInWithEmail(String email, String password) =>
-      _auth.signInWithEmailAndPassword(email: email, password: password);
+  static bool get isLoggedIn => _uid != null;
+  static String? get uid => _uid;
+  static String? get email => _email;
 
-  static Future<UserCredential> createWithEmail(String email, String password) =>
-      _auth.createUserWithEmailAndPassword(email: email, password: password);
-
-  static Future<void> signOut() async {
-    await _auth.signOut();
+  // ── Créer un compte ──
+  static Future<void> createWithEmail(String email, String password) async {
+    await _post('signUp', email, password);
   }
 
-  static Future<void> resetPassword(String email) =>
-      _auth.sendPasswordResetEmail(email: email);
+  // ── Se connecter ──
+  static Future<void> signInWithEmail(String email, String password) async {
+    await _post('signInWithPassword', email, password);
+  }
 
-  // ── Crée le document utilisateur s'il n'existe pas encore ──
+  // ── Se déconnecter ──
+  static Future<void> signOut() async {
+    _uid = null;
+    _email = null;
+  }
+
+  // ── Réinitialiser mot de passe ──
+  static Future<void> resetPassword(String email) async {
+    await http.post(
+      Uri.parse('$_baseUrl:sendOobCode?key=$_apiKey'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'requestType': 'PASSWORD_RESET', 'email': email}),
+    );
+  }
+
+  // ── Crée le document Firestore si pas encore là ──
   static Future<void> ensureUserDoc() async {
-    final user = currentUser;
-    if (user == null) return;
-    final ref = _db.collection('users').doc(user.uid);
+    if (_uid == null) return;
+    final ref = FirebaseFirestore.instance.collection('users').doc(_uid);
     final doc = await ref.get();
     if (!doc.exists) {
       await ref.set({
-        'email': user.email,
-        'displayName': user.displayName ?? '',
+        'email': _email,
         'premium': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
+  }
+
+  // ── Appel REST ──
+  static Future<void> _post(String endpoint, String email, String password) async {
+    final resp = await http.post(
+      Uri.parse('$_baseUrl:$endpoint?key=$_apiKey'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'email': email,
+        'password': password,
+        'returnSecureToken': true,
+      }),
+    );
+    final data = json.decode(resp.body) as Map<String, dynamic>;
+    if (data.containsKey('error')) {
+      throw data['error']['message'] as String;
+    }
+    _uid = data['localId'] as String?;
+    _email = data['email'] as String?;
   }
 }

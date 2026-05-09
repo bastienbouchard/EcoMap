@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/premium_service.dart';
+import 'map_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -34,7 +36,12 @@ class _LoginPageState extends State<LoginPage> {
         await AuthService.signInWithEmail(email, pass);
       }
       await AuthService.ensureUserDoc();
-    } on Exception catch (e) {
+      await PremiumService.load();
+      if (mounted) {
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => const MapPage()));
+      }
+    } catch (e) {
       if (mounted) setState(() => _error = _friendlyError(e.toString()));
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -57,12 +64,14 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   String _friendlyError(String raw) {
-    if (raw.contains('user-not-found')) return 'Aucun compte avec cet email';
-    if (raw.contains('wrong-password')) return 'Mot de passe incorrect';
-    if (raw.contains('email-already-in-use')) return 'Cet email est déjà utilisé';
-    if (raw.contains('weak-password')) return 'Mot de passe trop faible (6 caractères min)';
-    if (raw.contains('invalid-email')) return 'Email invalide';
-    if (raw.contains('network-request-failed')) return 'Pas de connexion internet';
+    if (raw.contains('EMAIL_NOT_FOUND') || raw.contains('INVALID_LOGIN_CREDENTIALS'))
+      return 'Aucun compte avec cet email ou mot de passe incorrect';
+    if (raw.contains('INVALID_PASSWORD')) return 'Mot de passe incorrect';
+    if (raw.contains('EMAIL_EXISTS')) return 'Cet email est déjà utilisé';
+    if (raw.contains('WEAK_PASSWORD')) return 'Mot de passe trop faible (6 caractères min)';
+    if (raw.contains('INVALID_EMAIL')) return 'Email invalide';
+    if (raw.contains('TOO_MANY_ATTEMPTS')) return 'Trop de tentatives — réessaie plus tard';
+    if (raw.contains('network') || raw.contains('socket')) return 'Pas de connexion internet';
     return raw;
   }
 
