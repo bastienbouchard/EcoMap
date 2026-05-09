@@ -1587,7 +1587,7 @@ class _MapPageState extends State<MapPage> {
                     _navBtn(Icons.save_alt_rounded, 'Tracés',
                         _showTracesDialog),
                     const SizedBox(height: 10),
-                    _navBtn(Icons.offline_pin_rounded, 'Carte éco',
+                    _navBtn(Icons.layers_rounded, 'Carte éco',
                         () async {
                       await Navigator.push(context, MaterialPageRoute(
                         builder: (_) => TerritoireDownloadPage(
