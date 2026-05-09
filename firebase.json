@@ -2,7 +2,17 @@
   "hosting": {
     "public": "build/web",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{"source": "**", "destination": "/index.html"}]
+    "rewrites": [{"source": "**", "destination": "/index.html"}],
+    "headers": [
+      {
+        "source": "flutter_service_worker.js",
+        "headers": [{"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"}]
+      },
+      {
+        "source": "**/*.js",
+        "headers": [{"key": "Cache-Control", "value": "no-cache"}]
+      }
+    ]
   },
   "functions": [
     {
