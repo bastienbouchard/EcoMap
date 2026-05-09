@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 
 class AuthService {
   static final _auth = FirebaseAuth.instance;
@@ -15,20 +14,6 @@ class AuthService {
 
   static Future<UserCredential> createWithEmail(String email, String password) =>
       _auth.createUserWithEmailAndPassword(email: email, password: password);
-
-  // ── Connexion Google — popup sur web, flow natif sur mobile ──
-  static Future<UserCredential?> signInWithGoogle() async {
-    if (kIsWeb) {
-      // Sur web : popup Firebase directement
-      final provider = GoogleAuthProvider();
-      provider.setCustomParameters({'prompt': 'select_account'});
-      return _auth.signInWithPopup(provider);
-    } else {
-      // Sur mobile : google_sign_in natif
-      // ignore: avoid_dynamic_calls
-      throw UnimplementedError('Mobile Google Sign-In pas encore configuré');
-    }
-  }
 
   static Future<void> signOut() async {
     await _auth.signOut();

@@ -41,23 +41,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _signInGoogle() async {
-    // Ouvrir le popup AVANT tout setState pour éviter que le navigateur le bloque
-    try {
-      final cred = await AuthService.signInWithGoogle();
-      if (!mounted) return;
-      setState(() { _loading = true; _error = null; });
-      if (cred != null) await AuthService.ensureUserDoc();
-    } catch (e) {
-      if (mounted) setState(() {
-        _loading = false;
-        _error = _friendlyError(e.toString());
-      });
-      return;
-    }
-    if (mounted) setState(() => _loading = false);
-  }
-
   Future<void> _resetPassword() async {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
@@ -153,24 +136,6 @@ class _LoginPageState extends State<LoginPage> {
                                 color: Colors.white,
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Google
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white24),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _loading ? null : _signInGoogle,
-                    icon: const Icon(Icons.login, color: Colors.white70, size: 20),
-                    label: const Text('Continuer avec Google',
-                        style: TextStyle(color: Colors.white70, fontSize: 14)),
                   ),
                 ),
                 const SizedBox(height: 20),
