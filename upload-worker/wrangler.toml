@@ -1,0 +1,10 @@
+name = "ecomap-upload"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "ecomap-tiles"
+
+[vars]
+PUBLIC_URL = "https://pub-5c51ef289e6943dbb647c2a2d1baa3bf.r2.dev"

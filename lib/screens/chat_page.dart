@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 class ChatPage extends StatefulWidget {
   final String groupeId;
@@ -15,6 +18,7 @@ class _ChatPageState extends State<ChatPage> {
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
   final _db = FirebaseFirestore.instance;
+  bool _envoyantPhoto = false;
 
   Stream<QuerySnapshot> get _messages => _db
       .collection('groupes')
@@ -40,11 +44,8 @@ class _ChatPageState extends State<ChatPage> {
       });
       await Future.delayed(const Duration(milliseconds: 150));
       if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
+        _scroll.animateTo(_scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
       }
     } catch (e) {
       if (mounted) {
@@ -54,6 +55,61 @@ class _ChatPageState extends State<ChatPage> {
         ));
         _ctrl.text = texte;
       }
+    }
+  }
+
+  static const _workerUrl = 'https://ecomap-upload.bastienbouchard.workers.dev';
+  static const _uploadSecret = 'moosescan2026';
+
+  Future<void> _envoyerPhoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 60,
+      maxWidth: 900,
+    );
+    if (picked == null) return;
+
+    setState(() => _envoyantPhoto = true);
+    try {
+      final bytes = await picked.readAsBytes();
+      final filename = '${widget.groupeId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final resp = await http.post(
+        Uri.parse(_workerUrl),
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'X-Auth-Token': _uploadSecret,
+          'X-Filename': filename,
+        },
+        body: bytes,
+      );
+      if (resp.statusCode != 200) throw Exception('Upload échoué: ${resp.statusCode}');
+      final url = (json.decode(resp.body) as Map)['url'] as String;
+
+      await _db
+          .collection('groupes')
+          .doc(widget.groupeId)
+          .collection('messages')
+          .add({
+        'nom': widget.monNom,
+        'texte': '',
+        'photoUrl': url,
+        'ts': FieldValue.serverTimestamp(),
+      });
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (_scroll.hasClients) {
+        _scroll.animateTo(_scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur photo: $e'),
+          backgroundColor: const Color(0xFF8B4513),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _envoyantPhoto = false);
     }
   }
 
@@ -74,8 +130,8 @@ class _ChatPageState extends State<ChatPage> {
           const Icon(Icons.people, color: Color(0xFF4A90E2), size: 18),
           const SizedBox(width: 8),
           Text(widget.groupeId,
-              style: const TextStyle(color: Colors.white, fontSize: 16,
-                  fontWeight: FontWeight.bold)),
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
         ]),
         iconTheme: const IconThemeData(color: Color(0xFFFF6B35)),
         elevation: 0,
@@ -90,11 +146,9 @@ class _ChatPageState extends State<ChatPage> {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Erreur Firestore:\n${snap.error}',
-                        style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 12),
-                        textAlign: TextAlign.center,
-                      ),
+                      child: Text('Erreur Firestore:\n${snap.error}',
+                          style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 12),
+                          textAlign: TextAlign.center),
                     ),
                   );
                 }
@@ -122,6 +176,7 @@ class _ChatPageState extends State<ChatPage> {
                     final d = docs[i].data() as Map<String, dynamic>;
                     final nom = d['nom'] as String? ?? '';
                     final texte = d['texte'] as String? ?? '';
+                    final photoUrl = d['photoUrl'] as String?;
                     final ts = (d['ts'] as Timestamp?)?.toDate();
                     final estMoi = nom == widget.monNom;
                     final heure = ts != null
@@ -136,22 +191,18 @@ class _ChatPageState extends State<ChatPage> {
                         children: [
                           if (!estMoi)
                             Container(
-                              width: 30,
-                              height: 30,
+                              width: 30, height: 30,
                               margin: const EdgeInsets.only(right: 6, bottom: 2),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF4A90E2).withOpacity(0.2),
                                 shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: const Color(0xFF4A90E2), width: 1.5),
+                                border: Border.all(color: const Color(0xFF4A90E2), width: 1.5),
                               ),
                               child: Center(
                                 child: Text(
                                   nom.isNotEmpty ? nom[0].toUpperCase() : '?',
                                   style: const TextStyle(
-                                      color: Color(0xFF4A90E2),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold),
+                                      color: Color(0xFF4A90E2), fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ),
@@ -171,8 +222,9 @@ class _ChatPageState extends State<ChatPage> {
                                             fontWeight: FontWeight.bold)),
                                   ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
+                                  padding: photoUrl != null
+                                      ? const EdgeInsets.all(4)
+                                      : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
                                     color: estMoi
                                         ? const Color(0xFF2D5016)
@@ -189,15 +241,33 @@ class _ChatPageState extends State<ChatPage> {
                                           : Colors.white12,
                                     ),
                                   ),
-                                  child: Text(texte,
-                                      style: const TextStyle(
-                                          color: Colors.white, fontSize: 14)),
+                                  child: photoUrl != null
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: Image.network(
+                                            photoUrl,
+                                            width: 220,
+                                            fit: BoxFit.cover,
+                                            loadingBuilder: (_, child, progress) => progress == null
+                                                ? child
+                                                : SizedBox(
+                                                    width: 220, height: 140,
+                                                    child: Center(child: CircularProgressIndicator(
+                                                      value: progress.expectedTotalBytes != null
+                                                          ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                                                          : null,
+                                                      color: const Color(0xFF4A90E2),
+                                                    )),
+                                                  ),
+                                          ),
+                                        )
+                                      : Text(texte,
+                                          style: const TextStyle(color: Colors.white, fontSize: 14)),
                                 ),
                                 Padding(
                                   padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
                                   child: Text(heure,
-                                      style: const TextStyle(
-                                          color: Colors.white24, fontSize: 10)),
+                                      style: const TextStyle(color: Colors.white24, fontSize: 10)),
                                 ),
                               ],
                             ),
@@ -217,6 +287,23 @@ class _ChatPageState extends State<ChatPage> {
               border: Border(top: BorderSide(color: Colors.white12)),
             ),
             child: Row(children: [
+              // Bouton photo
+              GestureDetector(
+                onTap: _envoyantPhoto ? null : _envoyerPhoto,
+                child: Container(
+                  width: 42, height: 42,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: _envoyantPhoto
+                      ? const Center(child: SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4A90E2))))
+                      : const Icon(Icons.photo_outlined, color: Colors.white54, size: 22),
+                ),
+              ),
               Expanded(
                 child: TextField(
                   controller: _ctrl,
@@ -228,8 +315,7 @@ class _ChatPageState extends State<ChatPage> {
                     hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
                     filled: true,
                     fillColor: const Color(0xFF1A1A1A),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
                       borderSide: BorderSide.none,
@@ -242,16 +328,13 @@ class _ChatPageState extends State<ChatPage> {
               GestureDetector(
                 onTap: _envoyer,
                 child: Container(
-                  width: 42,
-                  height: 42,
+                  width: 42, height: 42,
                   decoration: BoxDecoration(
                     color: const Color(0xFF2D5016),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                        color: const Color(0xFF5A8A1E).withOpacity(0.5)),
+                    border: Border.all(color: const Color(0xFF5A8A1E).withOpacity(0.5)),
                   ),
-                  child: const Icon(Icons.send_rounded,
-                      color: Colors.white, size: 20),
+                  child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
                 ),
               ),
             ]),
