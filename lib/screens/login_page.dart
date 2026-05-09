@@ -42,15 +42,20 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _signInGoogle() async {
-    setState(() { _loading = true; _error = null; });
+    // Ouvrir le popup AVANT tout setState pour éviter que le navigateur le bloque
     try {
       final cred = await AuthService.signInWithGoogle();
+      if (!mounted) return;
+      setState(() { _loading = true; _error = null; });
       if (cred != null) await AuthService.ensureUserDoc();
-    } on Exception catch (e) {
-      if (mounted) setState(() => _error = _friendlyError(e.toString()));
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) setState(() {
+        _loading = false;
+        _error = _friendlyError(e.toString());
+      });
+      return;
     }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _resetPassword() async {
