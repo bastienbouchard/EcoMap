@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Authentification via Firebase REST API — pas de plugin natif, fonctionne sur web
 class AuthService {
   static const _apiKey = 'AIzaSyACM479_zu4rESc_e1J_o6lBs--WzMMTPc';
   static const _baseUrl = 'https://identitytoolkit.googleapis.com/v1/accounts';
+  static const _keyUid = 'auth_uid';
+  static const _keyEmail = 'auth_email';
 
   static String? _uid;
   static String? _email;
@@ -13,6 +16,13 @@ class AuthService {
   static bool get isLoggedIn => _uid != null;
   static String? get uid => _uid;
   static String? get email => _email;
+
+  // ── Restaure la session depuis le stockage local ──
+  static Future<void> restoreSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    _uid = prefs.getString(_keyUid);
+    _email = prefs.getString(_keyEmail);
+  }
 
   // ── Créer un compte ──
   static Future<void> createWithEmail(String email, String password) async {
@@ -28,6 +38,9 @@ class AuthService {
   static Future<void> signOut() async {
     _uid = null;
     _email = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyUid);
+    await prefs.remove(_keyEmail);
   }
 
   // ── Réinitialiser mot de passe ──
@@ -70,5 +83,9 @@ class AuthService {
     }
     _uid = data['localId'] as String?;
     _email = data['email'] as String?;
+    // Sauvegarder la session localement
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyUid, _uid ?? '');
+    await prefs.setString(_keyEmail, _email ?? '');
   }
 }
