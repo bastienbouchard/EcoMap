@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show pi;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,42 +10,38 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../app_globals.dart';
-import '../services/groupe_service.dart';
 import '../models/hotspot_info.dart';
-import '../services/geo_service.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
-import '../widgets/scale_bar.dart';
-import '../widgets/hotspot_detail_sheet.dart';
-import 'about_page.dart';
-import 'territoire_download_page.dart';
+import '../services/geo_service.dart';
+import '../services/groupe_service.dart';
 import '../services/territoire_service.dart';
+import '../widgets/aide_dialog.dart';
+import '../widgets/hotspot_detail_sheet.dart';
+import '../widgets/map_controls.dart';
+import '../widgets/scale_bar.dart';
+import 'about_page.dart';
 import 'chat_page.dart';
 import 'meteo_page.dart';
 import 'navigation_page.dart';
-import 'parcours_page.dart';
+import 'territoire_download_page.dart';
 
-class _AideItem extends StatelessWidget {
-  final String title;
-  final String desc;
-  const _AideItem(this.title, this.desc);
+// ─────────────────────────────────────────────────────────────────────────────
+// Types d'observation disponibles
+// ─────────────────────────────────────────────────────────────────────────────
+const _typesObservation = [
+  ('🦌', 'Frottage'),
+  ('💧', 'Souille'),
+  ('👣', 'Traces'),
+  ('📷', 'Caméra'),
+  ('💩', 'Crottes'),
+  ('🌿', 'Cache'),
+  ('🍃', 'Broutage'),
+];
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: RichText(
-        text: TextSpan(
-          children: [
-            TextSpan(text: '$title  ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-            TextSpan(text: desc, style: const TextStyle(color: Colors.white60, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
+// MapPage
+// ─────────────────────────────────────────────────────────────────────────────
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
 
@@ -54,94 +51,71 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   static const double _opacity = 0.7;
-  bool _satellite = false;
+
+  // ── Carte ──
   final MapController _mapController = MapController();
+  double _mapZoom = 13.0;
+  double _mapLat = 48.2917;
+  bool _satellite = false;
+
+  // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
   bool _loading = false;
-  bool _loadingParcours = false;
   double? _windDeg;
   double? _windSpeed;
-  List<LatLng> _parcours = [];
-  double _distanceParcours = 2.0;
-  bool _showParcours = false;
+  StreamSubscription<Position>? _positionStream;
+
+  // ── Polygones écoforestiers ──
   List<Polygon> _polygonsCache = [];
   List<Map<String, dynamic>> _polygonLabels = [];
-  double _parcoursScore = 0;
+
+  // ── Hotspots ──
   bool _showHotspots = false;
   List<LatLng> _hotspots = [];
   List<HotspotInfo> _hotspotInfos = [];
   List<HotspotInfo> _rawHotspots = [];
-  double _mapZoom = 13.0;
-  double _mapLat = 48.2917;
-  StreamSubscription<Position>? _positionStream;
   Timer? _hotspotDebounce;
+
+  // ── Parcours ──
+  bool _showParcours = false;
+  bool _loadingParcours = false;
+  List<LatLng> _parcours = [];
+  double _distanceParcours = 2.0;
+  double _parcoursScore = 0;
+
+  // ── Affût (pinch points) ──
+  bool _showPinchPoints = false;
+  bool _loadingPinch = false;
+  List<Map<String, dynamic>> _pinchPoints = [];
+
+  // ── Tracé GPS ──
+  bool _recording = false;
+  List<LatLng> _trackPoints = [];
+  final List<({DateTime date, List<LatLng> points})> _savedTracks = [];
+
+  // ── Observations terrain ──
   List<Map<String, dynamic>> _observations = [];
+
+  // ── Groupe ──
   String? _groupeId;
   String? _monNom;
   bool _groupeActif = false;
   List<MembreGroupe> _membres = [];
   StreamSubscription<List<MembreGroupe>>? _groupeStream;
-  bool _recording = false;
-  List<LatLng> _trackPoints = [];
-  final List<({DateTime date, List<LatLng> points})> _savedTracks = [];
-  bool _showPinchPoints = false;
-  List<Map<String, dynamic>> _pinchPoints = [];
-  bool _loadingPinch = false;
+
+  // ── UI panels ──
   bool _showActionPanel = false;
   bool _showNavPanel = false;
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Cycle de vie
+  // ─────────────────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
     _initLocation();
     _fetchWind();
-    Future.delayed(const Duration(seconds: 1), () async {
-      await _reloadTerritoire();
-    });
-  }
-
-  Future<void> _initLocation() async {
-    try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.deniedForever) return;
-
-      // Position initiale
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 60),
-        ),
-      );
-      if (mounted) {
-        final gpsPos = LatLng(pos.latitude, pos.longitude);
-        setState(() => _currentPosition = gpsPos);
-        _mapController.move(gpsPos, 13);
-        await _fetchWind();
-      }
-
-      // Suivi continu — met à jour la position en temps réel
-      _positionStream = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 10, // Mise à jour tous les 10m
-        ),
-      ).listen((position) {
-        if (mounted) {
-          final pos = LatLng(position.latitude, position.longitude);
-          setState(() {
-            _currentPosition = pos;
-            if (_recording) _trackPoints.add(pos);
-            if (_showHotspots) _hotspots = _computeHotspots();
-          });
-          if (_groupeActif && _groupeId != null && _monNom != null) {
-            GroupeService.publierPosition(groupeId: _groupeId!, nom: _monNom!, position: pos);
-          }
-        }
-      });
-    } catch (e) {}
+    Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
   }
 
   @override
@@ -155,24 +129,63 @@ class _MapPageState extends State<MapPage> {
     super.dispose();
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // GPS
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _initLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) return;
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 60),
+        ),
+      );
+      if (mounted) {
+        final gpsPos = LatLng(pos.latitude, pos.longitude);
+        setState(() => _currentPosition = gpsPos);
+        _mapController.move(gpsPos, 13);
+        await _fetchWind();
+      }
+
+      _positionStream = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+        ),
+      ).listen((position) {
+        if (!mounted) return;
+        final p = LatLng(position.latitude, position.longitude);
+        setState(() {
+          _currentPosition = p;
+          if (_recording) _trackPoints.add(p);
+          if (_showHotspots) _hotspots = _computeHotspots();
+        });
+        if (_groupeActif && _groupeId != null && _monNom != null) {
+          GroupeService.publierPosition(groupeId: _groupeId!, nom: _monNom!, position: p);
+        }
+      });
+    } catch (_) {}
+  }
+
   Future<void> _goToCurrentLocation() async {
     setState(() => _loading = true);
     try {
-      // Sur web, on saute le check isLocationServiceEnabled (peu fiable)
       if (!kIsWeb) {
         final serviceEnabled = await Geolocator.isLocationServiceEnabled();
         if (!serviceEnabled) {
           if (mounted) {
             setState(() => _loading = false);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Active la localisation dans les paramètres'),
-              backgroundColor: Color(0xFFFF6B35),
-            ));
+            _snack('Active la localisation dans les paramètres', error: true);
           }
           return;
         }
       }
-
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -181,18 +194,12 @@ class _MapPageState extends State<MapPage> {
           permission == LocationPermission.denied) {
         if (mounted) {
           setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Permission de localisation refusée par le navigateur'),
-            backgroundColor: Color(0xFFFF6B35),
-          ));
+          _snack('Permission de localisation refusée par le navigateur', error: true);
         }
         return;
       }
-
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-        ),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
       ).timeout(const Duration(seconds: 15));
       if (mounted) {
         setState(() {
@@ -202,23 +209,19 @@ class _MapPageState extends State<MapPage> {
         _mapController.move(_currentPosition, 13);
         await _fetchWind();
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('GPS: autorise la localisation dans ton navigateur'),
-            backgroundColor: const Color(0xFFFF6B35),
-          ),
-        );
+        _snack('GPS: autorise la localisation dans ton navigateur', error: true);
       }
     }
   }
 
-  void _resetNorth() {
-    _mapController.rotate(0);
-  }
+  void _resetNorth() => _mapController.rotate(0);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Vent
+  // ─────────────────────────────────────────────────────────────────────────
   Future<void> _fetchWind() async {
     try {
       final url = Uri.parse(
@@ -230,82 +233,54 @@ class _MapPageState extends State<MapPage> {
       final resp = await http.get(url);
       if (resp.statusCode == 200) {
         final data = json.decode(resp.body);
-        setState(() {
+        if (mounted) setState(() {
           _windDeg = data['current']['wind_direction_10m']?.toDouble();
           _windSpeed = data['current']['wind_speed_10m']?.toDouble();
         });
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 
-  // Génère un parcours dans un isolate séparé pour ne pas bloquer le thread UI
-  Future<void> _genererParcours() async {
-    setState(() => _loadingParcours = true);
-
-    try {
-      // Départ = centre de l'écran (réticule), pas le GPS
-      final startPos = _mapController.camera.center;
-
-      // Direction vers les meilleurs hotspots (triés par score)
-      final topHotspots = (_rawHotspots.toList()
-            ..sort((a, b) => b.score.compareTo(a.score)))
-          .take(8)
-          .map((h) => [h.position.latitude, h.position.longitude])
-          .toList();
-
-      final result = await compute(buildParcoursIsolate, {
-        'lat': startPos.latitude,
-        'lon': startPos.longitude,
-        'windRad': (_windDeg ?? 0) * pi / 180,
-        'hotspots': topHotspots,
-        'targetDist': _distanceParcours * 1000,
-        'geoJson': geoJson,
-      });
-
-      final rawList = result['points'] as List;
-      final scorePct = (result['scorePct'] as num).toDouble();
-      final points = rawList.map((p) {
-        final coords = p as List;
-        return LatLng((coords[0] as num).toDouble(), (coords[1] as num).toDouble());
-      }).toList();
-
-      if (!mounted) return;
-      setState(() {
-        _parcours = points;
-        _showParcours = true;
-        _parcoursScore = scorePct;
-        _loadingParcours = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _loadingParcours = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur parcours: $e'),
-            backgroundColor: const Color(0xFF8B4513)),
-      );
+  // ─────────────────────────────────────────────────────────────────────────
+  // Territoire écoforestier
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _reloadTerritoire() async {
+    final list = await TerritoireService.listTerritoires();
+    if (!mounted) return;
+    if (list.isEmpty) {
+      geoJson = {'type': 'FeatureCollection', 'features': []};
+      setState(() { _polygonsCache = []; _polygonLabels = []; });
       return;
     }
-
-    if (_parcours.length < 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Parcours limité — déplacez-vous dans une zone plus ouverte',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Color(0xFFFF6B35),
-          duration: Duration(seconds: 3),
-        ),
-      );
+    final allFeatures = <dynamic>[];
+    for (final t in list) {
+      final data = await TerritoireService.loadTerritoire(t['id'] as String);
+      if (data != null) allFeatures.addAll(data['features'] as List);
     }
+    geoJson = {'type': 'FeatureCollection', 'features': allFeatures};
+    final polys = await compute(buildPolygonsIsolate, geoJson);
+    final labels = await compute(buildPolygonLabelsIsolate, geoJson);
+    final rawHS = await compute(buildHotspotsDataIsolate, geoJson);
+    if (!mounted) return;
+    final parsedHS = rawHS.map((e) => HotspotInfo(
+      position: LatLng(e['la'] as double, e['lo'] as double),
+      score: e['s'] as int,
+      props: e['p'] as Map,
+    )).toList();
+    setState(() {
+      _polygonsCache = polys;
+      _polygonLabels = labels;
+      _rawHotspots = parsedHS;
+      if (_showHotspots) _hotspots = _computeHotspots();
+    });
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Hotspots
+  // ─────────────────────────────────────────────────────────────────────────
   List<LatLng> _computeHotspots() {
     if (_rawHotspots.isEmpty) return [];
-
     List<HotspotInfo> candidates = [];
-
-    // Essaie visibleBounds d'abord, sinon calcule la zone depuis le centre + zoom
     try {
       final b = _mapController.camera.visibleBounds;
       candidates = _rawHotspots
@@ -318,7 +293,6 @@ class _MapPageState extends State<MapPage> {
         ..sort((a, b) => b.score.compareTo(a.score));
     } catch (_) {}
 
-    // Fallback : calcul de la zone visible depuis zoom + centre
     if (candidates.isEmpty) {
       try {
         final center = _mapController.camera.center;
@@ -351,359 +325,73 @@ class _MapPageState extends State<MapPage> {
     return result;
   }
 
-  static const _typesObservation = [
-    ('🦌', 'Frottage'),
-    ('💧', 'Souille'),
-    ('👣', 'Traces'),
-    ('📷', 'Caméra'),
-    ('💩', 'Crottes'),
-    ('🌿', 'Cache'),
-    ('🍃', 'Broutage'),
-  ];
-
-  void _addObservation() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
-        title: const Text('Type d\'observation', style: TextStyle(color: Colors.white, fontSize: 16)),
-        contentPadding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 2.8,
-            children: _typesObservation.map((t) {
-              return GestureDetector(
-                onTap: () {
-                  final obsPos = _mapController.camera.center;
-                  setState(() => _observations.add({
-                    'pos': obsPos,
-                    'note': '${t.$1} ${t.$2}',
-                    'time': DateTime.now(),
-                  }));
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('${t.$1} ${t.$2} ajouté'),
-                    backgroundColor: const Color(0xFF2D5016),
-                    duration: const Duration(seconds: 1),
-                  ));
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
-                  ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Container(
-                      width: 36, height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFFF6B35), width: 1.5),
-                      ),
-                      child: Center(child: _obsIcon('${t.$1} ${t.$2}', size: 20)),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(t.$2, style: const TextStyle(color: Colors.white, fontSize: 13)),
-                  ]),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _sharePosition() {
-    if (!_groupeActif) {
-      _dialogueRejoindre();
-    } else {
-      _panelGroupe();
-    }
-  }
-
-  void _dialogueRejoindre() {
-    final nomCtrl = TextEditingController(text: _monNom);
-    final codeCtrl = TextEditingController(text: _groupeId);
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
-        title: const Text('Rejoindre un groupe', style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
-            controller: nomCtrl,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              labelText: 'Ton nom', labelStyle: TextStyle(color: Colors.white54),
-              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
-              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: codeCtrl,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              labelText: 'Code du groupe (ex: chasse2026)',
-              labelStyle: TextStyle(color: Colors.white54),
-              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
-              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text('Tous les chasseurs du même code se voient sur la carte.',
-              style: TextStyle(color: Colors.white38, fontSize: 11)),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D5016)),
-            onPressed: () {
-              final nom = nomCtrl.text.trim();
-              final code = codeCtrl.text.trim();
-              if (nom.isEmpty || code.isEmpty) return;
-              Navigator.pop(context);
-              _rejoindreGroupe(nom, code);
-            },
-            child: const Text('Rejoindre', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _panelGroupe() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF2D2D2D),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(children: [
-              const Icon(Icons.people, color: Color(0xFF4A90E2), size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Groupe actif', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                  Text(_groupeId ?? '', style: const TextStyle(color: Color(0xFF4A90E2), fontSize: 12)),
-                ]),
-              ),
-              TextButton(
-                onPressed: () { Navigator.pop(context); _quitterGroupe(); },
-                child: const Text('Quitter', style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13)),
-              ),
-            ]),
-            const Divider(color: Colors.white12, height: 24),
-            _groupeTile(
-              Icons.chat_bubble_rounded, 'Clavardage du groupe',
-              'Messages entre chasseurs',
-              () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ChatPage(groupeId: _groupeId!, monNom: _monNom!),
-                ));
-              },
-            ),
-            _groupeTile(
-              Icons.location_on_rounded, 'Position du groupe',
-              'Positions GPS en temps réel',
-              () { Navigator.pop(context); },
-            ),
-            _groupeTile(
-              Icons.pin_drop_rounded, 'Partage des observations',
-              'Frottages, souilles, traces…',
-              () {
-                Navigator.pop(context);
-                _partagerObservations();
-              },
-            ),
-            _groupeTile(
-              Icons.route_rounded, 'Partage des tracés',
-              'Tracés GPS du groupe',
-              () {
-                Navigator.pop(context);
-                _partagerTraces();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _groupeTile(IconData icon, String titre, String sous, VoidCallback onTap) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          color: const Color(0xFF4A90E2).withOpacity(0.15),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: const Color(0xFF4A90E2), size: 22),
-      ),
-      title: Text(titre, style: const TextStyle(color: Colors.white, fontSize: 14)),
-      subtitle: Text(sous, style: const TextStyle(color: Colors.white38, fontSize: 11)),
-      trailing: const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
-      onTap: onTap,
-    );
-  }
-
-  void _partagerObservations() {
-    if (_observations.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Aucune observation à partager'),
-        backgroundColor: Color(0xFF8B4513),
-        duration: Duration(seconds: 2),
-      ));
-      return;
-    }
-    final db = FirebaseFirestore.instance;
-    for (final obs in _observations) {
-      final pos = obs['pos'] as LatLng;
-      db.collection('groupes').doc(_groupeId).collection('observations').add({
-        'nom': _monNom,
-        'note': obs['note'],
-        'lat': pos.latitude,
-        'lon': pos.longitude,
-        'ts': FieldValue.serverTimestamp(),
-      });
-    }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${_observations.length} observation(s) partagée(s)'),
-      backgroundColor: const Color(0xFF2D5016),
-      duration: const Duration(seconds: 2),
-    ));
-  }
-
-  void _partagerTraces() {
-    if (_savedTracks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Aucun tracé à partager'),
-        backgroundColor: Color(0xFF8B4513),
-        duration: Duration(seconds: 2),
-      ));
-      return;
-    }
-    final db = FirebaseFirestore.instance;
-    for (final track in _savedTracks) {
-      db.collection('groupes').doc(_groupeId).collection('traces').add({
-        'nom': _monNom,
-        'points': track.points.map((p) => {'lat': p.latitude, 'lon': p.longitude}).toList(),
-        'date': track.date.toIso8601String(),
-        'ts': FieldValue.serverTimestamp(),
-      });
-    }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${_savedTracks.length} tracé(s) partagé(s)'),
-      backgroundColor: const Color(0xFF2D5016),
-      duration: const Duration(seconds: 2),
-    ));
-  }
-
-  void _rejoindreGroupe(String nom, String groupeId) {
-    setState(() {
-      _monNom = nom;
-      _groupeId = groupeId;
-      _groupeActif = true;
-    });
-    // Publier ma position immédiatement
-    GroupeService.publierPosition(groupeId: groupeId, nom: nom, position: _currentPosition);
-    // Écouter les autres membres
-    _groupeStream?.cancel();
-    _groupeStream = GroupeService.ecouterGroupe(groupeId, nom).listen((membres) {
-      if (mounted) setState(() => _membres = membres);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Groupe "$groupeId" rejoint — ta position est partagée'),
-      backgroundColor: const Color(0xFF2D5016),
-    ));
-  }
-
-  void _quitterGroupe() {
-    _groupeStream?.cancel();
-    if (_groupeId != null && _monNom != null) {
-      GroupeService.quitter(_groupeId!, _monNom!);
-    }
-    setState(() { _groupeActif = false; _membres = []; });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Groupe quitté'), backgroundColor: Color(0xFF8B4513)));
-  }
-
   void _toggleHotspots({bool forceRefresh = false}) {
     if (_showHotspots && !forceRefresh) {
       setState(() { _showHotspots = false; _hotspots = []; });
       return;
     }
     if (_rawHotspots.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Données habitat non chargées — patiente un instant'),
-        backgroundColor: Color(0xFF8B4513),
-        duration: Duration(seconds: 2),
-      ));
+      _snack('Données habitat non chargées — patiente un instant', error: true);
       return;
     }
     final spots = _computeHotspots();
     setState(() { _hotspots = spots; _showHotspots = true; });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(spots.isEmpty
-          ? 'Aucun spot ici — navigue vers une zone forestière'
-          : '${spots.length} point${spots.length > 1 ? 's' : ''} chaud${spots.length > 1 ? 's' : ''} dans cette zone'),
-      backgroundColor: spots.isEmpty ? const Color(0xFF8B4513) : const Color(0xFF2D5016),
-      duration: const Duration(seconds: 2),
-    ));
+    _snack(spots.isEmpty
+        ? 'Aucun spot ici — navigue vers une zone forestière'
+        : '${spots.length} point${spots.length > 1 ? 's' : ''} chaud${spots.length > 1 ? 's' : ''} dans cette zone',
+      error: spots.isEmpty);
   }
 
-  Future<void> _reloadTerritoire() async {
-    final list = await TerritoireService.listTerritoires();
-    if (!mounted) return;
-    if (list.isEmpty) {
-      geoJson = {'type': 'FeatureCollection', 'features': []};
-      if (mounted) setState(() { _polygonsCache = []; _polygonLabels = []; });
+  // ─────────────────────────────────────────────────────────────────────────
+  // Parcours
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _genererParcours() async {
+    setState(() => _loadingParcours = true);
+    try {
+      final startPos = _mapController.camera.center;
+      final topHotspots = (_rawHotspots.toList()
+            ..sort((a, b) => b.score.compareTo(a.score)))
+          .take(8)
+          .map((h) => [h.position.latitude, h.position.longitude])
+          .toList();
+
+      final result = await compute(buildParcoursIsolate, {
+        'lat': startPos.latitude,
+        'lon': startPos.longitude,
+        'windRad': (_windDeg ?? 0) * pi / 180,
+        'hotspots': topHotspots,
+        'targetDist': _distanceParcours * 1000,
+        'geoJson': geoJson,
+      });
+
+      final rawList = result['points'] as List;
+      final scorePct = (result['scorePct'] as num).toDouble();
+      final points = rawList.map((p) {
+        final coords = p as List;
+        return LatLng((coords[0] as num).toDouble(), (coords[1] as num).toDouble());
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _parcours = points;
+        _showParcours = true;
+        _parcoursScore = scorePct;
+        _loadingParcours = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingParcours = false);
+      _snack('Erreur parcours: $e', error: true);
       return;
     }
-    final allFeatures = <dynamic>[];
-    for (final t in list) {
-      final data = await TerritoireService.loadTerritoire(t['id'] as String);
-      if (data != null) allFeatures.addAll(data['features'] as List);
+    if (_parcours.length < 5) {
+      _snack('Parcours limité — déplacez-vous dans une zone plus ouverte', error: true);
     }
-    geoJson = {'type': 'FeatureCollection', 'features': allFeatures};
-    final polys = await compute(buildPolygonsIsolate, geoJson);
-    final labels = await compute(buildPolygonLabelsIsolate, geoJson);
-    final rawHS = await compute(buildHotspotsDataIsolate, geoJson);
-    if (!mounted) return;
-    final parsedHS = rawHS.map((e) => HotspotInfo(
-      position: LatLng(e['la'] as double, e['lo'] as double),
-      score: e['s'] as int,
-      props: e['p'] as Map,
-    )).toList();
-    setState(() {
-      _polygonsCache = polys;
-      _polygonLabels = labels;
-      _rawHotspots = parsedHS;
-      if (_showHotspots) _hotspots = _computeHotspots();
-    });
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Affût (pinch points)
+  // ─────────────────────────────────────────────────────────────────────────
   Future<void> _togglePinchPoints() async {
     if (_showPinchPoints) {
       setState(() { _showPinchPoints = false; _pinchPoints = []; });
@@ -725,112 +413,295 @@ class _MapPageState extends State<MapPage> {
         _loadingPinch = false;
       });
       if (result.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Aucun emplacement détecté — navigue vers une zone avec eau ou coupes'),
-          backgroundColor: Color(0xFF8B4513),
-          duration: Duration(seconds: 3),
-        ));
+        _snack('Aucun emplacement détecté — navigue vers une zone avec eau ou coupes', error: true);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${result.length} emplacements d\'affût détectés dans un rayon de 3 km'),
-          backgroundColor: const Color(0xFF2D5016),
-          duration: const Duration(seconds: 2),
-        ));
+        _snack('${result.length} emplacements d\'affût détectés dans un rayon de 3 km');
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) setState(() => _loadingPinch = false);
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Tracé GPS
+  // ─────────────────────────────────────────────────────────────────────────
   void _toggleRecording() {
     if (_recording) {
       final pts = List<LatLng>.from(_trackPoints);
       setState(() => _recording = false);
       if (pts.length < 2) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Tracé trop court'),
-          backgroundColor: Color(0xFF8B4513),
-          duration: Duration(seconds: 2),
-        ));
+        _snack('Tracé trop court', error: true);
         return;
       }
       setState(() => _savedTracks.add((date: DateTime.now(), points: pts)));
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Tracé sauvegardé — ${pts.length} points'),
-        backgroundColor: const Color(0xFF2D5016),
-        duration: const Duration(seconds: 2),
-      ));
+      _snack('Tracé sauvegardé — ${pts.length} points');
     } else {
-      setState(() {
-        _recording = true;
-        _trackPoints = [];
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Enregistrement démarré — bouge-toi!'),
-        backgroundColor: const Color(0xFF2D2D2D),
-        duration: Duration(seconds: 2),
-      ));
+      setState(() { _recording = true; _trackPoints = []; });
+      _snack('Enregistrement démarré — bouge-toi!');
     }
   }
 
-  Widget _obsBtn() => _actionBtn(
-    icon: Icons.push_pin_rounded,
-    label: 'Obs.',
-    color: const Color(0xFFFF6B35),
-    active: false,
-    onTap: _addObservation,
-  );
-
-  Widget _actionBtn({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required bool active,
-    required VoidCallback onTap,
-    VoidCallback? onLongPress,
-    bool loading = false,
-    Widget? customIcon,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: active ? color.withOpacity(0.25) : const Color(0xFF2D2D2D),
-              borderRadius: BorderRadius.circular(21),
-              border: Border.all(
-                color: active ? color : color.withOpacity(0.4),
-                width: active ? 2 : 1,
-              ),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
-            ),
-            child: loading
-                ? Center(child: SizedBox(width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: color)))
-                : customIcon != null
-                    ? Center(child: customIcon)
-                    : Icon(icon, color: active ? color : color.withOpacity(0.8), size: 20),
+  // ─────────────────────────────────────────────────────────────────────────
+  // Observations
+  // ─────────────────────────────────────────────────────────────────────────
+  void _addObservation() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Type d\'observation',
+            style: TextStyle(color: Colors.white, fontSize: 16)),
+        contentPadding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 2.8,
+            children: _typesObservation.map((t) {
+              return GestureDetector(
+                onTap: () {
+                  final pos = _mapController.camera.center;
+                  setState(() => _observations.add({
+                    'pos': pos,
+                    'note': '${t.$1} ${t.$2}',
+                    'time': DateTime.now(),
+                  }));
+                  Navigator.pop(context);
+                  _snack('${t.$1} ${t.$2} ajouté');
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFFFF6B35).withOpacity(0.3)),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: const Color(0xFFFF6B35), width: 1.5),
+                        ),
+                        child: Center(
+                            child: obsIcon('${t.$1} ${t.$2}', size: 20)),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(t.$2,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 13)),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
           ),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: active ? color : Colors.white54, fontSize: 10)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler',
+                style: TextStyle(color: Colors.white54)),
+          ),
         ],
       ),
     );
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Groupe
+  // ─────────────────────────────────────────────────────────────────────────
+  void _sharePosition() =>
+      _groupeActif ? _panelGroupe() : _dialogueRejoindre();
+
+  void _dialogueRejoindre() {
+    final nomCtrl = TextEditingController(text: _monNom);
+    final codeCtrl = TextEditingController(text: _groupeId);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Rejoindre un groupe',
+            style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          _inputField(nomCtrl, 'Ton nom'),
+          const SizedBox(height: 12),
+          _inputField(codeCtrl, 'Code du groupe (ex: chasse2026)'),
+          const SizedBox(height: 8),
+          const Text(
+              'Tous les chasseurs du même code se voient sur la carte.',
+              style: TextStyle(color: Colors.white38, fontSize: 11)),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler',
+                  style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2D5016)),
+            onPressed: () {
+              final nom = nomCtrl.text.trim();
+              final code = codeCtrl.text.trim();
+              if (nom.isEmpty || code.isEmpty) return;
+              Navigator.pop(context);
+              _rejoindreGroupe(nom, code);
+            },
+            child: const Text('Rejoindre',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _panelGroupe() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2D2D2D),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              const Icon(Icons.people, color: Color(0xFF4A90E2), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Groupe actif',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold)),
+                      Text(_groupeId ?? '',
+                          style: const TextStyle(
+                              color: Color(0xFF4A90E2), fontSize: 12)),
+                    ]),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _quitterGroupe();
+                },
+                child: const Text('Quitter',
+                    style: TextStyle(
+                        color: Color(0xFFFF6B35), fontSize: 13)),
+              ),
+            ]),
+            const Divider(color: Colors.white12, height: 24),
+            _groupeTile(Icons.chat_bubble_rounded, 'Clavardage du groupe',
+                'Messages entre chasseurs', () {
+              Navigator.pop(context);
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatPage(
+                        groupeId: _groupeId!, monNom: _monNom!),
+                  ));
+            }),
+            _groupeTile(Icons.location_on_rounded, 'Position du groupe',
+                'Positions GPS en temps réel',
+                () => Navigator.pop(context)),
+            _groupeTile(Icons.pin_drop_rounded, 'Partage des observations',
+                'Frottages, souilles, traces…', () {
+              Navigator.pop(context);
+              _partagerObservations();
+            }),
+            _groupeTile(Icons.route_rounded, 'Partage des tracés',
+                'Tracés GPS du groupe', () {
+              Navigator.pop(context);
+              _partagerTraces();
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _rejoindreGroupe(String nom, String groupeId) {
+    setState(() {
+      _monNom = nom;
+      _groupeId = groupeId;
+      _groupeActif = true;
+    });
+    GroupeService.publierPosition(
+        groupeId: groupeId, nom: nom, position: _currentPosition);
+    _groupeStream?.cancel();
+    _groupeStream =
+        GroupeService.ecouterGroupe(groupeId, nom).listen((membres) {
+      if (mounted) setState(() => _membres = membres);
+    });
+    _snack('Groupe "$groupeId" rejoint — ta position est partagée');
+  }
+
+  void _quitterGroupe() {
+    _groupeStream?.cancel();
+    if (_groupeId != null && _monNom != null) {
+      GroupeService.quitter(_groupeId!, _monNom!);
+    }
+    setState(() { _groupeActif = false; _membres = []; });
+    _snack('Groupe quitté', error: true);
+  }
+
+  void _partagerObservations() {
+    if (_observations.isEmpty) {
+      _snack('Aucune observation à partager', error: true);
+      return;
+    }
+    final db = FirebaseFirestore.instance;
+    for (final obs in _observations) {
+      final pos = obs['pos'] as LatLng;
+      db.collection('groupes').doc(_groupeId).collection('observations').add({
+        'nom': _monNom,
+        'note': obs['note'],
+        'lat': pos.latitude,
+        'lon': pos.longitude,
+        'ts': FieldValue.serverTimestamp(),
+      });
+    }
+    _snack('${_observations.length} observation(s) partagée(s)');
+  }
+
+  void _partagerTraces() {
+    if (_savedTracks.isEmpty) {
+      _snack('Aucun tracé à partager', error: true);
+      return;
+    }
+    final db = FirebaseFirestore.instance;
+    for (final track in _savedTracks) {
+      db.collection('groupes').doc(_groupeId).collection('traces').add({
+        'nom': _monNom,
+        'points': track.points
+            .map((p) => {'lat': p.latitude, 'lon': p.longitude})
+            .toList(),
+        'date': track.date.toIso8601String(),
+        'ts': FieldValue.serverTimestamp(),
+      });
+    }
+    _snack('${_savedTracks.length} tracé(s) partagé(s)');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Dialogs
+  // ─────────────────────────────────────────────────────────────────────────
   void _showParcoursDialog() {
     double localDist = _distanceParcours;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF2D2D2D),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheet) => Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -839,18 +710,24 @@ class _MapPageState extends State<MapPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Row(children: [
-                Icon(Icons.route_rounded, color: Color(0xFF5A8A1E), size: 20),
+                Icon(Icons.route_rounded,
+                    color: Color(0xFF5A8A1E), size: 20),
                 SizedBox(width: 8),
                 Text('Générer un parcours',
-                    style: TextStyle(color: Colors.white, fontSize: 16,
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold)),
               ]),
               const SizedBox(height: 16),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                 const Text('Distance cible',
                     style: TextStyle(color: Colors.white60, fontSize: 13)),
                 Text('${localDist.toStringAsFixed(1)} km',
-                    style: const TextStyle(color: Colors.white, fontSize: 15,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold)),
               ]),
               SliderTheme(
@@ -859,7 +736,8 @@ class _MapPageState extends State<MapPage> {
                   inactiveTrackColor: Colors.white24,
                   thumbColor: const Color(0xFF7DC95E),
                   overlayColor: Colors.transparent,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 8),
                   trackHeight: 3,
                 ),
                 child: Slider(
@@ -873,8 +751,10 @@ class _MapPageState extends State<MapPage> {
               const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('0.5 km', style: TextStyle(color: Colors.white38, fontSize: 11)),
-                  Text('5 km', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  Text('0.5 km',
+                      style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  Text('5 km',
+                      style: TextStyle(color: Colors.white38, fontSize: 11)),
                 ],
               ),
               const SizedBox(height: 20),
@@ -896,7 +776,9 @@ class _MapPageState extends State<MapPage> {
                     _genererParcours();
                   },
                   child: const Text('Générer le parcours',
-                      style: TextStyle(color: Colors.white, fontSize: 15,
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -914,9 +796,13 @@ class _MapPageState extends State<MapPage> {
         builder: (ctx, setDlg) => AlertDialog(
           backgroundColor: const Color(0xFF2D2D2D),
           title: const Text('Tracés sauvegardés',
-              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold)),
           content: _savedTracks.isEmpty
-              ? const Text('Aucun tracé sauvegardé.\nAppuie sur ⏺ pour enregistrer un déplacement.',
+              ? const Text(
+                  'Aucun tracé sauvegardé.\nAppuie sur ⏺ pour enregistrer un déplacement.',
                   style: TextStyle(color: Colors.white54, fontSize: 13))
               : SizedBox(
                   width: double.maxFinite,
@@ -924,7 +810,8 @@ class _MapPageState extends State<MapPage> {
                     shrinkWrap: true,
                     itemCount: _savedTracks.length,
                     itemBuilder: (_, i) {
-                      final t = _savedTracks[_savedTracks.length - 1 - i];
+                      final t =
+                          _savedTracks[_savedTracks.length - 1 - i];
                       final d = t.date;
                       final label =
                           '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')} '
@@ -932,20 +819,25 @@ class _MapPageState extends State<MapPage> {
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(label,
-                            style: const TextStyle(color: Colors.white, fontSize: 13)),
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 13)),
                         subtitle: Text('${t.points.length} points',
-                            style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                        leading: const Icon(Icons.route, color: Color(0xFFE53935), size: 20),
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 11)),
+                        leading: const Icon(Icons.route,
+                            color: Color(0xFFE53935), size: 20),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline,
                               color: Color(0xFFFF6B35), size: 20),
                           onPressed: () {
-                            setState(() => _savedTracks.removeAt(_savedTracks.length - 1 - i));
+                            setState(() => _savedTracks.removeAt(
+                                _savedTracks.length - 1 - i));
                             setDlg(() {});
                           },
                         ),
                         onTap: () {
-                          setState(() => _trackPoints = List<LatLng>.from(t.points));
+                          setState(() => _trackPoints =
+                              List<LatLng>.from(t.points));
                           Navigator.pop(ctx);
                         },
                       );
@@ -960,11 +852,13 @@ class _MapPageState extends State<MapPage> {
                   setDlg(() {});
                 },
                 child: const Text('Tout supprimer',
-                    style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    style:
+                        TextStyle(color: Colors.white38, fontSize: 12)),
               ),
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Fermer', style: TextStyle(color: Color(0xFFFF6B35))),
+              child: const Text('Fermer',
+                  style: TextStyle(color: Color(0xFFFF6B35))),
             ),
           ],
         ),
@@ -972,126 +866,55 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  void _showAide() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
-        title: const Text('Aide', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const _AideItem('🔥 Spots', 'Affiche les 5 meilleurs habitats d\'orignal dans la zone visible.'),
-              const _AideItem('🗺 Parcours', 'Génère un itinéraire optimisé selon le vent et les points chauds.'),
-              const _AideItem('👥 Groupe', 'Partage ta position GPS avec les autres chasseurs du même code.'),
-              const _AideItem('⏺ Tracé', 'Enregistre ton déplacement GPS. Appuie sur Stop pour sauvegarder.'),
-              const _AideItem('! Obs.', 'Ajoute une observation terrain au centre de l\'écran.'),
-              const _AideItem('🏕 Affût', 'Corridors naturels où l\'orignal est forcé de passer — rayon 3 km.'),
-              const SizedBox(height: 14),
-              _sectionTitle('Codes de peuplement'),
-              const SizedBox(height: 6),
-              _glossaireNote('Les étiquettes sur la carte affichent : dominante + sous-dominante + âge + densité\nEx: SAEP60C = Sapin (dominant), Épinette (sous-dominant), 60 ans, semi-dense'),
-              const SizedBox(height: 8),
-              _sectionTitle('Essences (2 premières lettres = dominante, 2 suivantes = sous-dominante)'),
-              const SizedBox(height: 4),
-              _glossRow('PE', 'Peuplier tremblant'),
-              _glossRow('AU', 'Aulne'),
-              _glossRow('SA', 'Sapin baumier'),
-              _glossRow('BP', 'Bouleau à papier'),
-              _glossRow('ERR', 'Érable rouge'),
-              _glossRow('BJ', 'Bouleau jaune'),
-              _glossRow('EN', 'Épinette noire'),
-              _glossRow('EB', 'Épinette blanche'),
-              _glossRow('EP', 'Épinette (groupe)'),
-              _glossRow('MEL', 'Mélèze laricin'),
-              _glossRow('ERS', 'Érable à sucre'),
-              _glossRow('TH', 'Thuya (cèdre)'),
-              _glossRow('PIB', 'Pin blanc'),
-              _glossRow('PIR', 'Pin rouge'),
-              const SizedBox(height: 10),
-              _sectionTitle('Classes d\'âge'),
-              const SizedBox(height: 4),
-              _glossRow('J / JIN', 'Jeune — moins de 10 ans'),
-              _glossRow('10', '10 à 20 ans'),
-              _glossRow('20', '20 à 30 ans'),
-              _glossRow('30', '30 à 40 ans'),
-              _glossRow('40', '40 à 50 ans'),
-              _glossRow('50', '50 à 60 ans'),
-              _glossRow('60', '60 à 80 ans'),
-              _glossRow('80', '80 à 100 ans'),
-              _glossRow('100 / VIN', 'Plus de 100 ans'),
-              const SizedBox(height: 10),
-              _sectionTitle('Densité'),
-              const SizedBox(height: 4),
-              _glossRow('A', 'Éparse (< 25%)'),
-              _glossRow('B', 'Clairsemée (25–40%)'),
-              _glossRow('C', 'Semi-dense (40–60%)'),
-              _glossRow('D', 'Dense (60–80%)'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer', style: TextStyle(color: Color(0xFFFF6B35))),
-          ),
-        ],
+  // ─────────────────────────────────────────────────────────────────────────
+  // Utilitaires UI
+  // ─────────────────────────────────────────────────────────────────────────
+  void _snack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor:
+          error ? const Color(0xFF8B4513) : const Color(0xFF2D5016),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  Widget _inputField(TextEditingController ctrl, String label) {
+    return TextField(
+      controller: ctrl,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white54),
+        enabledBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Color(0xFFFF6B35))),
+        focusedBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Color(0xFFFF6B35))),
       ),
     );
   }
 
-  Widget _sectionTitle(String t) => Text(t,
-      style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 12, fontWeight: FontWeight.bold));
-
-  Widget _glossaireNote(String t) => Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(6),
+  Widget _groupeTile(IconData icon, String titre, String sous,
+      VoidCallback onTap) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFF4A90E2).withOpacity(0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: const Color(0xFF4A90E2), size: 22),
       ),
-      child: Text(t, style: const TextStyle(color: Colors.white54, fontSize: 11)));
-
-  Widget _glossRow(String code, String desc) => Padding(
-      padding: const EdgeInsets.only(bottom: 3),
-      child: Row(children: [
-        SizedBox(width: 46,
-          child: Text(code, style: const TextStyle(color: Colors.white, fontSize: 11,
-              fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
-        Expanded(child: Text(desc, style: const TextStyle(color: Colors.white60, fontSize: 11))),
-      ]));
-
-  Widget _obsIcon(String note, {double size = 26}) {
-    Widget _cp(CustomPainter p) => SizedBox(width: size, height: size, child: CustomPaint(painter: p));
-    if (note.contains('Traces')) return _cp(const MooseTrackPainter());
-    if (note.contains('Souille')) return _cp(const MudHolePainter());
-    if (note.contains('Cache')) return _cp(const HuntingTowerPainter());
-    final emoji = note.split(' ').first;
-    return Text(emoji, style: TextStyle(fontSize: size * 0.76, height: 1));
-  }
-
-  Widget _mapIconBtn(IconData icon, VoidCallback onTap, {
-    bool active = false,
-    bool loading = false,
-    Color activeColor = const Color(0xFF4A90E2),
-  }) {
-    return GestureDetector(
+      title: Text(titre,
+          style: const TextStyle(color: Colors.white, fontSize: 14)),
+      subtitle: Text(sous,
+          style: const TextStyle(color: Colors.white38, fontSize: 11)),
+      trailing: const Icon(Icons.chevron_right,
+          color: Colors.white24, size: 18),
       onTap: onTap,
-      child: Container(
-        width: 42, height: 36,
-        color: Colors.transparent,
-        child: Center(
-          child: loading
-              ? SizedBox(width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54))
-              : Icon(icon, color: active ? activeColor : Colors.white70, size: 20),
-        ),
-      ),
     );
   }
-
-  Widget _dividerV() => Container(width: 1, height: 20, color: Colors.white24);
 
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
       {Color color = const Color(0xFFBDBDBD)}) {
@@ -1104,8 +927,7 @@ class _MapPageState extends State<MapPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 46, height: 46,
             decoration: BoxDecoration(
               color: color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(23),
@@ -1114,647 +936,770 @@ class _MapPageState extends State<MapPage> {
             child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 9)),
+          Text(label,
+              style: TextStyle(color: color.withOpacity(0.8), fontSize: 9)),
         ],
       ),
     );
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Build
+  // ─────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       body: Stack(
         children: [
-          // ── CARTE ──────────────────────────────────────────────
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: const LatLng(48.2917, -71.322),
-              initialZoom: 13,
-              minZoom: 8,
-              maxZoom: 19,
-              onPositionChanged: (pos, _) {
-                if (!mounted) return;
-                final newZoom = pos.zoom;
-                final newLat = pos.center.latitude;
-                if ((newZoom - _mapZoom).abs() > 0.1 || (newLat - _mapLat).abs() > 0.001) {
-                  setState(() {
-                    _mapZoom = newZoom;
-                    _mapLat = newLat;
-                  });
-                }
-                if (_showHotspots) {
-                  _hotspotDebounce?.cancel();
-                  _hotspotDebounce = Timer(const Duration(milliseconds: 600), () {
-                    if (mounted) setState(() => _hotspots = _computeHotspots());
-                  });
-                }
-              },
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: _satellite
-                    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.bastienbouchard.ecomap',
-              ),
-              Opacity(
-                opacity: _opacity,
-                child: TileLayer(
-                  tileProvider: MBTilesProvider(),
-                  minNativeZoom: mbtilesMinZoom,
-                  maxNativeZoom: mbtilesMaxZoom,
-                ),
-              ),
-              if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
-                PolygonLayer(polygons: _polygonsCache, simplificationTolerance: 0),
-              if (_polygonLabels.isNotEmpty && _mapZoom >= 14)
-                MarkerLayer(markers: _polygonLabels.map((l) => Marker(
-                  point: LatLng(l['lat'] as double, l['lon'] as double),
-                  width: 60, height: 20,
-                  child: Text(l['label'] as String,
-                    style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold,
-                      shadows: [Shadow(color: Colors.black, blurRadius: 3), Shadow(color: Colors.black, blurRadius: 6)]),
-                    textAlign: TextAlign.center, overflow: TextOverflow.clip),
-                )).toList()),
-              if (_showParcours && _parcours.isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: _parcours,
-                      color: const Color(0xFFFF6B35),
-                      strokeWidth: 7,
-                      borderColor: Colors.white,
-                      borderStrokeWidth: 2,
-                    ),
-                  ],
-                ),
-              if (_trackPoints.length >= 2)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: _trackPoints,
-                      color: const Color(0xFFE53935),
-                      strokeWidth: 6,
-                      borderColor: Colors.white,
-                      borderStrokeWidth: 2,
-                    ),
-                  ],
-                ),
-              // Observations terrain
-              if (_observations.isNotEmpty)
-                MarkerLayer(
-                  markers: _observations.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final obs = entry.value;
-                    final pos = obs['pos'] as LatLng;
-                    final note = obs['note'] as String;
-                    return Marker(
-                      point: pos,
-                      width: 52,
-                      height: 52,
-                      child: GestureDetector(
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              backgroundColor: const Color(0xFF2D2D2D),
-                              title: Text(note, style: const TextStyle(color: Colors.white, fontSize: 15)),
-                              content: Text(
-                                '${(obs['time'] as DateTime).hour.toString().padLeft(2, '0')}:${(obs['time'] as DateTime).minute.toString().padLeft(2, '0')}',
-                                style: const TextStyle(color: Colors.white54, fontSize: 13),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() => _observations.removeAt(idx));
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text('Supprimer', style: TextStyle(color: Color(0xFFFF6B35))),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Fermer', style: TextStyle(color: Colors.white54)),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFFF6B35), width: 2),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)],
-                          ),
-                          child: Center(child: _obsIcon(note)),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              // Points chauds orignal
-              if (_showHotspots && _hotspots.isNotEmpty)
-                MarkerLayer(
-                  markers: _hotspots.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final pos = entry.value;
-                    final score = idx < _hotspotInfos.length ? _hotspotInfos[idx].score : 0;
-                    final flameColor = score >= 18
-                        ? const Color(0xFFFF3D00)
-                        : score >= 13
-                            ? const Color(0xFFFF6B35)
-                            : const Color(0xFFFFB347);
-                    return Marker(
-                      point: pos,
-                      width: 56,
-                      height: 56,
-                      child: GestureDetector(
-                        onTap: () {
-                          if (idx < _hotspotInfos.length) {
-                            showHotspotDetail(context, _hotspotInfos[idx]);
-                          }
-                        },
-                        child: Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A1A1A),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: flameColor, width: 3),
-                            boxShadow: [
-                              BoxShadow(color: flameColor.withOpacity(0.7), blurRadius: 12, spreadRadius: 2),
-                              const BoxShadow(color: Colors.black54, blurRadius: 4),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.local_fire_department, color: flameColor, size: 26),
-                              Text('$score', style: TextStyle(color: flameColor, fontSize: 10,
-                                  fontWeight: FontWeight.bold, height: 1)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              // Corridors / pinch points
-              if (_showPinchPoints && _pinchPoints.isNotEmpty)
-                MarkerLayer(
-                  markers: _pinchPoints.map((p) {
-                    final pos = LatLng(p['lat'] as double, p['lon'] as double);
-                    return Marker(
-                      point: pos,
-                      width: 48,
-                      height: 48,
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A1A),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
-                          boxShadow: [
-                            BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.5),
-                                blurRadius: 10, spreadRadius: 1),
-                            const BoxShadow(color: Colors.black54, blurRadius: 4),
-                          ],
-                        ),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.filter_alt, color: Color(0xFF4CAF50), size: 22),
-                            Text('col', style: TextStyle(color: Color(0xFF4CAF50),
-                                fontSize: 9, fontWeight: FontWeight.bold, height: 1)),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              // Membres du groupe
-              if (_groupeActif && _membres.isNotEmpty)
-                MarkerLayer(
-                  markers: _membres.map((m) => Marker(
-                    point: m.position,
-                    width: 56,
-                    height: 56,
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4A90E2),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white, width: 1.5),
-                        ),
-                        child: Text(m.nom, style: const TextStyle(color: Colors.white,
-                            fontSize: 10, fontWeight: FontWeight.bold)),
-                      ),
-                      const Icon(Icons.person_pin_circle, color: Color(0xFF4A90E2), size: 28),
-                    ]),
-                  )).toList(),
-                ),
-              // ── POSITION ACTUELLE (point bleu) ────────────────
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _currentPosition,
-                    width: 20,
-                    height: 20,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4A90E2),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 4)],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          // ── RÉTICULE FIXE AU CENTRE ────────────────────────────
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Center(
-                child: CustomPaint(
-                  size: const Size(48, 48),
-                  painter: CrosshairPainter(),
-                ),
-              ),
-            ),
-          ),
-
-          // ── BANDE STATUS BAR ───────────────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: MediaQuery.of(context).padding.top + 6,
-              color: Colors.black.withOpacity(0.45),
-            ),
-          ),
-
-          // ── BARRE PARCOURS ACTIF ──────────────────────────────
-          if (_showParcours)
-            Positioned(
-              bottom: 56,
-              left: 16,
-              right: 90,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A).withOpacity(0.95),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (_parcoursScore > 0)
-                    Container(
-                      margin: const EdgeInsets.only(right: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _parcoursScore > 60
-                            ? const Color(0xFF2D5016)
-                            : _parcoursScore > 35
-                            ? const Color(0xFFFF6B35)
-                            : const Color(0xFF8B4513),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${_parcoursScore.round()}%',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => NavigationPage(
-                          parcours: _parcours,
-                          score: _parcoursScore,
-                          windDeg: _windDeg,
-                        ),
-                      ),
-                    ),
-                    child: const Row(children: [
-                      Icon(Icons.navigation, color: Color(0xFF2D5016), size: 20),
-                      SizedBox(width: 4),
-                      Text(
-                        'Naviguer',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ]),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => setState(() => _showParcours = false),
-                    child: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-                  ),
-                ]),
-              ),
-            ),
-
-          // ── PANEL GAUCHE — ACTIONS (coloré) ──────────────────
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            left: _showActionPanel ? 0 : -70,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 70,
-                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A).withOpacity(0.94),
-                      border: Border(
-                        top: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.3)),
-                        bottom: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.3)),
-                      ),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 12, offset: const Offset(4, 0))],
-                    ),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _obsBtn(),
-                          const SizedBox(height: 6),
-                          _actionBtn(
-                            icon: Icons.local_fire_department,
-                            label: 'Spots',
-                            color: const Color(0xFFFF6B35),
-                            active: _showHotspots,
-                            onTap: _toggleHotspots,
-                            onLongPress: _showHotspots
-                                ? () => _toggleHotspots(forceRefresh: true)
-                                : null,
-                          ),
-                          const SizedBox(height: 6),
-                          _actionBtn(
-                            icon: Icons.route_rounded,
-                            label: 'Parcours',
-                            color: const Color(0xFF4CAF50),
-                            active: _showParcours,
-                            loading: _loadingParcours,
-                            onTap: _showParcours
-                                ? () => setState(() => _showParcours = false)
-                                : _showParcoursDialog,
-                          ),
-                          const SizedBox(height: 6),
-                          _actionBtn(
-                            icon: Icons.cabin,
-                            label: 'Affût',
-                            color: const Color(0xFF4CAF50),
-                            active: _showPinchPoints,
-                            loading: _loadingPinch,
-                            onTap: _togglePinchPoints,
-                            customIcon: SizedBox(
-                              width: 22, height: 22,
-                              child: CustomPaint(painter: HuntingTowerPainter()),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          _actionBtn(
-                            icon: Icons.people,
-                            label: 'Groupe',
-                            color: const Color(0xFFFF6B35),
-                            active: _groupeActif,
-                            onTap: _sharePosition,
-                          ),
-                          const SizedBox(height: 6),
-                          _actionBtn(
-                            icon: Icons.stop,
-                            label: _recording ? 'Stop' : 'Tracé',
-                            color: const Color(0xFFE53935),
-                            active: _recording,
-                            onTap: _toggleRecording,
-                            customIcon: _recording
-                                ? const Icon(Icons.stop, color: Color(0xFFE53935), size: 22)
-                                : SizedBox(
-                                    width: 24, height: 24,
-                                    child: CustomPaint(painter: TrackingPainter()),
-                                  ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Onglet droit du panel gauche
-                  GestureDetector(
-                    onTap: () => setState(() => _showActionPanel = !_showActionPanel),
-                    child: Container(
-                      width: 28,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2D2D2D).withOpacity(0.92),
-                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
-                        border: Border(
-                          right: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
-                          top: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
-                          bottom: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
-                        ),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 8, offset: const Offset(2, 0))],
-                      ),
-                      child: Icon(
-                        _showActionPanel ? Icons.chevron_left : Icons.chevron_right,
-                        color: const Color(0xFFFF6B35),
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── PANEL DROIT — NAVIGATION (grisâtre) ──────────────
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            right: _showNavPanel ? 0 : -70,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Onglet gauche du panel droit
-                  GestureDetector(
-                    onTap: () => setState(() => _showNavPanel = !_showNavPanel),
-                    child: Container(
-                      width: 28,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2D2D2D).withOpacity(0.88),
-                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                        border: Border(
-                          left: BorderSide(color: Colors.white24),
-                          top: BorderSide(color: Colors.white24),
-                          bottom: BorderSide(color: Colors.white24),
-                        ),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 8, offset: const Offset(-2, 0))],
-                      ),
-                      child: Icon(
-                        _showNavPanel ? Icons.chevron_right : Icons.chevron_left,
-                        color: Colors.white54,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: 70,
-                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A).withOpacity(0.90),
-                      border: const Border(
-                        top: BorderSide(color: Colors.white12),
-                        bottom: BorderSide(color: Colors.white12),
-                      ),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 12, offset: const Offset(-4, 0))],
-                    ),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _navBtn(Icons.wb_sunny_rounded, 'Météo', () => Navigator.push(context, MaterialPageRoute(builder: (_) => MeteoPage(
-                            latitude: _currentPosition.latitude,
-                            longitude: _currentPosition.longitude,
-                            windDeg: _windDeg,
-                            windSpeed: _windSpeed,
-                          )))),
-                          const SizedBox(height: 10),
-                          _navBtn(Icons.save_alt_rounded, 'Tracés', _showTracesDialog),
-                          const SizedBox(height: 10),
-                          _navBtn(Icons.offline_pin_rounded, 'Carte éco', () async {
-                            await Navigator.push(context, MaterialPageRoute(builder: (_) => TerritoireDownloadPage(initialCenter: _mapController.camera.center, initialZoom: _mapController.camera.zoom)));
-                            _reloadTerritoire();
-                          }),
-                          const SizedBox(height: 10),
-                          _navBtn(Icons.info_outline_rounded, 'À propos', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage()))),
-                          const SizedBox(height: 10),
-                          _navBtn(Icons.help_outline_rounded, 'Aide', _showAide),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── BARRE D'ÉCHELLE ────────────────────────────────────
+          _buildMap(),
+          _buildCrosshair(),
+          _buildStatusBarOverlay(),
+          if (_showParcours) _buildParcoursBanner(),
+          _buildActionPanel(),
+          _buildNavPanel(),
           Positioned(
             bottom: 20,
             left: 16,
             child: ScaleBar(zoom: _mapZoom, lat: _mapLat),
           ),
+          _buildZoomControls(),
+        ],
+      ),
+    );
+  }
 
-          // ── SLIDERS ZOOM + SATELLITE (droite) ────────────────────
-          Positioned(
-            bottom: 20,
-            right: 28,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                // Rangée Nord / GPS / Satellite
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white24),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _mapIconBtn(Icons.explore, _resetNorth, active: false),
-                      _dividerV(),
-                      _mapIconBtn(Icons.my_location, _goToCurrentLocation, loading: _loading, active: false),
-                      _dividerV(),
-                      _mapIconBtn(
-                        _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
-                        () => setState(() => _satellite = !_satellite),
-                        active: _satellite,
-                        activeColor: const Color(0xFF4A90E2),
-                      ),
-                    ],
-                  ),
-                ),
-                // Slider zoom
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.zoom_in, color: Colors.white, size: 22),
-                      const SizedBox(width: 4),
-                      SizedBox(
-                        width: 110,
-                        height: 32,
-                        child: ClipRect(
-                          child: OverflowBox(
-                            maxHeight: 56,
-                            alignment: Alignment.center,
-                            child: SliderTheme(
-                              data: SliderThemeData(
-                                activeTrackColor: const Color(0xFFFF6B35),
-                                inactiveTrackColor: Colors.white24,
-                                thumbColor: Colors.white,
-                                overlayShape: SliderComponentShape.noOverlay,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-                                trackHeight: 4,
-                              ),
-                              child: Slider(
-                                value: _mapZoom.clamp(8.0, 19.0),
-                                min: 8.0,
-                                max: 19.0,
-                                onChanged: (val) {
-                                  _mapController.move(_mapController.camera.center, val);
-                                  setState(() => _mapZoom = val);
-                                },
-                              ),
-                            ),
+  // ── Carte ──────────────────────────────────────────────────────────────
+  Widget _buildMap() {
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: const LatLng(48.2917, -71.322),
+        initialZoom: 13,
+        minZoom: 8,
+        maxZoom: 19,
+        onPositionChanged: (pos, _) {
+          if (!mounted) return;
+          final newZoom = pos.zoom;
+          final newLat = pos.center.latitude;
+          if ((newZoom - _mapZoom).abs() > 0.1 ||
+              (newLat - _mapLat).abs() > 0.001) {
+            setState(() { _mapZoom = newZoom; _mapLat = newLat; });
+          }
+          if (_showHotspots) {
+            _hotspotDebounce?.cancel();
+            _hotspotDebounce =
+                Timer(const Duration(milliseconds: 600), () {
+              if (mounted) setState(() => _hotspots = _computeHotspots());
+            });
+          }
+        },
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: _satellite
+              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.bastienbouchard.ecomap',
+        ),
+        Opacity(
+          opacity: _opacity,
+          child: TileLayer(
+            tileProvider: MBTilesProvider(),
+            minNativeZoom: mbtilesMinZoom,
+            maxNativeZoom: mbtilesMaxZoom,
+          ),
+        ),
+        if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
+          PolygonLayer(
+              polygons: _polygonsCache, simplificationTolerance: 0),
+        if (_polygonLabels.isNotEmpty && _mapZoom >= 14)
+          MarkerLayer(
+              markers: _polygonLabels
+                  .map((l) => Marker(
+                        point: LatLng(
+                            l['lat'] as double, l['lon'] as double),
+                        width: 60, height: 20,
+                        child: Text(l['label'] as String,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(color: Colors.black, blurRadius: 3),
+                              Shadow(color: Colors.black, blurRadius: 6)
+                            ],
                           ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.clip,
+                        ),
+                      ))
+                  .toList()),
+        if (_showParcours && _parcours.isNotEmpty)
+          PolylineLayer(polylines: [
+            Polyline(
+              points: _parcours,
+              color: const Color(0xFFFF6B35),
+              strokeWidth: 7,
+              borderColor: Colors.white,
+              borderStrokeWidth: 2,
+            ),
+          ]),
+        if (_trackPoints.length >= 2)
+          PolylineLayer(polylines: [
+            Polyline(
+              points: _trackPoints,
+              color: const Color(0xFFE53935),
+              strokeWidth: 6,
+              borderColor: Colors.white,
+              borderStrokeWidth: 2,
+            ),
+          ]),
+        if (_observations.isNotEmpty) _buildObservationMarkers(),
+        if (_showHotspots && _hotspots.isNotEmpty) _buildHotspotMarkers(),
+        if (_showPinchPoints && _pinchPoints.isNotEmpty)
+          _buildPinchMarkers(),
+        if (_groupeActif && _membres.isNotEmpty) _buildMembreMarkers(),
+        _buildCurrentPositionMarker(),
+      ],
+    );
+  }
+
+  // ── Markers ─────────────────────────────────────────────────────────────
+  MarkerLayer _buildObservationMarkers() {
+    return MarkerLayer(
+      markers: _observations.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final obs = entry.value;
+        final pos = obs['pos'] as LatLng;
+        final note = obs['note'] as String;
+        return Marker(
+          point: pos,
+          width: 52, height: 52,
+          child: GestureDetector(
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                backgroundColor: const Color(0xFF2D2D2D),
+                title: Text(note,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 15)),
+                content: Text(
+                  '${(obs['time'] as DateTime).hour.toString().padLeft(2, '0')}:'
+                  '${(obs['time'] as DateTime).minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(
+                      color: Colors.white54, fontSize: 13),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      setState(() => _observations.removeAt(idx));
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Supprimer',
+                        style: TextStyle(color: Color(0xFFFF6B35))),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Fermer',
+                        style: TextStyle(color: Colors.white54)),
+                  ),
+                ],
+              ),
+            ),
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                    color: const Color(0xFFFF6B35), width: 2),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 4)
+                ],
+              ),
+              child: Center(child: obsIcon(note)),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  MarkerLayer _buildHotspotMarkers() {
+    return MarkerLayer(
+      markers: _hotspots.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final pos = entry.value;
+        final score =
+            idx < _hotspotInfos.length ? _hotspotInfos[idx].score : 0;
+        final flameColor = score >= 18
+            ? const Color(0xFFFF3D00)
+            : score >= 13
+                ? const Color(0xFFFF6B35)
+                : const Color(0xFFFFB347);
+        return Marker(
+          point: pos,
+          width: 56, height: 56,
+          child: GestureDetector(
+            onTap: () {
+              if (idx < _hotspotInfos.length) {
+                showHotspotDetail(context, _hotspotInfos[idx]);
+              }
+            },
+            child: Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                shape: BoxShape.circle,
+                border: Border.all(color: flameColor, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                      color: flameColor.withOpacity(0.7),
+                      blurRadius: 12,
+                      spreadRadius: 2),
+                  const BoxShadow(
+                      color: Colors.black54, blurRadius: 4),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.local_fire_department,
+                      color: flameColor, size: 26),
+                  Text('$score',
+                      style: TextStyle(
+                          color: flameColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          height: 1)),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  MarkerLayer _buildPinchMarkers() {
+    return MarkerLayer(
+      markers: _pinchPoints.map((p) {
+        final pos = LatLng(p['lat'] as double, p['lon'] as double);
+        return Marker(
+          point: pos,
+          width: 48, height: 48,
+          child: Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: const Color(0xFF4CAF50), width: 2.5),
+              boxShadow: [
+                BoxShadow(
+                    color: const Color(0xFF4CAF50).withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 1),
+                const BoxShadow(
+                    color: Colors.black54, blurRadius: 4),
+              ],
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.filter_alt,
+                    color: Color(0xFF4CAF50), size: 22),
+                Text('col',
+                    style: TextStyle(
+                        color: Color(0xFF4CAF50),
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        height: 1)),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  MarkerLayer _buildMembreMarkers() {
+    return MarkerLayer(
+      markers: _membres.map((m) => Marker(
+        point: m.position,
+        width: 56, height: 56,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4A90E2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+            child: Text(m.nom,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold)),
+          ),
+          const Icon(Icons.person_pin_circle,
+              color: Color(0xFF4A90E2), size: 28),
+        ]),
+      )).toList(),
+    );
+  }
+
+  MarkerLayer _buildCurrentPositionMarker() {
+    return MarkerLayer(markers: [
+      Marker(
+        point: _currentPosition,
+        width: 20, height: 20,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF4A90E2),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.4), blurRadius: 4)
+            ],
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  // ── Overlays fixes ───────────────────────────────────────────────────────
+  Widget _buildCrosshair() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: CustomPaint(
+              size: const Size(48, 48), painter: CrosshairPainter()),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBarOverlay() {
+    return Positioned(
+      top: 0, left: 0, right: 0,
+      child: Container(
+        height: MediaQuery.of(context).padding.top + 6,
+        color: Colors.black.withOpacity(0.45),
+      ),
+    );
+  }
+
+  Widget _buildParcoursBanner() {
+    return Positioned(
+      bottom: 56, left: 16, right: 90,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: const Color(0xFFFF6B35).withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.5), blurRadius: 10)
+          ],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (_parcoursScore > 0)
+            Container(
+              margin: const EdgeInsets.only(right: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _parcoursScore > 60
+                    ? const Color(0xFF2D5016)
+                    : _parcoursScore > 35
+                        ? const Color(0xFFFF6B35)
+                        : const Color(0xFF8B4513),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('${_parcoursScore.round()}%',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13)),
+            ),
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => NavigationPage(
+                  parcours: _parcours,
+                  score: _parcoursScore,
+                  windDeg: _windDeg,
+                ),
+              ),
+            ),
+            child: const Row(children: [
+              Icon(Icons.navigation,
+                  color: Color(0xFF2D5016), size: 20),
+              SizedBox(width: 4),
+              Text('Naviguer',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13)),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: () => setState(() => _showParcours = false),
+            child: const Icon(Icons.close,
+                color: Color(0xFFFF6B35), size: 20),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ── Panel gauche — actions ───────────────────────────────────────────────
+  Widget _buildActionPanel() {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      left: _showActionPanel ? 0 : -70,
+      top: 0, bottom: 0,
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 70,
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A).withOpacity(0.94),
+                border: Border(
+                  top: BorderSide(
+                      color: const Color(0xFFFF6B35).withOpacity(0.3)),
+                  bottom: BorderSide(
+                      color: const Color(0xFFFF6B35).withOpacity(0.3)),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 12,
+                      offset: const Offset(4, 0))
+                ],
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                    vertical: 10, horizontal: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    mapActionBtn(
+                      icon: Icons.push_pin_rounded,
+                      label: 'Obs.',
+                      color: const Color(0xFFFF6B35),
+                      active: false,
+                      onTap: _addObservation,
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: Icons.local_fire_department,
+                      label: 'Spots',
+                      color: const Color(0xFFFF6B35),
+                      active: _showHotspots,
+                      onTap: _toggleHotspots,
+                      onLongPress: _showHotspots
+                          ? () => _toggleHotspots(forceRefresh: true)
+                          : null,
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: Icons.route_rounded,
+                      label: 'Parcours',
+                      color: const Color(0xFF4CAF50),
+                      active: _showParcours,
+                      loading: _loadingParcours,
+                      onTap: _showParcours
+                          ? () => setState(() => _showParcours = false)
+                          : _showParcoursDialog,
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: Icons.cabin,
+                      label: 'Affût',
+                      color: const Color(0xFF4CAF50),
+                      active: _showPinchPoints,
+                      loading: _loadingPinch,
+                      onTap: _togglePinchPoints,
+                      customIcon: const SizedBox(
+                        width: 22, height: 22,
+                        child: CustomPaint(
+                            painter: HuntingTowerPainter()),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: Icons.people,
+                      label: 'Groupe',
+                      color: const Color(0xFFFF6B35),
+                      active: _groupeActif,
+                      onTap: _sharePosition,
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: Icons.stop,
+                      label: _recording ? 'Stop' : 'Tracé',
+                      color: const Color(0xFFE53935),
+                      active: _recording,
+                      onTap: _toggleRecording,
+                      customIcon: _recording
+                          ? const Icon(Icons.stop,
+                              color: Color(0xFFE53935), size: 22)
+                          : const SizedBox(
+                              width: 24, height: 24,
+                              child: CustomPaint(
+                                  painter: TrackingPainter()),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () =>
+                  setState(() => _showActionPanel = !_showActionPanel),
+              child: Container(
+                width: 28, height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D2D2D).withOpacity(0.92),
+                  borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(12)),
+                  border: Border(
+                    right: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                    top: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                    bottom: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(2, 0))
+                  ],
+                ),
+                child: Icon(
+                  _showActionPanel
+                      ? Icons.chevron_left
+                      : Icons.chevron_right,
+                  color: const Color(0xFFFF6B35),
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Panel droit — navigation ─────────────────────────────────────────────
+  Widget _buildNavPanel() {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      right: _showNavPanel ? 0 : -70,
+      top: 0, bottom: 0,
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () =>
+                  setState(() => _showNavPanel = !_showNavPanel),
+              child: Container(
+                width: 28, height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D2D2D).withOpacity(0.88),
+                  borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(12)),
+                  border: const Border(
+                    left: BorderSide(color: Colors.white24),
+                    top: BorderSide(color: Colors.white24),
+                    bottom: BorderSide(color: Colors.white24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(-2, 0))
+                  ],
+                ),
+                child: Icon(
+                  _showNavPanel
+                      ? Icons.chevron_right
+                      : Icons.chevron_left,
+                  color: Colors.white54,
+                  size: 16,
+                ),
+              ),
+            ),
+            Container(
+              width: 70,
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.75),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1A1A1A),
+                border: Border(
+                  top: BorderSide(color: Colors.white12),
+                  bottom: BorderSide(color: Colors.white12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 12,
+                      offset: Offset(-4, 0))
+                ],
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                    vertical: 14, horizontal: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _navBtn(Icons.wb_sunny_rounded, 'Météo', () =>
+                        Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => MeteoPage(
+                            latitude: _currentPosition.latitude,
+                            longitude: _currentPosition.longitude,
+                            windDeg: _windDeg,
+                            windSpeed: _windSpeed,
+                          ),
+                        ))),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.save_alt_rounded, 'Tracés',
+                        _showTracesDialog),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.offline_pin_rounded, 'Carte éco',
+                        () async {
+                      await Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => TerritoireDownloadPage(
+                          initialCenter: _mapController.camera.center,
+                          initialZoom: _mapController.camera.zoom,
+                        ),
+                      ));
+                      _reloadTerritoire();
+                    }),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.info_outline_rounded, 'À propos',
+                        () => Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => const AboutPage(),
+                            ))),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.help_outline_rounded, 'Aide',
+                        () => showAideDialog(context)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Contrôles zoom + Nord / GPS / Satellite ──────────────────────────────
+  Widget _buildZoomControls() {
+    return Positioned(
+      bottom: 20, right: 28,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A).withOpacity(0.85),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white24),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.4), blurRadius: 6)
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                mapIconBtn(Icons.explore, _resetNorth),
+                mapDividerV(),
+                mapIconBtn(Icons.my_location, _goToCurrentLocation,
+                    loading: _loading),
+                mapDividerV(),
+                mapIconBtn(
+                  _satellite
+                      ? Icons.map_rounded
+                      : Icons.satellite_alt_rounded,
+                  () => setState(() => _satellite = !_satellite),
+                  active: _satellite,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A).withOpacity(0.85),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.zoom_in, color: Colors.white, size: 22),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 110, height: 32,
+                  child: ClipRect(
+                    child: OverflowBox(
+                      maxHeight: 56,
+                      alignment: Alignment.center,
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          activeTrackColor: const Color(0xFFFF6B35),
+                          inactiveTrackColor: Colors.white24,
+                          thumbColor: Colors.white,
+                          overlayShape: SliderComponentShape.noOverlay,
+                          thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 9),
+                          trackHeight: 4,
+                        ),
+                        child: Slider(
+                          value: _mapZoom.clamp(8.0, 19.0),
+                          min: 8.0,
+                          max: 19.0,
+                          onChanged: (val) {
+                            _mapController.move(
+                                _mapController.camera.center, val);
+                            setState(() => _mapZoom = val);
+                          },
                         ),
                       ),
-                      Text(
-                        'z${_mapZoom.round()}',
-                        style: const TextStyle(color: Colors.white, fontSize: 14,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
+                Text('z${_mapZoom.round()}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
               ],
             ),
           ),
