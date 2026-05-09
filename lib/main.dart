@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,9 +13,9 @@ import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  } catch (_) {}
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Force l'initialisation de Firebase Auth dès le départ
+  FirebaseAuth.instance;
   if (!kIsWeb) await _initMBTiles();
   await _loadGeoJson();
   runApp(const EcoMapApp());
