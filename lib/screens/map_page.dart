@@ -13,8 +13,10 @@ import '../app_globals.dart';
 import '../models/hotspot_info.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
+import '../services/auth_service.dart';
 import '../services/geo_service.dart';
 import '../services/groupe_service.dart';
+import '../services/premium_service.dart';
 import '../services/territoire_service.dart';
 import '../widgets/aide_dialog.dart';
 import '../widgets/hotspot_detail_sheet.dart';
@@ -22,6 +24,7 @@ import '../widgets/map_controls.dart';
 import '../widgets/scale_bar.dart';
 import 'about_page.dart';
 import 'chat_page.dart';
+import 'login_page.dart';
 import 'meteo_page.dart';
 import 'navigation_page.dart';
 import 'territoire_download_page.dart';
@@ -115,6 +118,7 @@ class _MapPageState extends State<MapPage> {
     super.initState();
     _initLocation();
     _fetchWind();
+    PremiumService.load();
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
   }
 
@@ -326,6 +330,7 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _toggleHotspots({bool forceRefresh = false}) {
+    if (!_requirePremium()) return;
     if (_showHotspots && !forceRefresh) {
       setState(() { _showHotspots = false; _hotspots = []; });
       return;
@@ -393,6 +398,7 @@ class _MapPageState extends State<MapPage> {
   // Affût (pinch points)
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _togglePinchPoints() async {
+    if (!_requirePremium()) return;
     if (_showPinchPoints) {
       setState(() { _showPinchPoints = false; _pinchPoints = []; });
       return;
@@ -517,8 +523,10 @@ class _MapPageState extends State<MapPage> {
   // ─────────────────────────────────────────────────────────────────────────
   // Groupe
   // ─────────────────────────────────────────────────────────────────────────
-  void _sharePosition() =>
-      _groupeActif ? _panelGroupe() : _dialogueRejoindre();
+  void _sharePosition() {
+    if (!_requirePremium()) return;
+    _groupeActif ? _panelGroupe() : _dialogueRejoindre();
+  }
 
   void _dialogueRejoindre() {
     final nomCtrl = TextEditingController(text: _monNom);
@@ -696,6 +704,7 @@ class _MapPageState extends State<MapPage> {
   // Dialogs
   // ─────────────────────────────────────────────────────────────────────────
   void _showParcoursDialog() {
+    if (!_requirePremium()) return;
     double localDist = _distanceParcours;
     showModalBottomSheet(
       context: context,
@@ -869,6 +878,43 @@ class _MapPageState extends State<MapPage> {
   // ─────────────────────────────────────────────────────────────────────────
   // Utilitaires UI
   // ─────────────────────────────────────────────────────────────────────────
+  // Retourne true si premium, sinon affiche le dialog d'upgrade
+  bool _requirePremium() {
+    if (PremiumService.isPremium) return true;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Fonctionnalité Premium',
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Cette fonctionnalité est disponible avec OrignalScan Premium.\n\n'
+          '• Points chauds orignal\n'
+          '• Parcours optimisé IA\n'
+          '• Postes d\'affût\n'
+          '• Groupe de chasseurs\n'
+          '• Carte écoforestière',
+          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Pas maintenant',
+                style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6B35)),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('En savoir plus',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    return false;
+  }
+
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1589,6 +1635,7 @@ class _MapPageState extends State<MapPage> {
                     const SizedBox(height: 10),
                     _navBtn(Icons.layers_rounded, 'Carte éco',
                         () async {
+                      if (!_requirePremium()) return;
                       await Navigator.push(context, MaterialPageRoute(
                         builder: (_) => TerritoireDownloadPage(
                           initialCenter: _mapController.camera.center,
@@ -1605,6 +1652,19 @@ class _MapPageState extends State<MapPage> {
                     const SizedBox(height: 10),
                     _navBtn(Icons.help_outline_rounded, 'Aide',
                         () => showAideDialog(context)),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.logout_rounded, 'Quitter',
+                        () async {
+                      await AuthService.signOut();
+                      if (mounted) {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const LoginPage()),
+                          (_) => false,
+                        );
+                      }
+                    }, color: Colors.white38),
                   ],
                 ),
               ),

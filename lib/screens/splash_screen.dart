@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'login_page.dart';
 import 'map_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -59,10 +61,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     Future.delayed(const Duration(milliseconds: 2000), () {
       if (!mounted) return;
+      final isLoggedIn = FirebaseAuth.instance.currentUser != null;
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const MapPage(),
+          pageBuilder: (_, __, ___) =>
+              isLoggedIn ? const MapPage() : const LoginPage(),
           transitionDuration: const Duration(milliseconds: 300),
           transitionsBuilder: (_, anim, __, child) =>
               FadeTransition(opacity: anim, child: child),
