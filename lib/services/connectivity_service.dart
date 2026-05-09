@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:http/http.dart' as http;
+import 'online_check.dart';
 
 class ConnectivityService {
   static bool _isOnline = true;
@@ -11,10 +11,9 @@ class ConnectivityService {
   static Timer? _timer;
 
   static Future<void> init() async {
-    _isOnline = await _check();
-    // Vérifie toutes les 15 secondes
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) async {
-      final online = await _check();
+    _isOnline = checkOnline();
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      final online = checkOnline();
       if (online != _isOnline) {
         _isOnline = online;
         _controller.add(_isOnline);
@@ -23,15 +22,4 @@ class ConnectivityService {
   }
 
   static void dispose() => _timer?.cancel();
-
-  static Future<bool> _check() async {
-    try {
-      final resp = await http
-          .head(Uri.parse('https://www.google.com'))
-          .timeout(const Duration(seconds: 4));
-      return resp.statusCode < 500;
-    } catch (_) {
-      return false;
-    }
-  }
 }
