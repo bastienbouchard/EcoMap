@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
+import '../services/photo_picker.dart';
 
 class ChatPage extends StatefulWidget {
   final String groupeId;
@@ -62,21 +62,8 @@ class _ChatPageState extends State<ChatPage> {
   static const _uploadSecret = 'moosescan2026';
 
   Future<void> _envoyerPhoto() async {
-    XFile? picked;
-    try {
-      picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 60,
-        maxWidth: 900,
-      );
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur sélection: $e'), backgroundColor: const Color(0xFF8B4513)));
-      return;
-    }
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    if (bytes.isEmpty) return;
+    final bytes = await pickPhoto();
+    if (bytes == null || bytes.isEmpty) return;
 
     setState(() => _envoyantPhoto = true);
     try {
