@@ -1,12 +1,8 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 
 class ChatPage extends StatefulWidget {
   final String groupeId;
@@ -66,37 +62,21 @@ class _ChatPageState extends State<ChatPage> {
   static const _uploadSecret = 'moosescan2026';
 
   Future<void> _envoyerPhoto() async {
-    Uint8List? bytes;
-
-    if (kIsWeb) {
-      // Sur web : input HTML natif (fonctionne avec Safari)
-      final completer = Completer<Uint8List?>();
-      final input = html.FileUploadInputElement()..accept = 'image/*';
-      input.click();
-      input.onChange.listen((_) async {
-        final file = input.files?.first;
-        if (file == null) { completer.complete(null); return; }
-        final reader = html.FileReader();
-        reader.readAsArrayBuffer(file);
-        reader.onLoadEnd.listen((_) {
-          completer.complete(reader.result as Uint8List?);
-        });
-      });
-      bytes = await completer.future;
-    } else {
-      // Sur iOS/Android : image_picker
-      try {
-        final picker = ImagePicker();
-        final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 60, maxWidth: 900);
-        if (picked != null) bytes = await picked.readAsBytes();
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur sélection: $e'), backgroundColor: const Color(0xFF8B4513)));
-        return;
-      }
+    XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 60,
+        maxWidth: 900,
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur sélection: $e'), backgroundColor: const Color(0xFF8B4513)));
+      return;
     }
-
-    if (bytes == null) return;
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    if (bytes.isEmpty) return;
 
     setState(() => _envoyantPhoto = true);
     try {
