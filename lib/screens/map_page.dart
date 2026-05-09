@@ -14,6 +14,7 @@ import '../models/hotspot_info.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
 import '../services/auth_service.dart';
+import '../services/connectivity_service.dart';
 import '../services/geo_service.dart';
 import '../services/groupe_service.dart';
 import '../services/premium_service.dart';
@@ -110,12 +111,21 @@ class _MapPageState extends State<MapPage> {
   bool _showActionPanel = false;
   bool _showNavPanel = false;
 
+  // ── Connectivité ──
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
+
   // ─────────────────────────────────────────────────────────────────────────
   // Cycle de vie
   // ─────────────────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService.isOnline;
+    _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
+      if (mounted) setState(() => _isOnline = online);
+      if (online) _fetchWind();
+    });
     _initLocation();
     _fetchWind();
     PremiumService.load();
@@ -127,6 +137,7 @@ class _MapPageState extends State<MapPage> {
     _positionStream?.cancel();
     _groupeStream?.cancel();
     _hotspotDebounce?.cancel();
+    _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
     }
@@ -1004,6 +1015,7 @@ class _MapPageState extends State<MapPage> {
           if (_showParcours) _buildParcoursBanner(),
           _buildActionPanel(),
           _buildNavPanel(),
+          if (!_isOnline) _buildOfflineBanner(),
           Positioned(
             bottom: 20,
             left: 16,
@@ -1320,6 +1332,32 @@ class _MapPageState extends State<MapPage> {
   }
 
   // ── Overlays fixes ───────────────────────────────────────────────────────
+  Widget _buildOfflineBanner() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 40, right: 40,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF8B4513).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.wifi_off, color: Colors.white, size: 14),
+            SizedBox(width: 6),
+            Text('Mode hors ligne — GPS, carte et spots disponibles',
+                style: TextStyle(color: Colors.white, fontSize: 11),
+                textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCrosshair() {
     return Positioned.fill(
       child: IgnorePointer(
@@ -1493,9 +1531,11 @@ class _MapPageState extends State<MapPage> {
                     mapActionBtn(
                       icon: Icons.people,
                       label: 'Groupe',
-                      color: const Color(0xFFFF6B35),
+                      color: _isOnline ? const Color(0xFFFF6B35) : Colors.white24,
                       active: _groupeActif,
-                      onTap: _sharePosition,
+                      onTap: _isOnline
+                          ? _sharePosition
+                          : () => _snack('Groupe non disponible hors ligne', error: true),
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
@@ -1620,15 +1660,16 @@ class _MapPageState extends State<MapPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _navBtn(Icons.wb_sunny_rounded, 'Météo', () =>
-                        Navigator.push(context, MaterialPageRoute(
+                    _navBtn(Icons.wb_sunny_rounded, 'Météo',
+                        _isOnline ? () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => MeteoPage(
                             latitude: _currentPosition.latitude,
                             longitude: _currentPosition.longitude,
                             windDeg: _windDeg,
                             windSpeed: _windSpeed,
                           ),
-                        ))),
+                        )) : () => _snack('Météo non disponible hors ligne', error: true),
+                        color: _isOnline ? const Color(0xFFBDBDBD) : Colors.white24),
                     const SizedBox(height: 10),
                     _navBtn(Icons.save_alt_rounded, 'Tracés',
                         _showTracesDialog),
