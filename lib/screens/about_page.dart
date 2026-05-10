@@ -53,7 +53,8 @@ class AboutPage extends StatelessWidget {
               '• Courtois R., Dussault C. et al. — Sélection d\'habitat de l\'orignal en forêt boréale aménagée, UQAR / MFFP.\n\n'
               '• Dussault C. et al. (2005) — Linking moose habitat selection to limiting factors. Ecography 28.\n\n'
               '• Ouellet J.-P. et al. — Études sur l\'orignal au Québec, Université de Moncton.\n\n'
-              '• MRNF Québec — Données IEQM (Inventaire Écoforestier du Québec Méridional), diffusées sur Données Québec.',
+              '• MRNF Québec — Données IEQM (Inventaire Écoforestier du Québec Méridional), diffusées sur Données Québec.\n\n'
+              '📋 Données écoforestières © Gouvernement du Québec (MFFP) — Reproduit avec la permission du ministère des Forêts, de la Faune et des Parcs du Québec. Licence : Données Québec (CC BY 4.0).',
               style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.6),
             ),
           ]),
