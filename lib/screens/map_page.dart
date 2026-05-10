@@ -822,7 +822,7 @@ class _MapPageState extends State<MapPage> {
                   fontWeight: FontWeight.bold)),
           content: _savedTracks.isEmpty
               ? const Text(
-                  'Aucun tracé sauvegardé.\nAppuie sur ⏺ pour enregistrer un déplacement.',
+                  'Aucun tracé sauvegardé.\nAppuie sur le bouton Suivi 🔴 pour enregistrer un déplacement.',
                   style: TextStyle(color: Colors.white54, fontSize: 13))
               : SizedBox(
                   width: double.maxFinite,
