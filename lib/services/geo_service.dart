@@ -367,6 +367,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     double bestAngleDelta = 180;
     String bestHabitat = '';
     String bestType = 'X';
+    int waterBlockCount = 0;
+    int terrainBlockCount = 0;
 
     for (double angleDelta = -maxDelta; angleDelta <= maxDelta; angleDelta += 7.5) {
       final angle = upwindRad + angleDelta * pi / 180;
@@ -376,8 +378,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       final cLon = curLon + sLon;
 
       final eval = evalPoint(cLat, cLon);
-      if (eval.blocked) continue;
-      if (segmentCrossesWater(curLat, curLon, cLat, cLon)) continue;
+      if (eval.blocked) { terrainBlockCount++; continue; }
+      if (segmentCrossesWater(curLat, curLon, cLat, cLon)) { waterBlockCount++; continue; }
 
       // 1. Score habitat
       final habitatScore = eval.score;
@@ -477,7 +479,16 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       ? (totalScore / nbPoints / scoreMaxPossible * 100).clamp(0.0, 100.0)
       : 0.0;
 
-  return {'points': points, 'scorePct': scorePct};
+  String blockReason = '';
+  if (points.length < 5) {
+    if (waterBlockCount > terrainBlockCount) {
+      blockReason = 'eau';
+    } else if (terrainBlockCount > 0) {
+      blockReason = 'terrain';
+    }
+  }
+
+  return {'points': points, 'scorePct': scorePct, 'blockReason': blockReason};
 }
 
 // ── ISOLATE FUNCTIONS (top-level pour compute()) ───────────────────────────

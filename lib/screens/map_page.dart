@@ -394,6 +394,7 @@ class _MapPageState extends State<MapPage> {
 
       final rawList = result['points'] as List;
       final scorePct = (result['scorePct'] as num).toDouble();
+      final blockReason = (result['blockReason'] as String?) ?? '';
       final points = rawList.map((p) {
         final coords = p as List;
         return LatLng((coords[0] as num).toDouble(), (coords[1] as num).toDouble());
@@ -413,7 +414,12 @@ class _MapPageState extends State<MapPage> {
       return;
     }
     if (_parcours.length < 5) {
-      _snack('Parcours limité — télécharge une carte écoforestière plus large', error: true);
+      final msg = blockReason == 'eau'
+          ? 'Parcours bloqué par un cours d\'eau — essaie une autre position de départ'
+          : blockReason == 'terrain'
+              ? 'Parcours bloqué par le terrain — essaie une zone avec plus de forêt'
+              : 'Parcours limité — télécharge une carte écoforestière plus large';
+      _snack(msg, error: true);
     }
   }
 
