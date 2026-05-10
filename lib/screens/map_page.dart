@@ -109,6 +109,7 @@ class _MapPageState extends State<MapPage> {
   String? _groupeId;
   String? _monNom;
   bool _groupeActif = false;
+  bool _partagePosition = false;
   List<MembreGroupe> _membres = [];
   StreamSubscription<List<MembreGroupe>>? _groupeStream;
 
@@ -188,7 +189,7 @@ class _MapPageState extends State<MapPage> {
           if (_recording) _trackPoints.add(p);
           if (_showHotspots) _hotspots = _computeHotspots();
         });
-        if (_groupeActif && _groupeId != null && _monNom != null) {
+        if (_groupeActif && _partagePosition && _groupeId != null && _monNom != null) {
           GroupeService.publierPosition(groupeId: _groupeId!, nom: _monNom!, position: p);
         }
       });
@@ -641,9 +642,22 @@ class _MapPageState extends State<MapPage> {
                         groupeId: _groupeId!, monNom: _monNom!),
                   ));
             }),
-            _groupeTile(Icons.location_on_rounded, 'Position du groupe',
-                'Positions GPS en temps réel',
-                () => Navigator.pop(context)),
+            _groupeTile(
+                _partagePosition ? Icons.location_off_rounded : Icons.location_on_rounded,
+                _partagePosition ? 'Arrêter le partage GPS' : 'Partager ma position',
+                _partagePosition ? 'Ta position est visible par le groupe' : 'Partager ton GPS avec le groupe',
+                () {
+              Navigator.pop(context);
+              setState(() => _partagePosition = !_partagePosition);
+              if (_partagePosition) {
+                GroupeService.publierPosition(
+                    groupeId: _groupeId!, nom: _monNom!, position: _currentPosition);
+                _snack('Position GPS partagée avec le groupe');
+              } else {
+                GroupeService.quitter(_groupeId!, _monNom!);
+                _snack('Partage de position arrêté', error: true);
+              }
+            }),
             _groupeTile(Icons.pin_drop_rounded, 'Partage des observations',
                 'Frottages, souilles, traces…', () {
               Navigator.pop(context);
@@ -665,9 +679,8 @@ class _MapPageState extends State<MapPage> {
       _monNom = nom;
       _groupeId = groupeId;
       _groupeActif = true;
+      _partagePosition = false;
     });
-    GroupeService.publierPosition(
-        groupeId: groupeId, nom: nom, position: _currentPosition);
     _groupeStream?.cancel();
     _groupeStream = GroupeService.ecouterGroupe(groupeId, nom).listen((membres) {
       if (mounted) setState(() => _membres = membres);
@@ -680,7 +693,7 @@ class _MapPageState extends State<MapPage> {
     _tracesGroupeSub = GroupeService.ecouterTraces(groupeId, nom).listen((traces) {
       if (mounted) setState(() => _tracesGroupe = traces);
     });
-    _snack('Groupe "$groupeId" rejoint — ta position est partagée');
+    _snack('Groupe "$groupeId" rejoint');
   }
 
   void _quitterGroupe() {
@@ -692,6 +705,7 @@ class _MapPageState extends State<MapPage> {
     }
     setState(() {
       _groupeActif = false;
+      _partagePosition = false;
       _membres = [];
       _obsGroupe = [];
       _tracesGroupe = [];
