@@ -19,7 +19,7 @@ import '../services/geo_service.dart';
 import '../services/groupe_service.dart';
 import '../services/premium_service.dart';
 import '../services/territoire_service.dart';
-import '../widgets/aide_dialog.dart';
+import 'aide_page.dart';
 import '../widgets/hotspot_detail_sheet.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/scale_bar.dart';
@@ -1918,7 +1918,8 @@ class _MapPageState extends State<MapPage> {
                             ))),
                     const SizedBox(height: 10),
                     _navBtn(Icons.help_outline_rounded, 'Aide',
-                        () => showAideDialog(context)),
+                        () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const AidePage()))),
                     const SizedBox(height: 10),
                     _navBtn(Icons.logout_rounded, 'Quitter',
                         () async {
