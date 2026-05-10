@@ -10,37 +10,98 @@ Widget mapActionBtn({
   VoidCallback? onLongPress,
   bool loading = false,
   Widget? customIcon,
-}) {
-  return GestureDetector(
-    onTap: onTap,
-    onLongPress: onLongPress,
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: active ? color.withOpacity(0.25) : const Color(0xFF2D2D2D),
-            borderRadius: BorderRadius.circular(21),
-            border: Border.all(
-              color: active ? color : color.withOpacity(0.4),
-              width: active ? 2 : 1,
-            ),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+}) => _MapActionBtn(
+  icon: icon, label: label, color: color, active: active,
+  onTap: onTap, onLongPress: onLongPress, loading: loading, customIcon: customIcon,
+);
+
+class _MapActionBtn extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool active;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool loading;
+  final Widget? customIcon;
+
+  const _MapActionBtn({
+    required this.icon, required this.label, required this.color,
+    required this.active, required this.onTap,
+    this.onLongPress, this.loading = false, this.customIcon,
+  });
+
+  @override
+  State<_MapActionBtn> createState() => _MapActionBtnState();
+}
+
+class _MapActionBtnState extends State<_MapActionBtn> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.color;
+    final bgColor = widget.active
+        ? c.withOpacity(_hovered ? 0.38 : 0.25)
+        : _hovered ? c.withOpacity(0.12) : const Color(0xFF2D2D2D);
+    final borderColor = widget.active
+        ? c
+        : _hovered ? c.withOpacity(0.7) : c.withOpacity(0.4);
+    final borderWidth = (widget.active || _hovered) ? 2.0 : 1.0;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(21),
+                  border: Border.all(color: borderColor, width: borderWidth),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _hovered
+                          ? c.withOpacity(0.35)
+                          : Colors.black.withOpacity(0.4),
+                      blurRadius: _hovered ? 10 : 6,
+                      spreadRadius: _hovered ? 1 : 0,
+                    ),
+                  ],
+                ),
+                child: widget.loading
+                    ? Center(child: SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.5, color: c)))
+                    : widget.customIcon != null
+                        ? Center(child: widget.customIcon)
+                        : Icon(widget.icon,
+                            color: widget.active ? c : c.withOpacity(_hovered ? 1.0 : 0.8),
+                            size: 20),
+              ),
+              const SizedBox(height: 4),
+              Text(widget.label,
+                  style: TextStyle(
+                    color: widget.active ? c : _hovered ? c.withOpacity(0.8) : Colors.white54,
+                    fontSize: 10,
+                  )),
+            ],
           ),
-          child: loading
-              ? Center(child: SizedBox(width: 20, height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: color)))
-              : customIcon != null
-                  ? Center(child: customIcon)
-                  : Icon(icon, color: active ? color : color.withOpacity(0.8), size: 20),
         ),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(color: active ? color : Colors.white54, fontSize: 10)),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 Widget mapIconBtn(
