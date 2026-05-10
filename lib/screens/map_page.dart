@@ -1739,11 +1739,11 @@ class _MapPageState extends State<MapPage> {
                     mapActionBtn(
                       icon: Icons.fiber_manual_record,
                       label: 'Suivi',
-                      color: _recording ? Colors.red : const Color(0xFFFF6B35),
+                      color: Colors.red,
                       active: _recording,
                       onTap: _toggleRecording,
                       customIcon: Icon(
-                        Icons.fiber_manual_record,
+                        _recording ? Icons.stop_rounded : Icons.fiber_manual_record,
                         color: Colors.red,
                         size: 22,
                       ),
