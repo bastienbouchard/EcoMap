@@ -1218,7 +1218,7 @@ class _MapPageState extends State<MapPage> {
         return Marker(
           point: pos,
           width: 52, height: 52,
-          child: GestureDetector(
+          child: HoverMarker(
             onTap: () => showDialog(
               context: context,
               builder: (_) => AlertDialog(
@@ -1313,7 +1313,7 @@ class _MapPageState extends State<MapPage> {
         return Marker(
           point: pos,
           width: 56, height: 56,
-          child: GestureDetector(
+          child: HoverMarker(
             onTap: () {
               if (idx < _hotspotInfos.length) {
                 showHotspotDetail(context, _hotspotInfos[idx],
@@ -1366,7 +1366,7 @@ class _MapPageState extends State<MapPage> {
         return Marker(
           point: pos,
           width: 48, height: 48,
-          child: GestureDetector(
+          child: HoverMarker(
             onTap: () => showDialog(
               context: context,
               builder: (_) => AlertDialog(
