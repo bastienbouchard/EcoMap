@@ -347,7 +347,7 @@ class _MapPageState extends State<MapPage> {
       return;
     }
     if (_rawHotspots.isEmpty) {
-      _snack('Données habitat non chargées — patiente un instant', error: true);
+      _snack('Télécharge d\'abord une carte écoforestière via "Carte éco"', error: true);
       return;
     }
     final spots = _computeHotspots();
@@ -397,11 +397,11 @@ class _MapPageState extends State<MapPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingParcours = false);
-      _snack('Erreur parcours: $e', error: true);
+      _snack('Télécharge d\'abord une carte écoforestière via "Carte éco"', error: true);
       return;
     }
     if (_parcours.length < 5) {
-      _snack('Parcours limité — déplacez-vous dans une zone plus ouverte', error: true);
+      _snack('Parcours limité — télécharge une carte écoforestière plus large', error: true);
     }
   }
 
@@ -430,7 +430,7 @@ class _MapPageState extends State<MapPage> {
         _loadingPinch = false;
       });
       if (result.isEmpty) {
-        _snack('Aucun emplacement détecté — navigue vers une zone avec eau ou coupes', error: true);
+        _snack('Aucun affût détecté — télécharge une carte écoforestière via "Carte éco"', error: true);
       } else {
         _snack('${result.length} emplacements d\'affût détectés dans un rayon de 3 km');
       }
