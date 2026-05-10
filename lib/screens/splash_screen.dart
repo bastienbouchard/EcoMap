@@ -92,10 +92,12 @@ class _SplashScreenState extends State<SplashScreen>
             opacity: _fade.value,
             child: Transform.scale(
               scale: _scale.value,
-              child: ColorFiltered(
-              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-              child: Image.asset('assets/logo.png', height: 260),
-            ),
+              child: Image.asset(
+                'assets/logo.png',
+                height: 260,
+                color: Colors.white,
+                colorBlendMode: BlendMode.srcIn,
+              ),
             ),
           ),
         ),
