@@ -354,10 +354,7 @@ class _MapPageState extends State<MapPage> {
       setState(() { _showHotspots = false; _hotspots = []; });
       return;
     }
-    if (_rawHotspots.isEmpty) {
-      _snack('Télécharge d\'abord une carte écoforestière via "Carte éco"', error: true);
-      return;
-    }
+    if (!_requireEcoMap()) return;
     final spots = _computeHotspots();
     setState(() { _hotspots = spots; _showHotspots = true; });
     _snack(spots.isEmpty
@@ -427,6 +424,7 @@ class _MapPageState extends State<MapPage> {
       setState(() { _showPinchPoints = false; _pinchPoints = []; });
       return;
     }
+    if (!_requireEcoMap()) return;
     setState(() => _loadingPinch = true);
     try {
       final center = _mapController.camera.center;
@@ -756,6 +754,7 @@ class _MapPageState extends State<MapPage> {
   // ─────────────────────────────────────────────────────────────────────────
   void _showParcoursDialog() {
     if (!_requirePremium()) return;
+    if (!_requireEcoMap()) return;
     double localDist = _distanceParcours;
     showModalBottomSheet(
       context: context,
@@ -929,6 +928,13 @@ class _MapPageState extends State<MapPage> {
   // ─────────────────────────────────────────────────────────────────────────
   // Utilitaires UI
   // ─────────────────────────────────────────────────────────────────────────
+  bool _requireEcoMap() {
+    final features = (geoJson['features'] as List?) ?? [];
+    if (features.isNotEmpty) return true;
+    _snack('Télécharge d\'abord une carte éco via le bouton Couches', error: true);
+    return false;
+  }
+
   // Retourne true si premium, sinon affiche le dialog d'upgrade
   bool _requirePremium() {
     if (PremiumService.isPremium) return true;
