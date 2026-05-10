@@ -1,8 +1,11 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/hotspot_info.dart';
+import '../screens/navigation_page.dart';
 
-void showHotspotDetail(BuildContext context, HotspotInfo info) {
+void showHotspotDetail(BuildContext context, HotspotInfo info,
+    {LatLng? currentPosition, double? windDeg}) {
   final p = info.props;
   const couvLabels = {'F': 'Feuillu', 'M': 'Mixte', 'R': 'Résineux'};
   final couvCode = (p['type_couv'] ?? '').toString();
@@ -78,17 +81,29 @@ void showHotspotDetail(BuildContext context, HotspotInfo info) {
         children: [
           Row(children: [
             const Text('🔥 ', style: TextStyle(fontSize: 22)),
-            Text('Point chaud — ${info.score} pts',
-                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: info.score >= 18 ? const Color(0xFF1A3A08) : info.score >= 13 ? const Color(0xFF2D5016) : const Color(0xFF5A8A1E),
-                borderRadius: BorderRadius.circular(12),
+            Expanded(child: Text('Point chaud',
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
+            if (currentPosition != null)
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => NavigationPage(
+                      parcours: [currentPosition, info.position],
+                      score: 0,
+                      windDeg: windDeg,
+                    ),
+                  ));
+                },
+                icon: const Icon(Icons.navigation, size: 16),
+                label: const Text('Naviguer'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  textStyle: const TextStyle(fontSize: 13),
+                ),
               ),
-              child: Text('${info.score} pts', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
           ]),
           const SizedBox(height: 16),
           Wrap(spacing: 8, runSpacing: 6, children: [

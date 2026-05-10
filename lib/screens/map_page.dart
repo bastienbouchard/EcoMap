@@ -1254,7 +1254,25 @@ class _MapPageState extends State<MapPage> {
                       Navigator.pop(context);
                     },
                     child: const Text('Supprimer',
-                        style: TextStyle(color: Color(0xFFFF6B35))),
+                        style: TextStyle(color: Colors.white38)),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => NavigationPage(
+                          parcours: [_currentPosition, pos],
+                          score: 0,
+                          windDeg: _windDeg,
+                        ),
+                      ));
+                    },
+                    icon: const Icon(Icons.navigation, size: 16),
+                    label: const Text('Naviguer'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF6B35),
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -1298,7 +1316,8 @@ class _MapPageState extends State<MapPage> {
           child: GestureDetector(
             onTap: () {
               if (idx < _hotspotInfos.length) {
-                showHotspotDetail(context, _hotspotInfos[idx]);
+                showHotspotDetail(context, _hotspotInfos[idx],
+                    currentPosition: _currentPosition, windDeg: _windDeg);
               }
             },
             child: Container(
@@ -1363,6 +1382,26 @@ class _MapPageState extends State<MapPage> {
                   ),
                 ]),
                 content: _coordsWidget(pos),
+                actions: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => NavigationPage(
+                          parcours: [_currentPosition, pos],
+                          score: 0,
+                          windDeg: _windDeg,
+                        ),
+                      ));
+                    },
+                    icon: const Icon(Icons.navigation, size: 16),
+                    label: const Text('Naviguer'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF6B35),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
             child: Container(
