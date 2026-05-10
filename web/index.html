@@ -56,7 +56,14 @@
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(regs) {
-        regs.forEach(function(r) { r.unregister(); });
+        if (regs.length === 0) return;
+        Promise.all(regs.map(function(r) { return r.unregister(); })).then(function() {
+          return caches.keys();
+        }).then(function(names) {
+          return Promise.all(names.map(function(n) { return caches.delete(n); }));
+        }).then(function() {
+          window.location.reload(true);
+        });
       });
     }
   </script>
