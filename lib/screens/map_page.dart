@@ -496,7 +496,7 @@ class _MapPageState extends State<MapPage> {
                     border: Border.all(
                         color: const Color(0xFFFF6B35).withOpacity(0.3)),
                   ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center,
+                  child: Row(mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       Container(
                         width: 36, height: 36,
