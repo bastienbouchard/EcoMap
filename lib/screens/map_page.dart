@@ -1549,7 +1549,7 @@ class _MapPageState extends State<MapPage> {
                       onTap: _toggleRecording,
                       customIcon: Icon(
                         Icons.fiber_manual_record,
-                        color: _recording ? Colors.red : Colors.white54,
+                        color: Colors.red,
                         size: 22,
                       ),
                     ),
