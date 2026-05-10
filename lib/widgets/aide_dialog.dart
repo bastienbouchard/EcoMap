@@ -46,7 +46,15 @@ void showAideDialog(BuildContext context) {
     context: context,
     builder: (_) => AlertDialog(
       backgroundColor: const Color(0xFF2D2D2D),
-      title: const Text('Aide', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+      title: Row(children: [
+        const Expanded(child: Text('Aide', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
+        IconButton(
+          icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+          onPressed: () => Navigator.pop(context),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+      ]),
       content: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,12 +109,7 @@ void showAideDialog(BuildContext context) {
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Fermer', style: TextStyle(color: Color(0xFFFF6B35))),
-        ),
-      ],
+      actions: const [],
     ),
   );
 }

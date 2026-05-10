@@ -479,8 +479,16 @@ class _MapPageState extends State<MapPage> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF2D2D2D),
-        title: const Text('Type d\'observation',
-            style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: Row(children: [
+          const Expanded(child: Text('Type d\'observation',
+              style: TextStyle(color: Colors.white, fontSize: 16))),
+          IconButton(
+            icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+            onPressed: () => Navigator.pop(context),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ]),
         contentPadding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
         content: SizedBox(
           width: double.maxFinite,
@@ -533,13 +541,7 @@ class _MapPageState extends State<MapPage> {
             }).toList(),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler',
-                style: TextStyle(color: Colors.white54)),
-          ),
-        ],
+        actions: const [],
       ),
     );
   }
@@ -622,13 +624,15 @@ class _MapPageState extends State<MapPage> {
                     ]),
               ),
               TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _quitterGroupe();
-                },
+                onPressed: () { Navigator.pop(context); _quitterGroupe(); },
                 child: const Text('Quitter',
-                    style: TextStyle(
-                        color: Color(0xFFFF6B35), fontSize: 13)),
+                    style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+                onPressed: () => Navigator.pop(context),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ]),
             const Divider(color: Colors.white12, height: 24),
@@ -790,15 +794,17 @@ class _MapPageState extends State<MapPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(children: [
-                Icon(Icons.route_rounded,
-                    color: Color(0xFF5A8A1E), size: 20),
-                SizedBox(width: 8),
-                Text('Générer un parcours',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold)),
+              Row(children: [
+                const Icon(Icons.route_rounded, color: Color(0xFF5A8A1E), size: 20),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('Générer un parcours',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+                  onPressed: () => Navigator.pop(ctx),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ]),
               const SizedBox(height: 16),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -876,11 +882,16 @@ class _MapPageState extends State<MapPage> {
       builder: (_) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           backgroundColor: const Color(0xFF2D2D2D),
-          title: const Text('Tracés sauvegardés',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold)),
+          title: Row(children: [
+            const Expanded(child: Text('Tracés sauvegardés',
+                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
+            IconButton(
+              icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+              onPressed: () => Navigator.pop(ctx),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ]),
           content: _savedTracks.isEmpty
               ? const Text(
                   'Aucun tracé sauvegardé.\nAppuie sur le bouton Suivi 🔴 pour enregistrer un déplacement.',
@@ -928,19 +939,10 @@ class _MapPageState extends State<MapPage> {
           actions: [
             if (_savedTracks.isNotEmpty)
               TextButton(
-                onPressed: () {
-                  setState(() => _savedTracks.clear());
-                  setDlg(() {});
-                },
+                onPressed: () { setState(() => _savedTracks.clear()); setDlg(() {}); },
                 child: const Text('Tout supprimer',
-                    style:
-                        TextStyle(color: Colors.white38, fontSize: 12)),
+                    style: TextStyle(color: Colors.white38, fontSize: 12)),
               ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Fermer',
-                  style: TextStyle(color: Color(0xFFFF6B35))),
-            ),
           ],
         ),
       ),
@@ -1216,14 +1218,20 @@ class _MapPageState extends State<MapPage> {
               context: context,
               builder: (_) => AlertDialog(
                 backgroundColor: const Color(0xFF2D2D2D),
-                title: Text(note,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 15)),
+                title: Row(children: [
+                  Expanded(child: Text(note,
+                      style: const TextStyle(color: Colors.white, fontSize: 15))),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ]),
                 content: Text(
                   '${(obs['time'] as DateTime).hour.toString().padLeft(2, '0')}:'
                   '${(obs['time'] as DateTime).minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(
-                      color: Colors.white54, fontSize: 13),
+                  style: const TextStyle(color: Colors.white54, fontSize: 13),
                 ),
                 actions: [
                   TextButton(
@@ -1233,11 +1241,6 @@ class _MapPageState extends State<MapPage> {
                     },
                     child: const Text('Supprimer',
                         style: TextStyle(color: Color(0xFFFF6B35))),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Fermer',
-                        style: TextStyle(color: Colors.white54)),
                   ),
                 ],
               ),
@@ -1299,18 +1302,22 @@ class _MapPageState extends State<MapPage> {
                       color: Colors.black54, blurRadius: 4),
                 ],
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.local_fire_department,
-                      color: flameColor, size: 26),
-                  Text('$score',
-                      style: TextStyle(
-                          color: flameColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          height: 1)),
-                ],
+              child: Center(
+                child: Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    Icon(Icons.local_fire_department,
+                        color: Colors.white12, size: 32),
+                    ClipRect(
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        heightFactor: (score / 25.0).clamp(0.25, 1.0),
+                        child: Icon(Icons.local_fire_department,
+                            color: flameColor, size: 32),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1342,18 +1349,11 @@ class _MapPageState extends State<MapPage> {
                     color: Colors.black54, blurRadius: 4),
               ],
             ),
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.filter_alt,
-                    color: Color(0xFF4CAF50), size: 22),
-                Text('col',
-                    style: TextStyle(
-                        color: Color(0xFF4CAF50),
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        height: 1)),
-              ],
+            child: Center(
+              child: SizedBox(
+                width: 26, height: 26,
+                child: CustomPaint(painter: HuntingTowerPainter()),
+              ),
             ),
           ),
         );
@@ -1433,17 +1433,18 @@ class _MapPageState extends State<MapPage> {
               context: context,
               builder: (_) => AlertDialog(
                 backgroundColor: const Color(0xFF2D2D2D),
-                title: Text(note,
-                    style: const TextStyle(color: Colors.white, fontSize: 15)),
+                title: Row(children: [
+                  Expanded(child: Text(note,
+                      style: const TextStyle(color: Colors.white, fontSize: 15))),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ]),
                 content: Text('Par $nom',
                     style: const TextStyle(color: Colors.white54, fontSize: 13)),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Fermer',
-                        style: TextStyle(color: Color(0xFFFF6B35))),
-                  ),
-                ],
               ),
             ),
             child: Container(
@@ -1734,7 +1735,7 @@ class _MapPageState extends State<MapPage> {
                     const SizedBox(height: 6),
                     mapActionBtn(
                       icon: Icons.local_fire_department,
-                      label: 'Spots',
+                      label: 'Hot',
                       color: const Color(0xFFFF6B35),
                       active: _showHotspots,
                       onTap: _toggleHotspots,
