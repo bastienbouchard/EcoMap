@@ -844,8 +844,8 @@ class _MapPageState extends State<MapPage> {
                         subtitle: Text('${t.points.length} points',
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 11)),
-                        leading: const Icon(Icons.route,
-                            color: Color(0xFFFF6B35), size: 20),
+                        leading: const Icon(Icons.fiber_manual_record,
+                            color: Colors.red, size: 20),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline,
                               color: Color(0xFFFF6B35), size: 20),
