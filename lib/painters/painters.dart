@@ -190,18 +190,19 @@ class MudHolePainter extends CustomPainter {
 }
 
 class HuntingTowerPainter extends CustomPainter {
-  const HuntingTowerPainter();
+  final Color color;
+  const HuntingTowerPainter({this.color = Colors.white});
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width; final h = size.height;
-    final wood = const Color(0xFF5D3A1A);
+    final wood = color;
     final fill = Paint()..color = wood..style = PaintingStyle.fill;
     final stroke = Paint()..color = wood..style = PaintingStyle.stroke..strokeWidth = 2.0..strokeCap = StrokeCap.round;
 
     // Cabine
     canvas.drawRect(Rect.fromLTWH(w * .22, h * .04, w * .56, h * .36), fill);
     canvas.drawRect(Rect.fromLTWH(w * .22, h * .04, w * .56, h * .36),
-      Paint()..color = const Color(0xFF3E1F00)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+      Paint()..color = wood.withOpacity(0.5)..style = PaintingStyle.stroke..strokeWidth = 1.5);
     // Fenêtre
     canvas.drawRect(Rect.fromLTWH(w * .38, h * .11, w * .24, h * .20),
       Paint()..color = const Color(0xFFFFE082)..style = PaintingStyle.fill);

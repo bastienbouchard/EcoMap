@@ -21,7 +21,21 @@ class AuthService {
   // ── Restaure la session depuis le stockage local ──
   static Future<void> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
-    _uid = prefs.getString(_keyUid);
+    final uid = prefs.getString(_keyUid);
+    if (uid == null || uid.isEmpty) return;
+    // Vérifie que le document Firestore existe encore
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (!doc.exists) {
+        await prefs.remove(_keyUid);
+        await prefs.remove(_keyEmail);
+        await prefs.remove(_keyToken);
+        return;
+      }
+    } catch (_) {
+      // Pas de réseau — on accepte la session locale
+    }
+    _uid = uid;
     _email = prefs.getString(_keyEmail);
   }
 
