@@ -259,3 +259,33 @@ class TrackingPainter extends CustomPainter {
   }
   @override bool shouldRepaint(_) => false;
 }
+
+class ShrubPainter extends CustomPainter {
+  const ShrubPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final green = Paint()..color = const Color(0xFF4CAF50)..style = PaintingStyle.fill;
+    final darkGreen = Paint()..color = const Color(0xFF2E7D32)..style = PaintingStyle.fill;
+    final brown = Paint()..color = const Color(0xFF795548)..style = PaintingStyle.fill;
+
+    // Tronc
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * .42, h * .70, w * .16, h * .28),
+        const Radius.circular(2),
+      ),
+      brown,
+    );
+    // Boule centrale
+    canvas.drawCircle(Offset(w * .50, h * .48), w * .30, darkGreen);
+    canvas.drawCircle(Offset(w * .50, h * .45), w * .28, green);
+    // Boule gauche
+    canvas.drawCircle(Offset(w * .28, h * .58), w * .22, darkGreen);
+    canvas.drawCircle(Offset(w * .27, h * .56), w * .20, green);
+    // Boule droite
+    canvas.drawCircle(Offset(w * .72, h * .58), w * .22, darkGreen);
+    canvas.drawCircle(Offset(w * .73, h * .56), w * .20, green);
+  }
+  @override bool shouldRepaint(_) => false;
+}

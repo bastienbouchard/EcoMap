@@ -69,6 +69,7 @@ Widget mapDividerV() => Container(width: 1, height: 20, color: Colors.white24);
 
 Widget obsIcon(String note, {double size = 26}) {
   Widget cp(CustomPainter p) => SizedBox(width: size, height: size, child: CustomPaint(painter: p));
+  if (note.contains('Frottage')) return cp(const ShrubPainter());
   if (note.contains('Traces')) return cp(const MooseTrackPainter());
   if (note.contains('Souille')) return cp(const MudHolePainter());
   if (note.contains('Cache')) return cp(const HuntingTowerPainter());
