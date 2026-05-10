@@ -1538,19 +1538,16 @@ class _MapPageState extends State<MapPage> {
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
-                      icon: Icons.stop,
-                      label: _recording ? 'Stop' : 'Tracé',
-                      color: const Color(0xFFFF6B35),
+                      icon: Icons.fiber_manual_record,
+                      label: 'Suivi',
+                      color: _recording ? Colors.red : const Color(0xFFFF6B35),
                       active: _recording,
                       onTap: _toggleRecording,
-                      customIcon: _recording
-                          ? const Icon(Icons.stop,
-                              color: Color(0xFFFF6B35), size: 22)
-                          : const SizedBox(
-                              width: 24, height: 24,
-                              child: CustomPaint(
-                                  painter: TrackingPainter()),
-                            ),
+                      customIcon: Icon(
+                        Icons.fiber_manual_record,
+                        color: _recording ? Colors.red : Colors.white54,
+                        size: 22,
+                      ),
                     ),
                   ],
                 ),
