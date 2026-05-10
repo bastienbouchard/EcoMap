@@ -1,6 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import '../services/territoire_service.dart';
 
 enum _SelectionMode { screen, draw }
@@ -39,13 +40,9 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
   // Convertit un Offset écran en LatLng selon la caméra actuelle
   LatLng _toLatLng(Offset pos, BoxConstraints constraints) {
-    final camera = _mapController.camera;
-    final mapSize = Size(constraints.maxWidth, constraints.maxHeight);
-    final center = camera.project(camera.center);
-    final dx = pos.dx - mapSize.width / 2;
-    final dy = pos.dy - mapSize.height / 2;
-    final point = center + CustomPoint(dx, dy) / camera.zoom * (1 / camera.getScaleZoom(1));
-    return camera.unproject(point);
+    return _mapController.camera.screenPointToLatLng(
+      math.Point(pos.dx, pos.dy),
+    );
   }
 
   Future<void> _download({List<LatLng>? polygon}) async {
