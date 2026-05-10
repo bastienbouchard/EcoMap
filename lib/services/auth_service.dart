@@ -9,6 +9,7 @@ class AuthService {
   static const _baseUrl = 'https://identitytoolkit.googleapis.com/v1/accounts';
   static const _keyUid = 'auth_uid';
   static const _keyEmail = 'auth_email';
+  static const _keyToken = 'auth_token';
 
   static String? _uid;
   static String? _email;
@@ -27,6 +28,20 @@ class AuthService {
   // ── Créer un compte ──
   static Future<void> createWithEmail(String email, String password) async {
     await _post('signUp', email, password);
+    await _sendVerificationEmail();
+  }
+
+  // ── Envoie un courriel de confirmation d'inscription ──
+  static Future<void> _sendVerificationEmail() async {
+    if (_uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final idToken = prefs.getString('auth_token');
+    if (idToken == null) return;
+    await http.post(
+      Uri.parse('$_baseUrl:sendOobCode?key=$_apiKey'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'requestType': 'VERIFY_EMAIL', 'idToken': idToken}),
+    );
   }
 
   // ── Se connecter ──
@@ -83,9 +98,10 @@ class AuthService {
     }
     _uid = data['localId'] as String?;
     _email = data['email'] as String?;
-    // Sauvegarder la session localement
+    final token = data['idToken'] as String?;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyUid, _uid ?? '');
     await prefs.setString(_keyEmail, _email ?? '');
+    if (token != null) await prefs.setString(_keyToken, token);
   }
 }
