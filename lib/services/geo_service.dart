@@ -244,6 +244,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   double curLat = lat, curLon = lon;
   double totalDist = 0;
   int totalScore = 0, nbPoints = 0, blockedAttempts = 0;
+  int waterBlockCount = 0, terrainBlockCount = 0;
   final stepDist = targetDist / 28;
 
   String habitatKey(Map props) =>
@@ -367,8 +368,6 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     double bestAngleDelta = 180;
     String bestHabitat = '';
     String bestType = 'X';
-    int waterBlockCount = 0;
-    int terrainBlockCount = 0;
 
     for (double angleDelta = -maxDelta; angleDelta <= maxDelta; angleDelta += 7.5) {
       final angle = upwindRad + angleDelta * pi / 180;
