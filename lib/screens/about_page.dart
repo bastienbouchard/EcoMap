@@ -11,8 +11,14 @@ class AboutPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFF2D2D2D),
         title: const Text('À propos', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Color(0xFFFF6B35)),
+        automaticallyImplyLeading: false,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.close, color: Color(0xFFFF6B35)),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
