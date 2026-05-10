@@ -929,10 +929,14 @@ class _MapPageState extends State<MapPage> {
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor:
-          error ? const Color(0xFF8B4513) : const Color(0xFF2D5016),
-      duration: const Duration(seconds: 2),
+      content: Text(msg,
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+      backgroundColor: error ? const Color(0xFF8B4513) : const Color(0xFFFF6B35),
+      duration: Duration(seconds: error ? 3 : 4),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
     ));
   }
 
