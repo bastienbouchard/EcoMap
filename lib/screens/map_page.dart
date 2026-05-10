@@ -34,7 +34,7 @@ import 'territoire_download_page.dart';
 // Types d'observation disponibles
 // ─────────────────────────────────────────────────────────────────────────────
 const _typesObservation = [
-  ('🦌', 'Frottage'),
+  ('🫎', 'Frottage'),
   ('💧', 'Souille'),
   ('👣', 'Traces'),
   ('📷', 'Caméra'),
