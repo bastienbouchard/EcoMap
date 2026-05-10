@@ -305,7 +305,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
                 type: habitatType(props), blocked: false);
       }
     }
-    return (score: 0, habitat: '', type: 'X', blocked: false);
+    // Hors de tout polygone = zone sans couverture éco (eau, route, découvert) → bloqué
+    return (score: 0, habitat: '', type: 'X', blocked: true);
   }
 
   final startEval = evalPoint(lat, lon);
