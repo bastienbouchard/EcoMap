@@ -110,6 +110,8 @@ class _MapPageState extends State<MapPage> {
   String? _monNom;
   bool _groupeActif = false;
   bool _partagePosition = false;
+  bool _obsPartagees = false;
+  bool _tracesPartages = false;
   List<MembreGroupe> _membres = [];
   StreamSubscription<List<MembreGroupe>>? _groupeStream;
 
@@ -656,16 +658,16 @@ class _MapPageState extends State<MapPage> {
                 _snack('Partage de position arrêté', error: true);
               }
             }),
-            _groupeTile(Icons.pin_drop_rounded, 'Partage des observations',
-                'Frottages, souilles, traces…', () {
-              Navigator.pop(context);
-              _partagerObservations();
-            }),
-            _groupeTile(Icons.route_rounded, 'Partage des tracés',
-                'Tracés GPS du groupe', () {
-              Navigator.pop(context);
-              _partagerTraces();
-            }),
+            _groupeTile(
+                _obsPartagees ? Icons.pin_drop_outlined : Icons.pin_drop_rounded,
+                _obsPartagees ? 'Arrêter le partage obs.' : 'Partager mes observations',
+                _obsPartagees ? 'Tes observations sont visibles' : 'Frottages, souilles, traces…',
+                () { Navigator.pop(context); _partagerObservations(); }),
+            _groupeTile(
+                _tracesPartages ? Icons.route_outlined : Icons.route_rounded,
+                _tracesPartages ? 'Arrêter le partage tracés' : 'Partager mes tracés',
+                _tracesPartages ? 'Tes tracés sont visibles' : 'Tracés GPS du groupe',
+                () { Navigator.pop(context); _partagerTraces(); }),
           ],
         ),
       ),
@@ -704,6 +706,8 @@ class _MapPageState extends State<MapPage> {
     setState(() {
       _groupeActif = false;
       _partagePosition = false;
+      _obsPartagees = false;
+      _tracesPartages = false;
       _membres = [];
       _obsGroupe = [];
       _tracesGroupe = [];
@@ -711,15 +715,23 @@ class _MapPageState extends State<MapPage> {
     _snack('Groupe quitté', error: true);
   }
 
-  void _partagerObservations() {
+  Future<void> _partagerObservations() async {
+    final db = FirebaseFirestore.instance;
+    final col = db.collection('groupes').doc(_groupeId).collection('observations');
+    if (_obsPartagees) {
+      final snap = await col.where('nom', isEqualTo: _monNom).get();
+      for (final doc in snap.docs) { await doc.reference.delete(); }
+      setState(() => _obsPartagees = false);
+      _snack('Observations retirées du groupe', error: true);
+      return;
+    }
     if (_observations.isEmpty) {
       _snack('Aucune observation à partager', error: true);
       return;
     }
-    final db = FirebaseFirestore.instance;
     for (final obs in _observations) {
       final pos = obs['pos'] as LatLng;
-      db.collection('groupes').doc(_groupeId).collection('observations').add({
+      await col.add({
         'nom': _monNom,
         'note': obs['note'],
         'lat': pos.latitude,
@@ -727,17 +739,26 @@ class _MapPageState extends State<MapPage> {
         'ts': FieldValue.serverTimestamp(),
       });
     }
+    setState(() => _obsPartagees = true);
     _snack('${_observations.length} observation(s) partagée(s)');
   }
 
-  void _partagerTraces() {
+  Future<void> _partagerTraces() async {
+    final db = FirebaseFirestore.instance;
+    final col = db.collection('groupes').doc(_groupeId).collection('traces');
+    if (_tracesPartages) {
+      final snap = await col.where('nom', isEqualTo: _monNom).get();
+      for (final doc in snap.docs) { await doc.reference.delete(); }
+      setState(() => _tracesPartages = false);
+      _snack('Tracés retirés du groupe', error: true);
+      return;
+    }
     if (_savedTracks.isEmpty) {
       _snack('Aucun tracé à partager', error: true);
       return;
     }
-    final db = FirebaseFirestore.instance;
     for (final track in _savedTracks) {
-      db.collection('groupes').doc(_groupeId).collection('traces').add({
+      await col.add({
         'nom': _monNom,
         'points': track.points
             .map((p) => {'lat': p.latitude, 'lon': p.longitude})
@@ -746,6 +767,7 @@ class _MapPageState extends State<MapPage> {
         'ts': FieldValue.serverTimestamp(),
       });
     }
+    setState(() => _tracesPartages = true);
     _snack('${_savedTracks.length} tracé(s) partagé(s)');
   }
 
