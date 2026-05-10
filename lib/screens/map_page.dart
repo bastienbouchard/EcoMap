@@ -1054,10 +1054,28 @@ class _MapPageState extends State<MapPage> {
 
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
       {Color color = const Color(0xFFBDBDBD)}) {
-    return NavBtn(icon, label, () {
-      setState(() { _showActionPanel = false; _showNavPanel = false; });
-      onTap();
-    }, color: color);
+    return GestureDetector(
+      onTap: () {
+        setState(() { _showActionPanel = false; _showNavPanel = false; });
+        onTap();
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46, height: 46,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(23),
+              border: Border.all(color: color.withOpacity(0.45), width: 1.5),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 9)),
+        ],
+      ),
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1199,7 +1217,7 @@ class _MapPageState extends State<MapPage> {
         return Marker(
           point: pos,
           width: 52, height: 52,
-          child: HoverMarker(
+          child: GestureDetector(
             onTap: () => showDialog(
               context: context,
               builder: (_) => AlertDialog(
@@ -1294,7 +1312,7 @@ class _MapPageState extends State<MapPage> {
         return Marker(
           point: pos,
           width: 56, height: 56,
-          child: HoverMarker(
+          child: GestureDetector(
             onTap: () {
               if (idx < _hotspotInfos.length) {
                 showHotspotDetail(context, _hotspotInfos[idx],
@@ -1347,7 +1365,7 @@ class _MapPageState extends State<MapPage> {
         return Marker(
           point: pos,
           width: 48, height: 48,
-          child: HoverMarker(
+          child: GestureDetector(
             onTap: () => showDialog(
               context: context,
               builder: (_) => AlertDialog(
