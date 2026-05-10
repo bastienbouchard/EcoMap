@@ -102,6 +102,10 @@ class _MapPageState extends State<MapPage> {
   List<Map<String, dynamic>> _observations = [];
 
   // ── Groupe ──
+  List<Map<String, dynamic>> _obsGroupe = [];
+  List<Map<String, dynamic>> _tracesGroupe = [];
+  StreamSubscription? _obsGroupeSub;
+  StreamSubscription? _tracesGroupeSub;
   String? _groupeId;
   String? _monNom;
   bool _groupeActif = false;
@@ -137,6 +141,8 @@ class _MapPageState extends State<MapPage> {
   void dispose() {
     _positionStream?.cancel();
     _groupeStream?.cancel();
+    _obsGroupeSub?.cancel();
+    _tracesGroupeSub?.cancel();
     _hotspotDebounce?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
@@ -663,19 +669,33 @@ class _MapPageState extends State<MapPage> {
     GroupeService.publierPosition(
         groupeId: groupeId, nom: nom, position: _currentPosition);
     _groupeStream?.cancel();
-    _groupeStream =
-        GroupeService.ecouterGroupe(groupeId, nom).listen((membres) {
+    _groupeStream = GroupeService.ecouterGroupe(groupeId, nom).listen((membres) {
       if (mounted) setState(() => _membres = membres);
+    });
+    _obsGroupeSub?.cancel();
+    _obsGroupeSub = GroupeService.ecouterObservations(groupeId, nom).listen((obs) {
+      if (mounted) setState(() => _obsGroupe = obs);
+    });
+    _tracesGroupeSub?.cancel();
+    _tracesGroupeSub = GroupeService.ecouterTraces(groupeId, nom).listen((traces) {
+      if (mounted) setState(() => _tracesGroupe = traces);
     });
     _snack('Groupe "$groupeId" rejoint — ta position est partagée');
   }
 
   void _quitterGroupe() {
     _groupeStream?.cancel();
+    _obsGroupeSub?.cancel();
+    _tracesGroupeSub?.cancel();
     if (_groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
     }
-    setState(() { _groupeActif = false; _membres = []; });
+    setState(() {
+      _groupeActif = false;
+      _membres = [];
+      _obsGroupe = [];
+      _tracesGroupe = [];
+    });
     _snack('Groupe quitté', error: true);
   }
 
@@ -1128,6 +1148,10 @@ class _MapPageState extends State<MapPage> {
         if (_showHotspots && _hotspots.isNotEmpty) _buildHotspotMarkers(),
         if (_showPinchPoints && _pinchPoints.isNotEmpty)
           _buildPinchMarkers(),
+        if (_groupeActif && _tracesGroupe.isNotEmpty)
+          _buildGroupeTracePolylines(),
+        if (_groupeActif && _obsGroupe.isNotEmpty)
+          _buildGroupeObsMarkers(),
         if (_groupeActif && _membres.isNotEmpty) _buildMembreMarkers(),
         _buildCurrentPositionMarker(),
       ],
@@ -1319,6 +1343,83 @@ class _MapPageState extends State<MapPage> {
               color: Color(0xFF4A90E2), size: 28),
         ]),
       )).toList(),
+    );
+  }
+
+  PolylineLayer _buildGroupeTracePolylines() {
+    final colors = [
+      const Color(0xFF4A90E2),
+      const Color(0xFF7ED321),
+      const Color(0xFFBD10E0),
+      const Color(0xFF50E3C2),
+    ];
+    return PolylineLayer(
+      polylines: _tracesGroupe.asMap().entries.map((entry) {
+        final i = entry.key;
+        final trace = entry.value;
+        final pts = (trace['points'] as List).map((p) {
+          return LatLng(
+            (p['lat'] as num).toDouble(),
+            (p['lon'] as num).toDouble(),
+          );
+        }).toList();
+        return Polyline(
+          points: pts,
+          color: colors[i % colors.length],
+          strokeWidth: 4,
+          borderColor: Colors.black38,
+          borderStrokeWidth: 1,
+        );
+      }).toList(),
+    );
+  }
+
+  MarkerLayer _buildGroupeObsMarkers() {
+    return MarkerLayer(
+      markers: _obsGroupe.map((obs) {
+        final pos = LatLng(
+          (obs['lat'] as num).toDouble(),
+          (obs['lon'] as num).toDouble(),
+        );
+        final note = obs['note'] as String;
+        final nom = obs['nom'] as String;
+        return Marker(
+          point: pos,
+          width: 52, height: 52,
+          child: GestureDetector(
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                backgroundColor: const Color(0xFF2D2D2D),
+                title: Text(note,
+                    style: const TextStyle(color: Colors.white, fontSize: 15)),
+                content: Text('Par $nom',
+                    style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Fermer',
+                        style: TextStyle(color: Color(0xFFFF6B35))),
+                  ),
+                ],
+              ),
+            ),
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF4A90E2), width: 2),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.5), blurRadius: 4)
+                ],
+              ),
+              child: Center(child: obsIcon(note)),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 

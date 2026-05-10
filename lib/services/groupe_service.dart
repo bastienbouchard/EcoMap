@@ -40,6 +40,50 @@ class GroupeService {
             .toList());
   }
 
+  // Écoute les observations partagées par les autres membres
+  static Stream<List<Map<String, dynamic>>> ecouterObservations(
+      String groupeId, String monNom) {
+    return _db
+        .collection('groupes')
+        .doc(groupeId)
+        .collection('observations')
+        .orderBy('ts', descending: false)
+        .snapshots()
+        .map((snap) => snap.docs
+            .where((d) => d['nom'] != monNom)
+            .map((d) => {
+                  'nom': d['nom'] as String,
+                  'note': d['note'] as String,
+                  'lat': (d['lat'] as num).toDouble(),
+                  'lon': (d['lon'] as num).toDouble(),
+                })
+            .toList());
+  }
+
+  // Écoute les tracés partagés par les autres membres
+  static Stream<List<Map<String, dynamic>>> ecouterTraces(
+      String groupeId, String monNom) {
+    return _db
+        .collection('groupes')
+        .doc(groupeId)
+        .collection('traces')
+        .orderBy('ts', descending: false)
+        .snapshots()
+        .map((snap) => snap.docs
+            .where((d) => d['nom'] != monNom)
+            .map((d) => {
+                  'nom': d['nom'] as String,
+                  'date': d['date'] as String,
+                  'points': (d['points'] as List)
+                      .map((p) => {
+                            'lat': (p['lat'] as num).toDouble(),
+                            'lon': (p['lon'] as num).toDouble(),
+                          })
+                      .toList(),
+                })
+            .toList());
+  }
+
   // Supprime la position quand on quitte
   static Future<void> quitter(String groupeId, String nom) async {
     await _db.collection(_collection).doc('${groupeId}_$nom').delete();
