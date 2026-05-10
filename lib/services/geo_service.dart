@@ -263,6 +263,26 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     return 'X';
   }
 
+  // Vérifie si le segment entre deux points traverse de l'eau (4 échantillons intermédiaires)
+  bool segmentCrossesWater(double fromLat, double fromLon, double toLat, double toLon) {
+    for (int s = 1; s <= 4; s++) {
+      final t = s / 5.0;
+      final sLat = fromLat + (toLat - fromLat) * t;
+      final sLon = fromLon + (toLon - fromLon) * t;
+      for (final feat in features) {
+        try {
+          final props = feat['properties'] as Map;
+          final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+          final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+          if (typeEco.contains('EAU') || codeCouv == 'EE' || typeEco.contains('RIV')) {
+            if (pointInGeometry(LatLng(sLat, sLon), feat['geometry'] as Map)) return true;
+          }
+        } catch (_) {}
+      }
+    }
+    return false;
+  }
+
   // Évalue l'habitat, le type et le score à une position donnée
   ({int score, String habitat, String type, bool blocked}) evalPoint(double pLat, double pLon) {
     for (final feat in features) {
@@ -348,6 +368,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
 
       final eval = evalPoint(cLat, cLon);
       if (eval.blocked) continue;
+      if (segmentCrossesWater(curLat, curLon, cLat, cLon)) continue;
 
       // 1. Score habitat
       final habitatScore = eval.score;
