@@ -1233,8 +1233,9 @@ class _MapPageState extends State<MapPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${(obs['time'] as DateTime).hour.toString().padLeft(2, '0')}:'
-                      '${(obs['time'] as DateTime).minute.toString().padLeft(2, '0')}',
+                      '${(obs['time'] as DateTime).day.toString().padLeft(2, '0')}/'
+                      '${(obs['time'] as DateTime).month.toString().padLeft(2, '0')}/'
+                      '${(obs['time'] as DateTime).year}',
                       style: const TextStyle(color: Colors.white54, fontSize: 13),
                     ),
                     const SizedBox(height: 8),
