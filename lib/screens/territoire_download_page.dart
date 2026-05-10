@@ -3,6 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/territoire_service.dart';
 
+enum _SelectionMode { screen, draw }
+
 class TerritoireDownloadPage extends StatefulWidget {
   final LatLng initialCenter;
   final double initialZoom;
@@ -17,6 +19,12 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   bool _downloading = false;
   String _status = '';
   List<Map<String, dynamic>> _territoires = [];
+  _SelectionMode _mode = _SelectionMode.screen;
+
+  // dessin
+  List<Offset> _drawPoints = [];
+  List<LatLng> _drawnLatLng = [];
+  bool _drawing = false;
 
   @override
   void initState() {
@@ -29,11 +37,34 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     if (mounted) setState(() => _territoires = list);
   }
 
-  Future<void> _download() async {
-    final bounds = _mapController.camera.visibleBounds;
+  // Convertit un Offset écran en LatLng selon la caméra actuelle
+  LatLng _toLatLng(Offset pos, BoxConstraints constraints) {
+    final camera = _mapController.camera;
+    final mapSize = Size(constraints.maxWidth, constraints.maxHeight);
+    final center = camera.project(camera.center);
+    final dx = pos.dx - mapSize.width / 2;
+    final dy = pos.dy - mapSize.height / 2;
+    final point = center + CustomPoint(dx, dy) / camera.zoom * (1 / camera.getScaleZoom(1));
+    return camera.unproject(point);
+  }
+
+  Future<void> _download({List<LatLng>? polygon}) async {
+    double minLat, maxLat, minLon, maxLon;
+
+    if (polygon != null && polygon.length >= 3) {
+      minLat = polygon.map((p) => p.latitude).reduce((a, b) => a < b ? a : b);
+      maxLat = polygon.map((p) => p.latitude).reduce((a, b) => a > b ? a : b);
+      minLon = polygon.map((p) => p.longitude).reduce((a, b) => a < b ? a : b);
+      maxLon = polygon.map((p) => p.longitude).reduce((a, b) => a > b ? a : b);
+    } else {
+      final bounds = _mapController.camera.visibleBounds;
+      minLat = bounds.south; maxLat = bounds.north;
+      minLon = bounds.west;  maxLon = bounds.east;
+    }
 
     final nomCtrl = TextEditingController(
-      text: 'Zone ${DateTime.now().day}-${DateTime.now().month}_${DateTime.now().hour}h${DateTime.now().minute.toString().padLeft(2,'0')}',
+      text: 'Zone ${DateTime.now().day}-${DateTime.now().month}_'
+            '${DateTime.now().hour}h${DateTime.now().minute.toString().padLeft(2, '0')}',
     );
 
     final nom = await showDialog<String>(
@@ -60,30 +91,27 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     );
 
     if (nom == null || nom.isEmpty) return;
-
     setState(() { _downloading = true; _status = ''; });
 
     try {
       await TerritoireService.downloadTerritoire(
         nom: nom,
-        minLat: bounds.south,
-        minLon: bounds.west,
-        maxLat: bounds.north,
-        maxLon: bounds.east,
+        minLat: minLat, minLon: minLon,
+        maxLat: maxLat, maxLon: maxLon,
         onStatus: (s) => setState(() => _status = s),
       );
       await _loadTerritoires();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$nom téléchargé avec succès !'),
-              backgroundColor: const Color(0xFFFF6B35)),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('$nom téléchargé !'),
+          backgroundColor: const Color(0xFFFF6B35),
+        ));
+        setState(() { _drawnLatLng = []; _drawPoints = []; });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
-        );
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() { _downloading = false; _status = ''; });
@@ -96,8 +124,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF2A2A2A),
         title: const Text('Supprimer la carte ?', style: TextStyle(color: Colors.white)),
-        content: Text('« $id » sera supprimée de l\'appareil.',
-            style: const TextStyle(color: Colors.white60)),
+        content: Text('« $id » sera supprimée.', style: const TextStyle(color: Colors.white60)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false),
               child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
@@ -122,37 +149,96 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       ),
       body: Column(
         children: [
+          // ── Sélecteur de mode ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            child: Row(children: [
+              _modeBtn('Zone visible', Icons.crop_free, _SelectionMode.screen),
+              const SizedBox(width: 10),
+              _modeBtn('Dessiner', Icons.gesture, _SelectionMode.draw),
+            ]),
+          ),
+          if (_mode == _SelectionMode.draw)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+              child: Text('Trace ta zone au doigt sur la carte',
+                  style: TextStyle(color: Colors.white54, fontSize: 12)),
+            ),
+
+          // ── Carte ──
           Expanded(
             flex: 3,
-            child: Stack(
-              children: [
+            child: LayoutBuilder(builder: (ctx, constraints) {
+              return Stack(children: [
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
                     initialCenter: widget.initialCenter,
                     initialZoom: widget.initialZoom,
+                    interactionOptions: InteractionOptions(
+                      flags: _mode == _SelectionMode.draw
+                          ? InteractiveFlag.none
+                          : InteractiveFlag.all,
+                    ),
                   ),
                   children: [
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.bastienbouchard.ecomap',
                     ),
+                    if (_drawnLatLng.length >= 2)
+                      PolylineLayer(polylines: [
+                        Polyline(
+                          points: [..._drawnLatLng, _drawnLatLng.first],
+                          color: const Color(0xFFFF6B35),
+                          strokeWidth: 2.5,
+                        ),
+                      ]),
                   ],
                 ),
-                // Cadre de sélection
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.all(40),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFFF6B35), width: 2),
+
+                // Cadre zone visible
+                if (_mode == _SelectionMode.screen)
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.all(40),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFFF6B35), width: 2),
+                      ),
                     ),
                   ),
-                ),
+
+                // Overlay de dessin
+                if (_mode == _SelectionMode.draw)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onPanStart: (d) {
+                        setState(() {
+                          _drawing = true;
+                          _drawPoints = [d.localPosition];
+                          _drawnLatLng = [_toLatLng(d.localPosition, constraints)];
+                        });
+                      },
+                      onPanUpdate: (d) {
+                        // Échantillonne 1 point tous les 8px pour éviter trop de points
+                        if (_drawPoints.isEmpty ||
+                            (d.localPosition - _drawPoints.last).distance > 8) {
+                          setState(() {
+                            _drawPoints.add(d.localPosition);
+                            _drawnLatLng.add(_toLatLng(d.localPosition, constraints));
+                          });
+                        }
+                      },
+                      onPanEnd: (_) => setState(() => _drawing = false),
+                      child: CustomPaint(
+                        painter: _DrawPainter(_drawPoints, _drawing),
+                      ),
+                    ),
+                  ),
+
                 // Bouton télécharger
                 Positioned(
-                  bottom: 16,
-                  left: 0,
-                  right: 0,
+                  bottom: 16, left: 0, right: 0,
                   child: Center(
                     child: _downloading
                         ? Container(
@@ -161,32 +247,51 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                               color: const Color(0xFF2A2A2A),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const SizedBox(width: 20, height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF6B35))),
-                                const SizedBox(width: 12),
-                                Text(_status, style: const TextStyle(color: Colors.white)),
-                              ],
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              const SizedBox(width: 20, height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Color(0xFFFF6B35))),
+                              const SizedBox(width: 12),
+                              Text(_status, style: const TextStyle(color: Colors.white)),
+                            ]))
+                        : Row(mainAxisSize: MainAxisSize.min, children: [
+                            ElevatedButton.icon(
+                              onPressed: (_mode == _SelectionMode.draw && _drawnLatLng.length < 3)
+                                  ? null
+                                  : () => _download(
+                                        polygon: _mode == _SelectionMode.draw
+                                            ? _drawnLatLng
+                                            : null,
+                                      ),
+                              icon: const Icon(Icons.download),
+                              label: Text(_mode == _SelectionMode.draw
+                                  ? 'Télécharger la zone dessinée'
+                                  : 'Télécharger cette zone'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF6B35),
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.white24,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              ),
                             ),
-                          )
-                        : ElevatedButton.icon(
-                            onPressed: _download,
-                            icon: const Icon(Icons.download),
-                            label: const Text('Télécharger cette zone'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF6B35),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            ),
-                          ),
+                            if (_mode == _SelectionMode.draw && _drawnLatLng.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.refresh, color: Colors.white54),
+                                tooltip: 'Effacer',
+                                onPressed: () => setState(() {
+                                  _drawnLatLng = []; _drawPoints = [];
+                                }),
+                              ),
+                            ],
+                          ]),
                   ),
                 ),
-              ],
-            ),
+              ]);
+            }),
           ),
-          // Liste des territoires téléchargés
+
+          // ── Liste des territoires ──
           if (_territoires.isNotEmpty)
             Expanded(
               flex: 2,
@@ -194,7 +299,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Padding(
-                    padding: EdgeInsets.all(12),
+                    padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
                     child: Text('Cartes téléchargées',
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
@@ -223,4 +328,66 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       ),
     );
   }
+
+  Widget _modeBtn(String label, IconData icon, _SelectionMode mode) {
+    final active = _mode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _mode = mode;
+          _drawnLatLng = [];
+          _drawPoints = [];
+        }),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFFFF6B35) : const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: active ? const Color(0xFFFF6B35) : Colors.white24),
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, color: active ? Colors.white : Colors.white54, size: 18),
+            const SizedBox(width: 8),
+            Text(label,
+                style: TextStyle(
+                    color: active ? Colors.white : Colors.white54,
+                    fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 13)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _DrawPainter extends CustomPainter {
+  final List<Offset> points;
+  final bool drawing;
+  const _DrawPainter(this.points, this.drawing);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+    final paint = Paint()
+      ..color = const Color(0xFFFF6B35)
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final p in points.skip(1)) { path.lineTo(p.dx, p.dy); }
+    if (!drawing) path.close();
+    canvas.drawPath(path, paint);
+
+    final fillPaint = Paint()
+      ..color = const Color(0xFFFF6B35).withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+    if (!drawing) canvas.drawPath(path, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(_DrawPainter old) =>
+      old.points.length != points.length || old.drawing != drawing;
 }
