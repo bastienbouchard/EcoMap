@@ -407,19 +407,18 @@ class _MapPageState extends State<MapPage> {
         _parcoursScore = scorePct;
         _loadingParcours = false;
       });
+      if (points.length < 5) {
+        final msg = blockReason == 'eau'
+            ? 'Parcours bloqué par un cours d\'eau — essaie une autre position de départ'
+            : blockReason == 'terrain'
+                ? 'Parcours bloqué par le terrain — essaie une zone avec plus de forêt'
+                : 'Parcours limité — télécharge une carte écoforestière plus large';
+        _snack(msg, error: true);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingParcours = false);
       _snack('Télécharge d\'abord une carte écoforestière via "Carte éco"', error: true);
-      return;
-    }
-    if (_parcours.length < 5) {
-      final msg = blockReason == 'eau'
-          ? 'Parcours bloqué par un cours d\'eau — essaie une autre position de départ'
-          : blockReason == 'terrain'
-              ? 'Parcours bloqué par le terrain — essaie une zone avec plus de forêt'
-              : 'Parcours limité — télécharge une carte écoforestière plus large';
-      _snack(msg, error: true);
     }
   }
 
