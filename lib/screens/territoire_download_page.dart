@@ -38,11 +38,26 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     if (mounted) setState(() => _territoires = list);
   }
 
-  // Convertit un Offset écran en LatLng selon la caméra actuelle
+  // Convertit un Offset écran en LatLng (projection Mercator manuelle)
   LatLng _toLatLng(Offset pos, BoxConstraints constraints) {
-    return _mapController.camera.screenPointToLatLng(
-      math.Point(pos.dx, pos.dy),
-    );
+    final camera = _mapController.camera;
+    final zoom = camera.zoom;
+    final center = camera.center;
+    final worldSize = 256.0 * math.pow(2, zoom);
+
+    final centerLatRad = center.latitude * math.pi / 180;
+    final centerX = (center.longitude + 180) / 360 * worldSize;
+    final mercN = math.log(math.tan(math.pi / 4 + centerLatRad / 2));
+    final centerY = (1 - mercN / math.pi) / 2 * worldSize;
+
+    final touchX = centerX + (pos.dx - constraints.maxWidth / 2);
+    final touchY = centerY + (pos.dy - constraints.maxHeight / 2);
+
+    final lon = touchX / worldSize * 360 - 180;
+    final n = math.pi - 2 * math.pi * touchY / worldSize;
+    final lat = 180 / math.pi * math.atan(0.5 * (math.exp(n) - math.exp(-n)));
+
+    return LatLng(lat, lon);
   }
 
   Future<void> _download({List<LatLng>? polygon}) async {
