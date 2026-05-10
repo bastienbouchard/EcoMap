@@ -1228,10 +1228,18 @@ class _MapPageState extends State<MapPage> {
                     constraints: const BoxConstraints(),
                   ),
                 ]),
-                content: Text(
-                  '${(obs['time'] as DateTime).hour.toString().padLeft(2, '0')}:'
-                  '${(obs['time'] as DateTime).minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${(obs['time'] as DateTime).hour.toString().padLeft(2, '0')}:'
+                      '${(obs['time'] as DateTime).minute.toString().padLeft(2, '0')}',
+                      style: const TextStyle(color: Colors.white54, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    _coordsWidget(pos),
+                  ],
                 ),
                 actions: [
                   TextButton(
@@ -1333,31 +1341,71 @@ class _MapPageState extends State<MapPage> {
         return Marker(
           point: pos,
           width: 48, height: 48,
-          child: Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              shape: BoxShape.circle,
-              border: Border.all(
-                  color: const Color(0xFF4CAF50), width: 2.5),
-              boxShadow: [
-                BoxShadow(
-                    color: const Color(0xFF4CAF50).withOpacity(0.5),
-                    blurRadius: 10,
-                    spreadRadius: 1),
-                const BoxShadow(
-                    color: Colors.black54, blurRadius: 4),
-              ],
+          child: GestureDetector(
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                backgroundColor: const Color(0xFF2D2D2D),
+                title: Row(children: [
+                  const Expanded(child: Text('Affût',
+                      style: TextStyle(color: Colors.white, fontSize: 15))),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ]),
+                content: _coordsWidget(pos),
+              ),
             ),
-            child: Center(
-              child: SizedBox(
-                width: 26, height: 26,
-                child: CustomPaint(painter: HuntingTowerPainter()),
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.5),
+                      blurRadius: 10, spreadRadius: 1),
+                  const BoxShadow(color: Colors.black54, blurRadius: 4),
+                ],
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: 26, height: 26,
+                  child: CustomPaint(painter: HuntingTowerPainter()),
+                ),
               ),
             ),
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _coordsWidget(LatLng pos) {
+    final lat = pos.latitude;
+    final lon = pos.longitude;
+    final latStr = '${lat.abs().toStringAsFixed(4)}° ${lat >= 0 ? 'N' : 'S'}';
+    final lonStr = '${lon.abs().toStringAsFixed(4)}° ${lon >= 0 ? 'E' : 'O'}';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          const Icon(Icons.location_on, color: Color(0xFFFF6B35), size: 16),
+          const SizedBox(width: 6),
+          Text(latStr, style: const TextStyle(color: Colors.white, fontSize: 14,
+              fontFamily: 'monospace')),
+        ]),
+        const SizedBox(height: 4),
+        Row(children: [
+          const SizedBox(width: 22),
+          Text(lonStr, style: const TextStyle(color: Colors.white, fontSize: 14,
+              fontFamily: 'monospace')),
+        ]),
+      ],
     );
   }
 

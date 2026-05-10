@@ -97,6 +97,8 @@ void showHotspotDetail(BuildContext context, HotspotInfo info) {
             _chip('Âge: $age'),
             _chip('Perturbation: $origine'),
             _chip('Drainage: $drai'),
+            _chip('${info.position.latitude.toStringAsFixed(4)}° N'),
+            _chip('${info.position.longitude.abs().toStringAsFixed(4)}° O'),
           ]),
           const SizedBox(height: 16),
           SizedBox(
