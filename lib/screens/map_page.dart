@@ -362,6 +362,11 @@ class _MapPageState extends State<MapPage> {
   // Parcours
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _genererParcours() async {
+    final features = (geoJson['features'] as List?) ?? [];
+    if (features.isEmpty) {
+      _snack('Télécharge d\'abord une carte écoforestière via "Carte éco"', error: true);
+      return;
+    }
     setState(() => _loadingParcours = true);
     try {
       final startPos = _mapController.camera.center;

@@ -263,18 +263,28 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     return 'X';
   }
 
-  // Vérifie si le segment entre deux points traverse de l'eau (4 échantillons intermédiaires)
+  // Détecte si un ensemble de propriétés représente un plan d'eau
+  bool _isWaterFeature(Map props) {
+    final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+    final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+    final typeCouv = (props['type_couv'] ?? '').toString().toUpperCase();
+    final depSur   = (props['dep_sur']  ?? '').toString().toUpperCase();
+    return typeEco.contains('EAU') || typeEco.contains('RIV') ||
+           typeEco.contains('LAC') || typeEco.startsWith('RE') ||
+           codeCouv == 'EE' || codeCouv.contains('EAU') ||
+           typeCouv == 'EAU' || typeCouv == 'IN' ||
+           depSur.startsWith('7') || depSur.startsWith('8');
+  }
+
+  // Vérifie si le segment entre deux points traverse de l'eau (9 échantillons)
   bool segmentCrossesWater(double fromLat, double fromLon, double toLat, double toLon) {
-    for (int s = 1; s <= 4; s++) {
-      final t = s / 5.0;
+    for (int s = 1; s <= 9; s++) {
+      final t = s / 10.0;
       final sLat = fromLat + (toLat - fromLat) * t;
       final sLon = fromLon + (toLon - fromLon) * t;
       for (final feat in features) {
         try {
-          final props = feat['properties'] as Map;
-          final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
-          final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
-          if (typeEco.contains('EAU') || codeCouv == 'EE' || typeEco.contains('RIV')) {
+          if (_isWaterFeature(feat['properties'] as Map)) {
             if (pointInGeometry(LatLng(sLat, sLon), feat['geometry'] as Map)) return true;
           }
         } catch (_) {}
@@ -288,9 +298,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     for (final feat in features) {
       if (pointInGeometry(LatLng(pLat, pLon), feat['geometry'] as Map)) {
         final props = feat['properties'] as Map;
-        final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
-        final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
-        if (typeEco.contains('EAU') || codeCouv == 'EE' || typeEco.contains('RIV')) {
+        if (_isWaterFeature(props)) {
           return (score: 0, habitat: '', type: 'X', blocked: true);
         }
         return (score: scoreOrignal(props), habitat: habitatKey(props),
