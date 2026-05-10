@@ -1038,7 +1038,7 @@ class _MapPageState extends State<MapPage> {
       options: MapOptions(
         initialCenter: const LatLng(48.2917, -71.322),
         initialZoom: 13,
-        minZoom: 8,
+        minZoom: 5,
         maxZoom: 19,
         onPositionChanged: (pos, _) {
           if (!mounted) return;
@@ -1783,7 +1783,7 @@ class _MapPageState extends State<MapPage> {
                           trackHeight: 4,
                         ),
                         child: Slider(
-                          value: _mapZoom.clamp(8.0, 19.0),
+                          value: _mapZoom.clamp(5.0, 19.0),
                           min: 8.0,
                           max: 19.0,
                           onChanged: (val) {
@@ -1796,7 +1796,7 @@ class _MapPageState extends State<MapPage> {
                     ),
                   ),
                 ),
-                Text('${((_mapZoom.clamp(8.0, 19.0) - 8.0) / 11.0 * 100).round()}%',
+                Text('${((_mapZoom.clamp(5.0, 19.0) - 5.0) / 14.0 * 100).round()}%',
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
