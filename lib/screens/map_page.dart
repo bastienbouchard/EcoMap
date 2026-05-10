@@ -1054,29 +1054,10 @@ class _MapPageState extends State<MapPage> {
 
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
       {Color color = const Color(0xFFBDBDBD)}) {
-    return GestureDetector(
-      onTap: () {
-        setState(() { _showActionPanel = false; _showNavPanel = false; });
-        onTap();
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 46, height: 46,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(23),
-              border: Border.all(color: color.withOpacity(0.45), width: 1.5),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(height: 4),
-          Text(label,
-              style: TextStyle(color: color.withOpacity(0.8), fontSize: 9)),
-        ],
-      ),
-    );
+    return NavBtn(icon, label, () {
+      setState(() { _showActionPanel = false; _showNavPanel = false; });
+      onTap();
+    }, color: color);
   }
 
   // ─────────────────────────────────────────────────────────────────────────

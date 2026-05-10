@@ -196,3 +196,59 @@ Widget obsIcon(String note, {double size = 26}) {
   final emoji = note.split(' ').first;
   return Text(emoji, style: TextStyle(fontSize: size * 0.76, height: 1));
 }
+
+class NavBtn extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+  const NavBtn(this.icon, this.label, this.onTap,
+      {super.key, this.color = const Color(0xFFBDBDBD)});
+  @override
+  State<NavBtn> createState() => _NavBtnState();
+}
+
+class _NavBtnState extends State<NavBtn> {
+  bool _hovered = false;
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.color;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+              width: 46, height: 46,
+              decoration: BoxDecoration(
+                color: _hovered ? c.withOpacity(0.30) : c.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(23),
+                border: Border.all(
+                  color: _hovered ? c.withOpacity(0.85) : c.withOpacity(0.45),
+                  width: _hovered ? 2.0 : 1.5,
+                ),
+                boxShadow: _hovered
+                    ? [BoxShadow(color: c.withOpacity(0.30), blurRadius: 10, spreadRadius: 1)]
+                    : [],
+              ),
+              child: Icon(widget.icon,
+                  color: _hovered ? c : c.withOpacity(0.85), size: 22),
+            ),
+            const SizedBox(height: 4),
+            Text(widget.label,
+                style: TextStyle(
+                  color: _hovered ? c : c.withOpacity(0.8),
+                  fontSize: 9,
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+}
