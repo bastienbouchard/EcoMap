@@ -61,6 +61,7 @@ class _MapPageState extends State<MapPage> {
   double _mapZoom = 13.0;
   double _mapLat = 48.2917;
   bool _satellite = false;
+  bool _showLayerPanel = false;
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
@@ -1025,6 +1026,7 @@ class _MapPageState extends State<MapPage> {
           _buildActionPanel(),
           _buildNavPanel(),
           if (!_isOnline) _buildOfflineBanner(),
+          if (_showLayerPanel) _buildLayerPanel(),
           Positioned(
             bottom: 20,
             left: 16,
@@ -1338,6 +1340,93 @@ class _MapPageState extends State<MapPage> {
         ),
       ),
     ]);
+  }
+
+  Widget _buildLayerPanel() {
+    return Positioned(
+      bottom: 90, right: 28,
+      child: Container(
+        width: 220,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A).withOpacity(0.97),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white24),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Fond de carte ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+              child: Text('Fond de carte',
+                  style: TextStyle(color: Colors.white54, fontSize: 11,
+                      fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+            ),
+            _layerRadio('OpenStreetMap', Icons.map_rounded, !_satellite,
+                () => setState(() { _satellite = false; _showLayerPanel = false; })),
+            _layerRadio('Satellite', Icons.satellite_alt_rounded, _satellite,
+                () => setState(() { _satellite = true; _showLayerPanel = false; })),
+            const Divider(color: Colors.white12, height: 16),
+            // ── Superpositions ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+              child: Text('Superposition',
+                  style: TextStyle(color: Colors.white54, fontSize: 11,
+                      fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+            ),
+            _layerToggle('Carte écoforestière', Icons.forest_rounded,
+                _polygonsCache.isNotEmpty,
+                () async {
+                  setState(() => _showLayerPanel = false);
+                  if (!_requirePremium()) return;
+                  await Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TerritoireDownloadPage(
+                      initialCenter: _mapController.camera.center,
+                      initialZoom: _mapController.camera.zoom,
+                    ),
+                  ));
+                  _reloadTerritoire();
+                }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _layerRadio(String label, IconData icon, bool selected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(children: [
+          Icon(icon, color: selected ? const Color(0xFFFF6B35) : Colors.white54, size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label,
+              style: TextStyle(color: selected ? Colors.white : Colors.white60, fontSize: 13))),
+          Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? const Color(0xFFFF6B35) : Colors.white24, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _layerToggle(String label, IconData icon, bool active, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(children: [
+          Icon(icon, color: active ? const Color(0xFFFF6B35) : Colors.white54, size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label,
+              style: TextStyle(color: active ? Colors.white : Colors.white60, fontSize: 13))),
+          Icon(active ? Icons.check_box : Icons.check_box_outline_blank,
+              color: active ? const Color(0xFFFF6B35) : Colors.white24, size: 18),
+        ]),
+      ),
+    );
   }
 
   Widget _buildOfflineBanner() {
@@ -1679,18 +1768,6 @@ class _MapPageState extends State<MapPage> {
                     _navBtn(Icons.save_alt_rounded, 'Tracés',
                         _showTracesDialog),
                     const SizedBox(height: 10),
-                    _navBtn(Icons.layers_rounded, 'Carte éco',
-                        () async {
-                      if (!_requirePremium()) return;
-                      await Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => TerritoireDownloadPage(
-                          initialCenter: _mapController.camera.center,
-                          initialZoom: _mapController.camera.zoom,
-                        ),
-                      ));
-                      _reloadTerritoire();
-                    }),
-                    const SizedBox(height: 10),
                     _navBtn(Icons.info_outline_rounded, 'À propos',
                         () => Navigator.push(context, MaterialPageRoute(
                               builder: (_) => const AboutPage(),
@@ -1749,11 +1826,9 @@ class _MapPageState extends State<MapPage> {
                     loading: _loading),
                 mapDividerV(),
                 mapIconBtn(
-                  _satellite
-                      ? Icons.map_rounded
-                      : Icons.satellite_alt_rounded,
-                  () => setState(() => _satellite = !_satellite),
-                  active: _satellite,
+                  Icons.layers_rounded,
+                  () => setState(() => _showLayerPanel = !_showLayerPanel),
+                  active: _showLayerPanel,
                 ),
               ],
             ),
