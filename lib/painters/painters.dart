@@ -140,7 +140,7 @@ class MooseTrackPainter extends CustomPainter {
   const MooseTrackPainter();
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = const Color(0xFF1A0A00)..style = PaintingStyle.fill;
+    final p = Paint()..color = const Color(0xFFD4A76A)..style = PaintingStyle.fill;
     final w = size.width; final h = size.height;
     // Orteil gauche — forme allongée effilée en bas
     final left = Path()
@@ -170,18 +170,18 @@ class MudHolePainter extends CustomPainter {
     // Boue extérieure
     canvas.drawOval(
       Rect.fromCenter(center: Offset(w * .50, h * .58), width: w * .90, height: h * .68),
-      Paint()..color = const Color(0xFF4A2800)..style = PaintingStyle.fill,
+      Paint()..color = const Color(0xFF8B5E2A)..style = PaintingStyle.fill,
     );
     // Centre plus sombre
     canvas.drawOval(
       Rect.fromCenter(center: Offset(w * .50, h * .60), width: w * .50, height: h * .36),
-      Paint()..color = const Color(0xFF1E0E00)..style = PaintingStyle.fill,
+      Paint()..color = const Color(0xFF4A2800)..style = PaintingStyle.fill,
     );
     // Ondulations
-    final rp = Paint()..color = const Color(0xFF6B3A10)..style = PaintingStyle.stroke..strokeWidth = 1.2;
+    final rp = Paint()..color = const Color(0xFFB8864E)..style = PaintingStyle.stroke..strokeWidth = 1.2;
     canvas.drawOval(Rect.fromCenter(center: Offset(w * .50, h * .56), width: w * .70, height: h * .50), rp);
     // Bulles
-    final bp = Paint()..color = const Color(0xFF8B5E2A)..style = PaintingStyle.fill;
+    final bp = Paint()..color = const Color(0xFFD4A76A)..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(w * .33, h * .46), 2.5, bp);
     canvas.drawCircle(Offset(w * .65, h * .52), 2.0, bp);
     canvas.drawCircle(Offset(w * .48, h * .68), 1.8, bp);

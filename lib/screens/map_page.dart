@@ -1279,7 +1279,7 @@ class _MapPageState extends State<MapPage> {
             child: Container(
               width: 44, height: 44,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFF1A1A1A),
                 shape: BoxShape.circle,
                 border: Border.all(
                     color: const Color(0xFFFF6B35), width: 2),
