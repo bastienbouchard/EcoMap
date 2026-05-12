@@ -65,7 +65,6 @@ class _MapPageState extends State<MapPage> {
   bool _showLayerPanel = false;
   bool _showTerresPubliques = false;
   bool _showTerresPrivees = false;
-  List<Polygon> _cadastrePolygons = [];
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
@@ -304,53 +303,9 @@ class _MapPageState extends State<MapPage> {
     });
   }
 
-  Future<void> _fetchCadastre() async {
-    if (!_showTerresPrivees) {
-      if (_cadastrePolygons.isNotEmpty) setState(() => _cadastrePolygons = []);
-      return;
-    }
-    final camera = _mapController.camera;
-    if (camera.zoom < 12) {
-      if (_cadastrePolygons.isNotEmpty) setState(() => _cadastrePolygons = []);
-      return;
-    }
-    final b = camera.visibleBounds;
-    final url = Uri.parse(
-      'https://geo.environnement.gouv.qc.ca/donnees/rest/services/Reference/'
-      'Cadastre_allege/MapServer/0/query'
-      '?where=1%3D1&geometryType=esriGeometryEnvelope'
-      '&geometry=${b.west}%2C${b.south}%2C${b.east}%2C${b.north}'
-      '&inSR=4326&outSR=4326&outFields=NO_LOT'
-      '&spatialRel=esriSpatialRelIntersects&f=geojson',
-    );
-    try {
-      final resp = await http.get(url);
-      if (resp.statusCode != 200) return;
-      final data = json.decode(resp.body) as Map<String, dynamic>;
-      final features = data['features'] as List? ?? [];
-      final polys = <Polygon>[];
-      for (final feat in features) {
-        final geom = feat['geometry'] as Map<String, dynamic>;
-        final type = geom['type'] as String;
-        final coords = geom['coordinates'] as List;
-        final rings = type == 'Polygon'
-            ? coords.cast<List>()
-            : (coords as List).expand((p) => (p as List).cast<List>()).toList();
-        for (final ring in rings) {
-          final pts = ring.map((c) =>
-              LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble())).toList();
-          if (pts.length < 3) continue;
-          polys.add(Polygon(
-            points: pts,
-            color: Colors.transparent,
-            borderColor: const Color(0xFFFF6B35).withOpacity(0.55),
-            borderStrokeWidth: 1.0,
-          ));
-        }
-      }
-      if (mounted) setState(() => _cadastrePolygons = polys);
-    } catch (_) {}
-  }
+  // Terres privées: chargée comme TileLayer ArcGIS — pas de CORS, pas de fetch
+  // _fetchCadastre garde la signature pour compatibilité avec l'appel onPositionChanged
+  void _fetchCadastre() {}
 
   // ─────────────────────────────────────────────────────────────────────────
   // Hotspots
@@ -1219,8 +1174,13 @@ class _MapPageState extends State<MapPage> {
             ),
             opacity: 0.5,
           ),
-        if (_showTerresPrivees && _cadastrePolygons.isNotEmpty)
-          PolygonLayer(polygons: _cadastrePolygons, simplificationTolerance: 0),
+        if (_showTerresPrivees)
+          TileLayer(
+            urlTemplate: 'https://geo.environnement.gouv.qc.ca/donnees/rest/'
+                'services/Reference/Cadastre_allege/MapServer/tile/{z}/{y}/{x}',
+            userAgentPackageName: 'com.bastienbouchard.ecomap',
+            opacity: 0.65,
+          ),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
           PolygonLayer(
               polygons: _polygonsCache, simplificationTolerance: 0),
