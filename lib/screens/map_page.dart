@@ -13,6 +13,7 @@ import '../app_globals.dart';
 import '../models/hotspot_info.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
+import '../providers/arcgis_export_tile_provider.dart';
 import '../services/auth_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/geo_service.dart';
@@ -1162,24 +1163,23 @@ class _MapPageState extends State<MapPage> {
         ),
         if (_showTerresPubliques)
           TileLayer(
-            wmsOptions: WMSTileLayerOptions(
-              baseUrl: 'https://servicescarto.mern.gouv.qc.ca/pes/services/'
-                  'Territoire/PATP_prov_WMS/MapServer/WMSServer',
-              layers: const ['Affectations surfaciques'],
-              styles: const [''],
-              format: 'image/png',
-              version: '1.3.0',
-              crs: const Epsg3857(),
-              otherParameters: const {'TRANSPARENT': 'TRUE'},
+            tileProvider: ArcGISExportTileProvider(
+              mapServerUrl: 'https://servicescarto.mern.gouv.qc.ca/pes/services'
+                  '/Territoire/PATP_prov_WMS/MapServer',
             ),
-            opacity: 0.5,
+            opacity: 0.55,
+            minNativeZoom: 6,
+            maxNativeZoom: 17,
           ),
         if (_showTerresPrivees)
           TileLayer(
-            urlTemplate: 'https://geo.environnement.gouv.qc.ca/donnees/rest/'
-                'services/Reference/Cadastre_allege/MapServer/tile/{z}/{y}/{x}',
-            userAgentPackageName: 'com.bastienbouchard.ecomap',
-            opacity: 0.65,
+            tileProvider: ArcGISExportTileProvider(
+              mapServerUrl: 'https://geo.environnement.gouv.qc.ca/donnees/rest'
+                  '/services/Reference/Cadastre_allege/MapServer',
+            ),
+            opacity: 0.7,
+            minNativeZoom: 12,
+            maxNativeZoom: 17,
           ),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
           PolygonLayer(
