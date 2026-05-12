@@ -63,6 +63,9 @@ class _MapPageState extends State<MapPage> {
   double _mapLat = 48.2917;
   bool _satellite = false;
   bool _showLayerPanel = false;
+  bool _showTerresPubliques = false;
+  bool _showTerresPrivees = false;
+  List<Polygon> _cadastrePolygons = [];
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
@@ -299,6 +302,54 @@ class _MapPageState extends State<MapPage> {
       _rawHotspots = parsedHS;
       if (_showHotspots) _hotspots = _computeHotspots();
     });
+  }
+
+  Future<void> _fetchCadastre() async {
+    if (!_showTerresPrivees) {
+      if (_cadastrePolygons.isNotEmpty) setState(() => _cadastrePolygons = []);
+      return;
+    }
+    final camera = _mapController.camera;
+    if (camera.zoom < 12) {
+      if (_cadastrePolygons.isNotEmpty) setState(() => _cadastrePolygons = []);
+      return;
+    }
+    final b = camera.visibleBounds;
+    final url = Uri.parse(
+      'https://geo.environnement.gouv.qc.ca/donnees/rest/services/Reference/'
+      'Cadastre_allege/MapServer/0/query'
+      '?where=1%3D1&geometryType=esriGeometryEnvelope'
+      '&geometry=${b.west}%2C${b.south}%2C${b.east}%2C${b.north}'
+      '&inSR=4326&outSR=4326&outFields=NO_LOT'
+      '&spatialRel=esriSpatialRelIntersects&f=geojson',
+    );
+    try {
+      final resp = await http.get(url);
+      if (resp.statusCode != 200) return;
+      final data = json.decode(resp.body) as Map<String, dynamic>;
+      final features = data['features'] as List? ?? [];
+      final polys = <Polygon>[];
+      for (final feat in features) {
+        final geom = feat['geometry'] as Map<String, dynamic>;
+        final type = geom['type'] as String;
+        final coords = geom['coordinates'] as List;
+        final rings = type == 'Polygon'
+            ? coords.cast<List>()
+            : (coords as List).expand((p) => (p as List).cast<List>()).toList();
+        for (final ring in rings) {
+          final pts = ring.map((c) =>
+              LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble())).toList();
+          if (pts.length < 3) continue;
+          polys.add(Polygon(
+            points: pts,
+            color: Colors.transparent,
+            borderColor: const Color(0xFFFF6B35).withOpacity(0.55),
+            borderStrokeWidth: 1.0,
+          ));
+        }
+      }
+      if (mounted) setState(() => _cadastrePolygons = polys);
+    } catch (_) {}
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1136,6 +1187,7 @@ class _MapPageState extends State<MapPage> {
               if (mounted) setState(() => _hotspots = _computeHotspots());
             });
           }
+          if (_showTerresPrivees) _fetchCadastre();
         },
       ),
       children: [
@@ -1153,6 +1205,22 @@ class _MapPageState extends State<MapPage> {
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
+        if (_showTerresPubliques)
+          TileLayer(
+            wmsOptions: WMSTileLayerOptions(
+              baseUrl: 'https://servicescarto.mern.gouv.qc.ca/pes/services/'
+                  'Territoire/PATP_prov_WMS/MapServer/WMSServer',
+              layers: const ['Affectations surfaciques'],
+              styles: const [''],
+              format: 'image/png',
+              version: '1.3.0',
+              crs: const Epsg3857(),
+              otherParameters: const {'TRANSPARENT': 'TRUE'},
+            ),
+            opacity: 0.5,
+          ),
+        if (_showTerresPrivees && _cadastrePolygons.isNotEmpty)
+          PolygonLayer(polygons: _cadastrePolygons, simplificationTolerance: 0),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
           PolygonLayer(
               polygons: _polygonsCache, simplificationTolerance: 0),
@@ -1629,6 +1697,21 @@ class _MapPageState extends State<MapPage> {
                     ),
                   ));
                   _reloadTerritoire();
+                }),
+            _layerToggle('Terres publiques', Icons.public_rounded,
+                _showTerresPubliques, () {
+                  setState(() {
+                    _showTerresPubliques = !_showTerresPubliques;
+                    _showLayerPanel = false;
+                  });
+                }),
+            _layerToggle('Terres privées', Icons.fence_rounded,
+                _showTerresPrivees, () {
+                  setState(() {
+                    _showTerresPrivees = !_showTerresPrivees;
+                    _showLayerPanel = false;
+                  });
+                  _fetchCadastre();
                 }),
             const SizedBox(height: 8),
           ],
