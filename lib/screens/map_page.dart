@@ -24,6 +24,7 @@ import '../widgets/hotspot_detail_sheet.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/scale_bar.dart';
 import 'about_page.dart';
+import 'premium_page.dart';
 import 'chat_page.dart';
 import 'login_page.dart';
 import 'meteo_page.dart';
@@ -991,7 +992,12 @@ class _MapPageState extends State<MapPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF6B35)),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const PremiumPage(),
+              ));
+            },
             child: const Text('En savoir plus',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
