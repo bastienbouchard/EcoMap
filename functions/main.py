@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import tempfile
 import zipfile
@@ -105,3 +106,59 @@ def get_ecoforestier(req: https_fn.Request) -> https_fn.Response:
 
     result = gpd.pd.concat(gdfs) if len(gdfs) > 1 else gdfs[0]
     return https_fn.Response(result.to_json(), mimetype="application/json")
+
+
+_TILE_SOURCES = {
+    "patp": "https://servicescarto.mern.gouv.qc.ca/pes/services/Territoire/PATP_prov_WMS/MapServer/export",
+    "cadastre": "https://geo.environnement.gouv.qc.ca/donnees/rest/services/Reference/Cadastre_allege/MapServer/export",
+}
+
+def _tile_to_bbox(z: int, x: int, y: int):
+    n = 2 ** z
+    earth = 20037508.343
+    x_min = x / n * 2 * earth - earth
+    x_max = (x + 1) / n * 2 * earth - earth
+    y_max = earth - y / n * 2 * earth
+    y_min = earth - (y + 1) / n * 2 * earth
+    return x_min, y_min, x_max, y_max
+
+
+@https_fn.on_request(
+    timeout_sec=30,
+    memory=https_fn.options.MemoryOption.MB_256,
+    cors=https_fn.options.CorsOptions(cors_origins="*", cors_methods=["GET"]),
+)
+def tile_proxy(req: https_fn.Request) -> https_fn.Response:
+    layer = req.args.get("layer", "")
+    if layer not in _TILE_SOURCES:
+        return https_fn.Response("layer invalide", status=400)
+    try:
+        z = int(req.args["z"])
+        x = int(req.args["x"])
+        y = int(req.args["y"])
+    except (KeyError, ValueError):
+        return https_fn.Response("z, x, y requis", status=400)
+
+    x_min, y_min, x_max, y_max = _tile_to_bbox(z, x, y)
+    url = _TILE_SOURCES[layer]
+    params = {
+        "bbox": f"{x_min},{y_min},{x_max},{y_max}",
+        "bboxSR": "3857",
+        "layers": "show:0",
+        "transparent": "true",
+        "format": "png32",
+        "f": "image",
+        "size": "256,256",
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=20, verify=False)
+        if resp.status_code != 200:
+            return https_fn.Response("Erreur source", status=502)
+        return https_fn.Response(
+            resp.content,
+            status=200,
+            mimetype="image/png",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    except Exception as e:
+        return https_fn.Response(str(e), status=502)

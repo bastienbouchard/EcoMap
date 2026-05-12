@@ -1163,20 +1163,14 @@ class _MapPageState extends State<MapPage> {
         ),
         if (_showTerresPubliques)
           TileLayer(
-            tileProvider: ArcGISExportTileProvider(
-              mapServerUrl: 'https://servicescarto.mern.gouv.qc.ca/pes/services'
-                  '/Territoire/PATP_prov_WMS/MapServer',
-            ),
+            tileProvider: const ArcGISExportTileProvider(layer: 'patp'),
             opacity: 0.55,
             minNativeZoom: 6,
             maxNativeZoom: 17,
           ),
         if (_showTerresPrivees)
           TileLayer(
-            tileProvider: ArcGISExportTileProvider(
-              mapServerUrl: 'https://geo.environnement.gouv.qc.ca/donnees/rest'
-                  '/services/Reference/Cadastre_allege/MapServer',
-            ),
+            tileProvider: const ArcGISExportTileProvider(layer: 'cadastre'),
             opacity: 0.7,
             minNativeZoom: 12,
             maxNativeZoom: 17,

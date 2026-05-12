@@ -2,32 +2,19 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 
-// Convertit les coordonnées z/x/y en bbox EPSG:3857 et appelle
-// le endpoint export d'un MapServer ArcGIS dynamique.
+// Proxy Firebase pour éviter le CORS sur les serveurs ArcGIS du gouvernement QC.
+// La Cloud Function tile_proxy reçoit (layer, z, x, y) et retourne un PNG 256×256.
 class ArcGISExportTileProvider extends TileProvider {
-  final String mapServerUrl;
-  final String layers;
+  final String layer; // 'patp' ou 'cadastre'
 
-  const ArcGISExportTileProvider({
-    required this.mapServerUrl,
-    this.layers = 'show:0',
-  });
+  static const _proxy =
+      'https://us-central1-moosesense-a84cf.cloudfunctions.net/tile_proxy';
+
+  const ArcGISExportTileProvider({required this.layer});
 
   @override
   ImageProvider getImage(TileCoordinates coords, TileLayer options) {
-    final z = coords.z;
-    final x = coords.x;
-    final y = coords.y;
-    final n = math.pow(2, z).toDouble();
-    const earthHalf = 20037508.343;
-    final xMin = x / n * 2 * earthHalf - earthHalf;
-    final xMax = (x + 1) / n * 2 * earthHalf - earthHalf;
-    final yMax = earthHalf - y / n * 2 * earthHalf;
-    final yMin = earthHalf - (y + 1) / n * 2 * earthHalf;
-    final url =
-        '$mapServerUrl/export?bbox=$xMin,$yMin,$xMax,$yMax'
-        '&bboxSR=3857&layers=$layers&transparent=true'
-        '&format=png32&f=image&size=256,256';
+    final url = '$_proxy?layer=$layer&z=${coords.z}&x=${coords.x}&y=${coords.y}';
     return NetworkImage(url);
   }
 }
