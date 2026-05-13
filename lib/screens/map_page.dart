@@ -605,7 +605,7 @@ class _MapPageState extends State<MapPage> {
         _loadingSalines = false;
       });
       if (result.isEmpty) {
-        _snack('Aucun site détecté — télécharge une carte écoforestière via "Carte éco"', error: true);
+        _snack('Aucun site de saline trouvé dans ce rayon — essaie dans une zone plus humide', error: true);
       } else {
         _snack('${result.length} emplacements de saline détectés dans un rayon de 4 km');
       }
@@ -1814,20 +1814,17 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
             child: Container(
-              width: 44, height: 44,
+              width: 48, height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFC62828), width: 2.5),
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFFC62828).withOpacity(0.5),
-                      blurRadius: 10, spreadRadius: 1),
+                  BoxShadow(color: const Color(0xFFC62828).withOpacity(0.6),
+                      blurRadius: 12, spreadRadius: 2),
                   const BoxShadow(color: Colors.black54, blurRadius: 4),
                 ],
               ),
               child: const Center(
                 child: CustomPaint(
-                  size: Size(28, 28),
+                  size: Size(44, 44),
                   painter: SaltCubePainter(),
                 ),
               ),

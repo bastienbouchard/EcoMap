@@ -292,12 +292,12 @@ class SaltCubePainter extends CustomPainter {
       ..moveTo(left.dx, left.dy) ..lineTo(center.dx, center.dy)
       ..lineTo(bottom.dx, bottom.dy) ..lineTo(botL.dx, botL.dy) ..close();
 
-    final hsl = HSLColor.fromColor(color);
-    canvas.drawPath(topFace,   Paint()..color = hsl.withLightness((hsl.lightness + 0.18).clamp(0.0, 1.0)).toColor()..style = PaintingStyle.fill);
+    // Face du haut : plus claire, face gauche : plus foncée — contraste fort pour visibilité sur carte
+    canvas.drawPath(topFace,   Paint()..color = const Color(0xFFEF5350)..style = PaintingStyle.fill);
     canvas.drawPath(rightFace, Paint()..color = color..style = PaintingStyle.fill);
-    canvas.drawPath(leftFace,  Paint()..color = hsl.withLightness((hsl.lightness - 0.14).clamp(0.0, 1.0)).toColor()..style = PaintingStyle.fill);
+    canvas.drawPath(leftFace,  Paint()..color = const Color(0xFF7F0000)..style = PaintingStyle.fill);
 
-    final edge = Paint()..color = Colors.white.withOpacity(0.22)..strokeWidth = 0.8..style = PaintingStyle.stroke;
+    final edge = Paint()..color = Colors.white.withOpacity(0.55)..strokeWidth = 1.2..style = PaintingStyle.stroke;
     canvas.drawPath(topFace,   edge);
     canvas.drawPath(rightFace, edge);
     canvas.drawPath(leftFace,  edge);

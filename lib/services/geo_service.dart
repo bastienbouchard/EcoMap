@@ -519,13 +519,14 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
     } catch (_) {}
   }
 
-  bool hasWaterNearby(double cLat, double cLon) {
+  // Bonus si un plan/cours d'eau connu est à ≤ 800 m (pas un filtre dur — les rivières sont linéaires et souvent absentes des polygones écoforestiers)
+  int waterBonus(double cLat, double cLon) {
     for (final w in waterPoints) {
       final d = sqrt(pow((w[0] - cLat) * 111000, 2) +
           pow((w[1] - cLon) * 111000 * cos(cLat * pi / 180), 2));
-      if (d <= 650) return true;
+      if (d <= 800) return 5;
     }
-    return false;
+    return 0;
   }
 
   final candidates = <Map<String, dynamic>>[];
@@ -557,13 +558,10 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
           pow((cLon - lon) * 111000 * cos(lat * pi / 180), 2));
       if (distM > radiusM) continue;
 
-      // Doit être à ≤ 650 m d'un cours d'eau ou plan d'eau
-      if (!hasWaterNearby(cLat, cLon)) continue;
-
-      // Score: qualité drainage + activité orignal à proximité
+      // Score: qualité drainage + activité orignal + bonus eau à proximité
       final drainScore = (drainVal - 3) * 3; // 3-12
       final foodScore = scoreOrignal(props) ~/ 5;
-      final total = drainScore + foodScore;
+      final total = drainScore + foodScore + waterBonus(cLat, cLon);
 
       candidates.add({'lat': cLat, 'lon': cLon, 'score': total});
     } catch (_) {}
