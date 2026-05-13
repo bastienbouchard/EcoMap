@@ -582,7 +582,7 @@ class _MapPageState extends State<MapPage> {
       });
       if (!mounted) return;
       setState(() {
-        _pinchPoints = result;
+        _pinchPoints = result.take(5).toList();
         _showPinchPoints = true;
         _loadingPinch = false;
       });
@@ -614,7 +614,7 @@ class _MapPageState extends State<MapPage> {
       });
       if (!mounted) return;
       setState(() {
-        _salines = result;
+        _salines = result.take(5).toList();
         _showSalines = true;
         _loadingSalines = false;
       });
