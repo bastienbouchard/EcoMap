@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show pi;
+import 'dart:math' show pi, min, max;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -64,7 +64,6 @@ class _MapPageState extends State<MapPage> {
   double _mapLat = 48.2917;
   bool _satellite = false;
   bool _showLayerPanel = false;
-  bool _showTerresPubliques = false;
   bool _showTerresPrivees = false;
 
   // ── GPS / vent ──
@@ -79,7 +78,10 @@ class _MapPageState extends State<MapPage> {
   List<Map<String, dynamic>> _polygonLabels = [];
 
   // ── Cadastre (terres privées) ──
-  List<Polygon> _cadastrePolygons = [];
+  List<List<LatLng>> _cadastreRings = [];
+  List<String> _cadastreNoLots = [];
+  int? _selectedCadastreLot;
+  bool _downloadingLotTerritoire = false;
 
   // ── Hotspots ──
   bool _showHotspots = false;
@@ -327,35 +329,94 @@ class _MapPageState extends State<MapPage> {
       final data = json.decode(resp.body) as Map<String, dynamic>;
       final features = data['features'] as List? ?? [];
       debugPrint('Cadastre: ${features.length} lots reçus');
-      final polys = <Polygon>[];
+      final rings = <List<LatLng>>[];
+      final noLots = <String>[];
       for (final f in features) {
         try {
+          final props = f['properties'] as Map<String, dynamic>? ?? {};
+          final noLot = props['NO_LOT']?.toString() ?? '';
           final geom = f['geometry'] as Map<String, dynamic>;
           final type = geom['type'] as String;
           final rawCoords = geom['coordinates'] as List;
-          final rings = type == 'MultiPolygon'
-              ? (rawCoords).expand((r) => (r as List))
+          final outerRings = type == 'MultiPolygon'
+              ? rawCoords.expand<dynamic>((r) => r as List)
               : rawCoords;
-          for (final ring in rings) {
+          for (final ring in outerRings) {
             final pts = (ring as List)
                 .map((p) => LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()))
                 .toList();
             if (pts.length >= 3) {
-              polys.add(Polygon(
-                points: pts,
-                color: Colors.transparent,
-                borderColor: const Color(0xFFFF6B35),
-                borderStrokeWidth: 1.2,
-              ));
+              rings.add(pts);
+              noLots.add(noLot);
             }
           }
         } catch (e) {
           debugPrint('Cadastre ring parse error: $e');
         }
       }
-      if (mounted) setState(() => _cadastrePolygons = polys);
+      if (mounted) {
+        setState(() {
+          _cadastreRings = rings;
+          _cadastreNoLots = noLots;
+          _selectedCadastreLot = null;
+        });
+      }
     } catch (e) {
       debugPrint('Cadastre error: $e');
+    }
+  }
+
+  bool _pointInPolygon(LatLng pt, List<LatLng> poly) {
+    bool inside = false;
+    int j = poly.length - 1;
+    for (int i = 0; i < poly.length; i++) {
+      if ((poly[i].longitude > pt.longitude) != (poly[j].longitude > pt.longitude) &&
+          pt.latitude <
+              (poly[j].latitude - poly[i].latitude) *
+                      (pt.longitude - poly[i].longitude) /
+                      (poly[j].longitude - poly[i].longitude) +
+                  poly[i].latitude) {
+        inside = !inside;
+      }
+      j = i;
+    }
+    return inside;
+  }
+
+  void _handleMapTap(LatLng point) {
+    if (!_showTerresPrivees || _cadastreRings.isEmpty) return;
+    for (int i = 0; i < _cadastreRings.length; i++) {
+      if (_pointInPolygon(point, _cadastreRings[i])) {
+        setState(() =>
+            _selectedCadastreLot = _selectedCadastreLot == i ? null : i);
+        return;
+      }
+    }
+    setState(() => _selectedCadastreLot = null);
+  }
+
+  Future<void> _downloadLotTerritoire() async {
+    final idx = _selectedCadastreLot;
+    if (idx == null || idx >= _cadastreRings.length) return;
+    final pts = _cadastreRings[idx];
+    final noLot = idx < _cadastreNoLots.length ? _cadastreNoLots[idx] : 'inconnu';
+    final lats = pts.map((p) => p.latitude);
+    final lons = pts.map((p) => p.longitude);
+    setState(() => _downloadingLotTerritoire = true);
+    try {
+      await TerritoireService.downloadTerritoire(
+        nom: 'Lot $noLot',
+        minLat: lats.reduce(min),
+        minLon: lons.reduce(min),
+        maxLat: lats.reduce(max),
+        maxLon: lons.reduce(max),
+      );
+      await _reloadTerritoire();
+      if (mounted) _snack('Carte éco — Lot $noLot téléchargée');
+    } catch (e) {
+      if (mounted) _snack('Erreur: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _downloadingLotTerritoire = false);
     }
   }
 
@@ -1155,6 +1216,7 @@ class _MapPageState extends State<MapPage> {
           _buildCrosshair(),
           _buildStatusBarOverlay(),
           if (_showParcours) _buildParcoursBanner(),
+          if (_selectedCadastreLot != null) _buildSelectedLotPanel(),
           _buildActionPanel(),
           _buildNavPanel(),
           if (!_isOnline) _buildOfflineBanner(),
@@ -1179,6 +1241,7 @@ class _MapPageState extends State<MapPage> {
         initialZoom: 13,
         minZoom: 5,
         maxZoom: 19,
+        onTap: (_, point) => _handleMapTap(point),
         onPositionChanged: (pos, _) {
           if (!mounted) return;
           final newZoom = pos.zoom;
@@ -1212,17 +1275,21 @@ class _MapPageState extends State<MapPage> {
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
-        if (_showTerresPubliques)
-          Opacity(
-            opacity: 0.55,
-            child: TileLayer(
-              tileProvider: ArcGISExportTileProvider(layer: 'patp'),
-              minNativeZoom: 6,
-              maxNativeZoom: 17,
-            ),
+        if (_showTerresPrivees && _cadastreRings.isNotEmpty)
+          PolygonLayer(
+            simplificationTolerance: 0,
+            polygons: _cadastreRings.asMap().entries.map((e) {
+              final selected = e.key == _selectedCadastreLot;
+              return Polygon(
+                points: e.value,
+                color: selected
+                    ? const Color(0xFFFF6B35).withOpacity(0.25)
+                    : Colors.transparent,
+                borderColor: const Color(0xFFFF6B35),
+                borderStrokeWidth: selected ? 2.5 : 1.2,
+              );
+            }).toList(),
           ),
-        if (_showTerresPrivees && _cadastrePolygons.isNotEmpty)
-          PolygonLayer(polygons: _cadastrePolygons, simplificationTolerance: 0),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
           PolygonLayer(
               polygons: _polygonsCache, simplificationTolerance: 0),
@@ -1654,6 +1721,56 @@ class _MapPageState extends State<MapPage> {
     ]);
   }
 
+  Widget _buildSelectedLotPanel() {
+    final idx = _selectedCadastreLot!;
+    final noLot = idx < _cadastreNoLots.length && _cadastreNoLots[idx].isNotEmpty
+        ? _cadastreNoLots[idx]
+        : 'Lot sélectionné';
+    return Positioned(
+      bottom: 56, left: 16, right: 90,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.5)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
+        ),
+        child: Row(children: [
+          const Icon(Icons.fence_rounded, color: Color(0xFFFF6B35), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(noLot,
+                style: const TextStyle(color: Colors.white, fontSize: 13,
+                    fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 32,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2D5016),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: _downloadingLotTerritoire ? null : _downloadLotTerritoire,
+              child: _downloadingLotTerritoire
+                  ? const SizedBox(width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Carte éco', style: TextStyle(color: Colors.white, fontSize: 12)),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => setState(() => _selectedCadastreLot = null),
+            child: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 18),
+          ),
+        ]),
+      ),
+    );
+  }
+
   Widget _buildLayerPanel() {
     return Positioned(
       bottom: 90, right: 28,
@@ -1699,13 +1816,6 @@ class _MapPageState extends State<MapPage> {
                     ),
                   ));
                   _reloadTerritoire();
-                }),
-            _layerToggle('Terres publiques', Icons.public_rounded,
-                _showTerresPubliques, () {
-                  setState(() {
-                    _showTerresPubliques = !_showTerresPubliques;
-                    _showLayerPanel = false;
-                  });
                 }),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
