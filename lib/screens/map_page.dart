@@ -102,6 +102,11 @@ class _MapPageState extends State<MapPage> {
   bool _loadingPinch = false;
   List<Map<String, dynamic>> _pinchPoints = [];
 
+  // ── Salines ──
+  bool _showSalines = false;
+  bool _loadingSalines = false;
+  List<Map<String, dynamic>> _salines = [];
+
   // ── Tracé GPS ──
   bool _recording = false;
   List<LatLng> _trackPoints = [];
@@ -574,6 +579,38 @@ class _MapPageState extends State<MapPage> {
       }
     } catch (_) {
       if (mounted) setState(() => _loadingPinch = false);
+    }
+  }
+
+  Future<void> _toggleSalines() async {
+    if (!_requirePremium()) return;
+    if (_showSalines) {
+      setState(() { _showSalines = false; _salines = []; });
+      return;
+    }
+    if (!_requireEcoMap()) return;
+    setState(() => _loadingSalines = true);
+    try {
+      final center = _mapController.camera.center;
+      final result = await compute(findSalinesIsolate, {
+        'lat': center.latitude,
+        'lon': center.longitude,
+        'radiusM': 4000.0,
+        'geoJson': geoJson,
+      });
+      if (!mounted) return;
+      setState(() {
+        _salines = result;
+        _showSalines = true;
+        _loadingSalines = false;
+      });
+      if (result.isEmpty) {
+        _snack('Aucun site détecté — télécharge une carte écoforestière via "Carte éco"', error: true);
+      } else {
+        _snack('${result.length} emplacements de saline détectés dans un rayon de 4 km');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingSalines = false);
     }
   }
 
@@ -1094,13 +1131,15 @@ class _MapPageState extends State<MapPage> {
         title: const Text('Fonctionnalité Premium',
             style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
         content: const Text(
-          'Cette fonctionnalité est disponible avec OrignalScan Premium.\n\n'
-          '• Points chauds orignal\n'
-          '• Parcours optimisé IA\n'
-          '• Postes d\'affût\n'
-          '• Groupe de chasseurs\n'
-          '• Carte écoforestière',
-          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+          'Cette fonctionnalité est disponible avec OrignalScan Pro.\n\n'
+          '🔥 Points chauds orignal\n'
+          '🗺  Parcours optimisé par algorithme IA\n'
+          '🏕  Postes d\'affût (algorithme IA)\n'
+          '🧂 Salines à orignal (algorithme IA)\n'
+          '📐 Terres privées — cadastre des lots\n'
+          '🗾 Carte écoforestière MRNF\n'
+          '👥 Groupe de chasseurs',
+          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6),
         ),
         actions: [
           TextButton(
@@ -1339,6 +1378,8 @@ class _MapPageState extends State<MapPage> {
         if (_showHotspots && _hotspots.isNotEmpty) _buildHotspotMarkers(),
         if (_showPinchPoints && _pinchPoints.isNotEmpty)
           _buildPinchMarkers(),
+        if (_showSalines && _salines.isNotEmpty)
+          _buildSalineMarkers(),
         if (_groupeActif && _tracesGroupe.isNotEmpty)
           _buildGroupeTracePolylines(),
         if (_groupeActif && _obsGroupe.isNotEmpty)
@@ -1721,6 +1762,79 @@ class _MapPageState extends State<MapPage> {
     ]);
   }
 
+  MarkerLayer _buildSalineMarkers() {
+    return MarkerLayer(
+      markers: _salines.map((s) {
+        final pos = LatLng(s['lat'] as double, s['lon'] as double);
+        return Marker(
+          point: pos,
+          width: 48, height: 48,
+          child: GestureDetector(
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                backgroundColor: const Color(0xFF2D2D2D),
+                title: Row(children: [
+                  const Expanded(child: Text('Site de saline',
+                      style: TextStyle(color: Colors.white, fontSize: 15))),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ]),
+                content: Column(mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Zone humide favorable à l\'installation d\'une saline à orignal.',
+                        style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+                    const SizedBox(height: 12),
+                    _coordsWidget(pos),
+                  ]),
+                actions: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => NavigationPage(
+                          parcours: [_currentPosition, pos],
+                          score: 0, windDeg: _windDeg,
+                        ),
+                      ));
+                    },
+                    icon: const Icon(Icons.navigation, size: 16),
+                    label: const Text('Naviguer'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF64B5F6),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF64B5F6), width: 2.5),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFF64B5F6).withOpacity(0.5),
+                      blurRadius: 10, spreadRadius: 1),
+                  const BoxShadow(color: Colors.black54, blurRadius: 4),
+                ],
+              ),
+              child: const Center(
+                child: Text('🧂', style: TextStyle(fontSize: 20)),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildSelectedLotPanel() {
     final idx = _selectedCadastreLot!;
     final noLot = idx < _cadastreNoLots.length && _cadastreNoLots[idx].isNotEmpty
@@ -1820,6 +1934,7 @@ class _MapPageState extends State<MapPage> {
                 }),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
+                  if (!_showTerresPrivees && !_requirePremium()) return;
                   setState(() {
                     _showTerresPrivees = !_showTerresPrivees;
                     _showLayerPanel = false;
@@ -2061,6 +2176,15 @@ class _MapPageState extends State<MapPage> {
                         child: CustomPaint(
                             painter: HuntingTowerPainter()),
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: Icons.water_drop_rounded,
+                      label: 'Saline',
+                      color: const Color(0xFF64B5F6),
+                      active: _showSalines,
+                      loading: _loadingSalines,
+                      onTap: _toggleSalines,
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(

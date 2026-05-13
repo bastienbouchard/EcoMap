@@ -492,6 +492,64 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
 
 // ── ISOLATE FUNCTIONS (top-level pour compute()) ───────────────────────────
 
+List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
+  final lat = params['lat'] as double;
+  final lon = params['lon'] as double;
+  final radiusM = (params['radiusM'] as num?)?.toDouble() ?? 4000.0;
+  final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
+
+  final candidates = <Map<String, dynamic>>[];
+
+  for (final feat in features) {
+    try {
+      final props = feat['properties'] as Map;
+      final drainVal = int.tryParse((props['cl_drai'] ?? '').toString()) ?? 0;
+      if (drainVal < 4) continue; // besoin d'une zone humide (imparfait→hydrique)
+
+      final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+      if (typeEco.contains('EAU')) continue; // pas dans l'eau elle-même
+
+      final geom = feat['geometry'] as Map;
+      List<dynamic> ring;
+      if (geom['type'] == 'Polygon') ring = geom['coordinates'][0] as List;
+      else if (geom['type'] == 'MultiPolygon') ring = geom['coordinates'][0][0] as List;
+      else continue;
+
+      double sumLat = 0, sumLon = 0;
+      for (final c in ring) {
+        sumLon += (c[0] as num).toDouble();
+        sumLat += (c[1] as num).toDouble();
+      }
+      final cLat = sumLat / ring.length;
+      final cLon = sumLon / ring.length;
+
+      final distM = sqrt(pow((cLat - lat) * 111000, 2) +
+          pow((cLon - lon) * 111000 * cos(lat * pi / 180), 2));
+      if (distM > radiusM) continue;
+
+      // Score: qualité drainage + activité orignal à proximité
+      final drainScore = (drainVal - 3) * 3; // 3-12
+      final foodScore = scoreOrignal(props) ~/ 5;
+      final total = drainScore + foodScore;
+
+      candidates.add({'lat': cLat, 'lon': cLon, 'score': total});
+    } catch (_) {}
+  }
+
+  candidates.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+
+  final result = <Map<String, dynamic>>[];
+  for (final c in candidates) {
+    final pos = LatLng(c['lat'] as double, c['lon'] as double);
+    final tooClose = result.any((r) =>
+        const Distance().as(LengthUnit.Meter,
+            LatLng(r['lat'] as double, r['lon'] as double), pos) < 500);
+    if (!tooClose) result.add(c);
+    if (result.length >= 6) break;
+  }
+  return result;
+}
+
 List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
   final features = geoJsonData['features'] as List;
   final List<Polygon> result = [];
