@@ -1787,7 +1787,7 @@ class _MapPageState extends State<MapPage> {
                 content: Column(mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Zone humide à proximité d\'un cours d\'eau — emplacement idéal pour installer une saline à orignal.',
+                    const Text('Emplacement idéal identifié par l\'algorithme OrignalScan pour l\'installation d\'une saline.',
                         style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
                     const SizedBox(height: 12),
                     _coordsWidget(pos),
@@ -2185,6 +2185,10 @@ class _MapPageState extends State<MapPage> {
                       active: _showSalines,
                       loading: _loadingSalines,
                       onTap: _toggleSalines,
+                      customIcon: const CustomPaint(
+                        size: Size(26, 26),
+                        painter: SaltCubePainter(),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
