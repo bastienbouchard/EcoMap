@@ -36,6 +36,27 @@ class AboutPage extends StatelessWidget {
                       fontWeight: FontWeight.bold)),
               const Text('Habitat orignal — Québec',
                   style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () => launchUrl(
+                  Uri.parse('https://www.orignalscan.com'),
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.5)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.language, color: Color(0xFFFF6B35), size: 14),
+                    SizedBox(width: 6),
+                    Text('orignalscan.com',
+                        style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
               const SizedBox(height: 24),
             ]),
           ),
