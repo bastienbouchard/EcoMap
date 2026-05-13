@@ -261,6 +261,52 @@ class TrackingPainter extends CustomPainter {
   @override bool shouldRepaint(_) => false;
 }
 
+class SaltCubePainter extends CustomPainter {
+  final Color color;
+  const SaltCubePainter({this.color = const Color(0xFFC62828)});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final s = min(w / sqrt(3), h / 2) * 0.82;
+    final cx = w / 2;
+    final cy = h / 2;
+
+    // Sommets isométriques du cube
+    final top    = Offset(cx, cy - s);
+    final right  = Offset(cx + s * sqrt(3) / 2, cy - s / 2);
+    final left   = Offset(cx - s * sqrt(3) / 2, cy - s / 2);
+    final center = Offset(cx, cy);
+    final botR   = Offset(cx + s * sqrt(3) / 2, cy + s / 2);
+    final botL   = Offset(cx - s * sqrt(3) / 2, cy + s / 2);
+    final bottom = Offset(cx, cy + s);
+
+    final topFace = Path()
+      ..moveTo(top.dx, top.dy) ..lineTo(right.dx, right.dy)
+      ..lineTo(center.dx, center.dy) ..lineTo(left.dx, left.dy) ..close();
+    final rightFace = Path()
+      ..moveTo(right.dx, right.dy) ..lineTo(botR.dx, botR.dy)
+      ..lineTo(bottom.dx, bottom.dy) ..lineTo(center.dx, center.dy) ..close();
+    final leftFace = Path()
+      ..moveTo(left.dx, left.dy) ..lineTo(center.dx, center.dy)
+      ..lineTo(bottom.dx, bottom.dy) ..lineTo(botL.dx, botL.dy) ..close();
+
+    final hsl = HSLColor.fromColor(color);
+    canvas.drawPath(topFace,   Paint()..color = hsl.withLightness((hsl.lightness + 0.18).clamp(0.0, 1.0)).toColor()..style = PaintingStyle.fill);
+    canvas.drawPath(rightFace, Paint()..color = color..style = PaintingStyle.fill);
+    canvas.drawPath(leftFace,  Paint()..color = hsl.withLightness((hsl.lightness - 0.14).clamp(0.0, 1.0)).toColor()..style = PaintingStyle.fill);
+
+    final edge = Paint()..color = Colors.white.withOpacity(0.22)..strokeWidth = 0.8..style = PaintingStyle.stroke;
+    canvas.drawPath(topFace,   edge);
+    canvas.drawPath(rightFace, edge);
+    canvas.drawPath(leftFace,  edge);
+  }
+
+  @override
+  bool shouldRepaint(SaltCubePainter old) => old.color != color;
+}
+
 class ShrubPainter extends CustomPainter {
   const ShrubPainter();
   @override

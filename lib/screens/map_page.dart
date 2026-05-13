@@ -1787,7 +1787,7 @@ class _MapPageState extends State<MapPage> {
                 content: Column(mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Zone humide favorable à l\'installation d\'une saline à orignal.',
+                    const Text('Zone humide à proximité d\'un cours d\'eau — emplacement idéal pour installer une saline à orignal.',
                         style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
                     const SizedBox(height: 12),
                     _coordsWidget(pos),
@@ -1806,7 +1806,7 @@ class _MapPageState extends State<MapPage> {
                     icon: const Icon(Icons.navigation, size: 16),
                     label: const Text('Naviguer'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF64B5F6),
+                      backgroundColor: const Color(0xFFC62828),
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -1818,15 +1818,18 @@ class _MapPageState extends State<MapPage> {
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1A),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF64B5F6), width: 2.5),
+                border: Border.all(color: const Color(0xFFC62828), width: 2.5),
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFF64B5F6).withOpacity(0.5),
+                  BoxShadow(color: const Color(0xFFC62828).withOpacity(0.5),
                       blurRadius: 10, spreadRadius: 1),
                   const BoxShadow(color: Colors.black54, blurRadius: 4),
                 ],
               ),
               child: const Center(
-                child: Text('🧂', style: TextStyle(fontSize: 20)),
+                child: CustomPaint(
+                  size: Size(28, 28),
+                  painter: SaltCubePainter(),
+                ),
               ),
             ),
           ),
@@ -2179,9 +2182,9 @@ class _MapPageState extends State<MapPage> {
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
-                      icon: Icons.water_drop_rounded,
+                      icon: Icons.view_in_ar,
                       label: 'Saline',
-                      color: const Color(0xFF64B5F6),
+                      color: const Color(0xFFC62828),
                       active: _showSalines,
                       loading: _loadingSalines,
                       onTap: _toggleSalines,

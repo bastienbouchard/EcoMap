@@ -498,6 +498,36 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
   final radiusM = (params['radiusM'] as num?)?.toDouble() ?? 4000.0;
   final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
 
+  // Collecte les centroids des plans/cours d'eau dans le rayon étendu
+  final waterPoints = <List<double>>[];
+  for (final feat in features) {
+    try {
+      final props = feat['properties'] as Map;
+      final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+      final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+      final typeCouv = (props['type_couv'] ?? '').toString().toUpperCase();
+      if (!typeEco.contains('EAU') && !typeEco.contains('RIV') &&
+          codeCouv != 'EE' && typeCouv != 'IN') continue;
+      final geom = feat['geometry'] as Map;
+      List<dynamic> ring;
+      if (geom['type'] == 'Polygon') ring = geom['coordinates'][0] as List;
+      else if (geom['type'] == 'MultiPolygon') ring = geom['coordinates'][0][0] as List;
+      else continue;
+      double sumLat = 0, sumLon = 0;
+      for (final c in ring) { sumLon += (c[0] as num).toDouble(); sumLat += (c[1] as num).toDouble(); }
+      waterPoints.add([sumLat / ring.length, sumLon / ring.length]);
+    } catch (_) {}
+  }
+
+  bool hasWaterNearby(double cLat, double cLon) {
+    for (final w in waterPoints) {
+      final d = sqrt(pow((w[0] - cLat) * 111000, 2) +
+          pow((w[1] - cLon) * 111000 * cos(cLat * pi / 180), 2));
+      if (d <= 650) return true;
+    }
+    return false;
+  }
+
   final candidates = <Map<String, dynamic>>[];
 
   for (final feat in features) {
@@ -526,6 +556,9 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
       final distM = sqrt(pow((cLat - lat) * 111000, 2) +
           pow((cLon - lon) * 111000 * cos(lat * pi / 180), 2));
       if (distM > radiusM) continue;
+
+      // Doit être à ≤ 650 m d'un cours d'eau ou plan d'eau
+      if (!hasWaterNearby(cLat, cLon)) continue;
 
       // Score: qualité drainage + activité orignal à proximité
       final drainScore = (drainVal - 3) * 3; // 3-12

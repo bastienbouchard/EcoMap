@@ -64,7 +64,7 @@ class AboutPage extends StatelessWidget {
             _title('Méthodologie de l\'habitat'),
             const SizedBox(height: 8),
             const Text(
-              'L\'algorithme de scoring est basé sur les principes de l\'écologie de l\'orignal documentés par le MRNF et les universités québécoises (UQAR, UQAM) :\n\n'
+              'L\'algorithme est basé sur les principes de l\'écologie de l\'orignal documentés par le MRNF et les universités québécoises (UQAR, UQAM) :\n\n'
               '• Alimentation — L\'orignal est un herbivore brouteur. Il préfère les jeunes peuplements feuillus (peuplier faux-tremble, aulne rugueux, saule, bouleau à papier) qui poussent dans les coupes et brûlis récents (5–25 ans).\n\n'
               '• Abri — Les résineux denses (épinette, sapin) servent de protection thermique en hiver et de couvert de sécurité.\n\n'
               '• Eau — L\'orignal est étroitement lié aux milieux riverains, marécages et tourbières pour la végétation aquatique (été) et la thermorégulation.\n\n'
