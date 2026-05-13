@@ -576,7 +576,7 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
         const Distance().as(LengthUnit.Meter,
             LatLng(r['lat'] as double, r['lon'] as double), pos) < 500);
     if (!tooClose) result.add(c);
-    if (result.length >= 6) break;
+    if (result.length >= 5) break;
   }
   return result;
 }
@@ -708,7 +708,7 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
   }
 
   result.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
-  return result.take(20).toList();
+  return result.take(5).toList();
 }
 
 List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJsonData) {

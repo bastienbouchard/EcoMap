@@ -547,6 +547,20 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  // Rayon visible en mètres depuis les bounds de la carte, avec un minimum garanti
+  double _visibleRadiusM({double minM = 2000}) {
+    try {
+      final b = _mapController.camera.visibleBounds;
+      final center = _mapController.camera.center;
+      final latM = (b.northEast.latitude - b.southWest.latitude) / 2 * 111000;
+      final lonM = (b.northEast.longitude - b.southWest.longitude) / 2 *
+          111000 * cos(center.latitude * pi / 180);
+      return max(sqrt(latM * latM + lonM * lonM), minM);
+    } catch (_) {
+      return minM;
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Affût (pinch points)
   // ─────────────────────────────────────────────────────────────────────────
@@ -563,7 +577,7 @@ class _MapPageState extends State<MapPage> {
       final result = await compute(findPinchPointsIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
-        'radiusM': 3000.0,
+        'radiusM': _visibleRadiusM(minM: 1500),
         'geoJson': geoJson,
       });
       if (!mounted) return;
@@ -573,9 +587,9 @@ class _MapPageState extends State<MapPage> {
         _loadingPinch = false;
       });
       if (result.isEmpty) {
-        _snack('Aucun affût détecté — télécharge une carte écoforestière via "Carte éco"', error: true);
+        _snack('Aucun affût détecté dans la zone visible — zoom arrière ou déplace la carte', error: true);
       } else {
-        _snack('${result.length} emplacements d\'affût détectés dans un rayon de 3 km');
+        _snack('${result.length} meilleur${result.length > 1 ? 's' : ''} emplacement${result.length > 1 ? 's' : ''} d\'affût dans la zone visible');
       }
     } catch (_) {
       if (mounted) setState(() => _loadingPinch = false);
@@ -595,7 +609,7 @@ class _MapPageState extends State<MapPage> {
       final result = await compute(findSalinesIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
-        'radiusM': 4000.0,
+        'radiusM': _visibleRadiusM(minM: 2000),
         'geoJson': geoJson,
       });
       if (!mounted) return;
@@ -605,9 +619,9 @@ class _MapPageState extends State<MapPage> {
         _loadingSalines = false;
       });
       if (result.isEmpty) {
-        _snack('Aucun site de saline trouvé dans ce rayon — essaie dans une zone plus humide', error: true);
+        _snack('Aucun site de saline trouvé — zoom arrière ou déplace la carte vers une zone plus humide', error: true);
       } else {
-        _snack('${result.length} emplacements de saline détectés dans un rayon de 4 km');
+        _snack('${result.length} meilleur${result.length > 1 ? 's' : ''} emplacement${result.length > 1 ? 's' : ''} de saline dans la zone visible');
       }
     } catch (_) {
       if (mounted) setState(() => _loadingSalines = false);
@@ -1562,6 +1576,13 @@ class _MapPageState extends State<MapPage> {
     return MarkerLayer(
       markers: _pinchPoints.map((p) {
         final pos = LatLng(p['lat'] as double, p['lon'] as double);
+        final score = (p['score'] as num?)?.toInt() ?? 0;
+        final towerColor = score >= 18
+            ? const Color(0xFF2E7D32)
+            : score >= 12
+                ? const Color(0xFF4CAF50)
+                : const Color(0xFF81C784);
+        final fillLevel = (score / 25.0).clamp(0.2, 1.0);
         return Marker(
           point: pos,
           width: 48, height: 48,
@@ -1608,18 +1629,25 @@ class _MapPageState extends State<MapPage> {
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1A),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
+                border: Border.all(color: towerColor, width: 2.5),
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.5),
+                  BoxShadow(color: towerColor.withOpacity(0.55),
                       blurRadius: 10, spreadRadius: 1),
                   const BoxShadow(color: Colors.black54, blurRadius: 4),
                 ],
               ),
               child: Center(
-                child: SizedBox(
-                  width: 26, height: 26,
-                  child: CustomPaint(painter: HuntingTowerPainter()),
-                ),
+                child: Stack(alignment: Alignment.bottomCenter, children: [
+                  SizedBox(width: 26, height: 26,
+                      child: CustomPaint(painter: HuntingTowerPainter(
+                          color: Colors.white.withOpacity(0.12)))),
+                  ClipRect(child: Align(
+                    alignment: Alignment.bottomCenter,
+                    heightFactor: fillLevel,
+                    child: SizedBox(width: 26, height: 26,
+                        child: CustomPaint(painter: HuntingTowerPainter(color: towerColor))),
+                  )),
+                ]),
               ),
             ),
           ),
@@ -1782,6 +1810,8 @@ class _MapPageState extends State<MapPage> {
     return MarkerLayer(
       markers: _salines.map((s) {
         final pos = LatLng(s['lat'] as double, s['lon'] as double);
+        final score = (s['score'] as num?)?.toInt() ?? 0;
+        final fillLevel = (score / 20.0).clamp(0.2, 1.0);
         return Marker(
           point: pos,
           width: 48, height: 48,
@@ -1838,11 +1868,16 @@ class _MapPageState extends State<MapPage> {
                   const BoxShadow(color: Colors.black54, blurRadius: 4),
                 ],
               ),
-              child: const Center(
-                child: CustomPaint(
-                  size: Size(44, 44),
-                  painter: SaltCubePainter(),
-                ),
+              child: Center(
+                child: Stack(alignment: Alignment.bottomCenter, children: [
+                  Opacity(opacity: 0.15,
+                      child: const CustomPaint(size: Size(44, 44), painter: SaltCubePainter())),
+                  ClipRect(child: Align(
+                    alignment: Alignment.bottomCenter,
+                    heightFactor: fillLevel,
+                    child: const CustomPaint(size: Size(44, 44), painter: SaltCubePainter()),
+                  )),
+                ]),
               ),
             ),
           ),
