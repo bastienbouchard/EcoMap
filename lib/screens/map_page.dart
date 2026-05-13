@@ -78,6 +78,9 @@ class _MapPageState extends State<MapPage> {
   List<Polygon> _polygonsCache = [];
   List<Map<String, dynamic>> _polygonLabels = [];
 
+  // ── Cadastre (terres privées) ──
+  List<Polygon> _cadastrePolygons = [];
+
   // ── Hotspots ──
   bool _showHotspots = false;
   List<LatLng> _hotspots = [];
@@ -304,9 +307,57 @@ class _MapPageState extends State<MapPage> {
     });
   }
 
-  // Terres privées: chargée comme TileLayer ArcGIS — pas de CORS, pas de fetch
-  // _fetchCadastre garde la signature pour compatibilité avec l'appel onPositionChanged
-  void _fetchCadastre() {}
+  Future<void> _fetchCadastre() async {
+    if (!_showTerresPrivees || _mapZoom < 10) return;
+    try {
+      final b = _mapController.camera.visibleBounds;
+      final url = Uri.parse(
+        'https://northamerica-northeast1-moosesense-a84cf.cloudfunctions.net/get_cadastre'
+        '?min_lat=${b.southWest.latitude}'
+        '&min_lon=${b.southWest.longitude}'
+        '&max_lat=${b.northEast.latitude}'
+        '&max_lon=${b.northEast.longitude}',
+      );
+      final resp = await http.get(url);
+      if (!mounted) return;
+      if (resp.statusCode != 200) {
+        debugPrint('Cadastre HTTP ${resp.statusCode}: ${resp.body}');
+        return;
+      }
+      final data = json.decode(resp.body) as Map<String, dynamic>;
+      final features = data['features'] as List? ?? [];
+      debugPrint('Cadastre: ${features.length} lots reçus');
+      final polys = <Polygon>[];
+      for (final f in features) {
+        try {
+          final geom = f['geometry'] as Map<String, dynamic>;
+          final type = geom['type'] as String;
+          final rawCoords = geom['coordinates'] as List;
+          final rings = type == 'MultiPolygon'
+              ? (rawCoords).expand((r) => (r as List))
+              : rawCoords;
+          for (final ring in rings) {
+            final pts = (ring as List)
+                .map((p) => LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()))
+                .toList();
+            if (pts.length >= 3) {
+              polys.add(Polygon(
+                points: pts,
+                color: Colors.transparent,
+                borderColor: const Color(0xFFFF6B35),
+                borderStrokeWidth: 1.2,
+              ));
+            }
+          }
+        } catch (e) {
+          debugPrint('Cadastre ring parse error: $e');
+        }
+      }
+      if (mounted) setState(() => _cadastrePolygons = polys);
+    } catch (e) {
+      debugPrint('Cadastre error: $e');
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Hotspots
@@ -1162,19 +1213,16 @@ class _MapPageState extends State<MapPage> {
           ),
         ),
         if (_showTerresPubliques)
-          TileLayer(
-            tileProvider: const ArcGISExportTileProvider(layer: 'patp'),
+          Opacity(
             opacity: 0.55,
-            minNativeZoom: 6,
-            maxNativeZoom: 17,
+            child: TileLayer(
+              tileProvider: ArcGISExportTileProvider(layer: 'patp'),
+              minNativeZoom: 6,
+              maxNativeZoom: 17,
+            ),
           ),
-        if (_showTerresPrivees)
-          TileLayer(
-            tileProvider: const ArcGISExportTileProvider(layer: 'cadastre'),
-            opacity: 0.7,
-            minNativeZoom: 12,
-            maxNativeZoom: 17,
-          ),
+        if (_showTerresPrivees && _cadastrePolygons.isNotEmpty)
+          PolygonLayer(polygons: _cadastrePolygons, simplificationTolerance: 0),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
           PolygonLayer(
               polygons: _polygonsCache, simplificationTolerance: 0),

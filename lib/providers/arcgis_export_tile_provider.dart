@@ -8,9 +8,9 @@ class ArcGISExportTileProvider extends TileProvider {
   final String layer; // 'patp' ou 'cadastre'
 
   static const _proxy =
-      'https://us-central1-moosesense-a84cf.cloudfunctions.net/tile_proxy';
+      'https://tile-proxy-7h4tuvddbq-uc.a.run.app';
 
-  const ArcGISExportTileProvider({required this.layer});
+  ArcGISExportTileProvider({required this.layer});
 
   @override
   ImageProvider getImage(TileCoordinates coords, TileLayer options) {

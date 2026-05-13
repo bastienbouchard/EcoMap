@@ -7,7 +7,7 @@ import zipfile
 import geopandas as gpd
 import requests
 from firebase_functions import https_fn
-from firebase_functions.options import set_global_options
+from firebase_functions.options import set_global_options, MemoryOption, CorsOptions
 from shapely.geometry import box
 
 set_global_options(max_instances=5)
@@ -62,9 +62,9 @@ def _download_and_clip(lien_gpkg, bbox):
 
 
 @https_fn.on_request(
-    memory=https_fn.options.MemoryOption.GB_4,
+    memory=MemoryOption.GB_4,
     timeout_sec=540,
-    cors=https_fn.options.CorsOptions(cors_origins="*", cors_methods=["GET"]),
+    cors=CorsOptions(cors_origins="*", cors_methods=["GET"]),
 )
 def get_ecoforestier(req: https_fn.Request) -> https_fn.Response:
     try:
@@ -125,8 +125,8 @@ def _tile_to_bbox(z: int, x: int, y: int):
 
 @https_fn.on_request(
     timeout_sec=30,
-    memory=https_fn.options.MemoryOption.MB_256,
-    cors=https_fn.options.CorsOptions(cors_origins="*", cors_methods=["GET"]),
+    memory=MemoryOption.MB_256,
+    cors=CorsOptions(cors_origins="*", cors_methods=["GET"]),
 )
 def tile_proxy(req: https_fn.Request) -> https_fn.Response:
     layer = req.args.get("layer", "")
