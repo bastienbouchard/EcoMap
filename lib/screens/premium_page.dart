@@ -8,11 +8,8 @@ class PremiumPage extends StatefulWidget {
 }
 
 class _PremiumPageState extends State<PremiumPage> {
-  // ── Remplace par tes vrais liens Stripe Checkout ──
-  static const _stripeUrlSaison = 'https://buy.stripe.com/PLACEHOLDER_SAISON';
-  static const _stripeUrlVie    = 'https://buy.stripe.com/PLACEHOLDER_VIE';
-
-  int _selected = 0; // 0 = saison, 1 = à vie
+  // ── Remplace par ton vrai lien Stripe Checkout ──
+  static const _stripeUrl = 'https://buy.stripe.com/PLACEHOLDER_VIE';
 
   static const _freeFeatures = [
     (Icons.gps_fixed_rounded,       'GPS & localisation'),
@@ -172,29 +169,39 @@ class _PremiumPageState extends State<PremiumPage> {
             ),
             const SizedBox(height: 28),
 
-            // ── Choisir un plan ──
-            const Text('Choisir un plan',
-                style: TextStyle(color: Colors.white,
-                    fontSize: 15, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _planCard(
-              selected: _selected == 0,
-              title: 'Par saison',
-              price: '19,99 \$',
-              subtitle: 'Accès jusqu\'au 31 décembre',
-              badge: null,
-              onTap: () => setState(() => _selected = 0),
+            // ── Prix ──
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF6B35).withOpacity(0.10),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.5), width: 1.5),
+              ),
+              child: Row(children: [
+                const Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Accès à vie',
+                        style: TextStyle(color: Colors.white,
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 4),
+                    Text('Un seul paiement — toutes les saisons futures',
+                        style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  ],
+                )),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('49,99 \$',
+                        style: TextStyle(color: Color(0xFFFF6B35),
+                            fontSize: 26, fontWeight: FontWeight.bold)),
+                    Text('CAD', style: TextStyle(
+                        color: const Color(0xFFFF6B35).withOpacity(0.7), fontSize: 11)),
+                  ],
+                ),
+              ]),
             ),
-            const SizedBox(height: 10),
-            _planCard(
-              selected: _selected == 1,
-              title: 'À vie',
-              price: '49,99 \$',
-              subtitle: 'Un seul paiement — toutes les saisons',
-              badge: 'MEILLEURE VALEUR',
-              onTap: () => setState(() => _selected = 1),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
             // ── Bouton ──
             SizedBox(
@@ -209,18 +216,14 @@ class _PremiumPageState extends State<PremiumPage> {
                   elevation: 4,
                 ),
                 onPressed: _acheter,
-                child: Text(
-                  _selected == 0
-                      ? 'Obtenir Pro — 19,99 \$/saison'
-                      : 'Obtenir Pro — 49,99 \$ à vie',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: const Text('Obtenir OrignalScan Pro — 49,99 \$',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
             const Center(
               child: Text(
-                'Paiement sécurisé par Stripe.\nAucun renouvellement automatique.',
+                'Paiement sécurisé par Stripe.\nAucun renouvellement — accès permanent.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white38, fontSize: 11, height: 1.5),
               ),
@@ -242,94 +245,8 @@ class _PremiumPageState extends State<PremiumPage> {
     ]);
   }
 
-  Widget _planCard({
-    required bool selected,
-    required String title,
-    required String price,
-    required String subtitle,
-    required String? badge,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFFFF6B35).withOpacity(0.12)
-              : const Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? const Color(0xFFFF6B35) : Colors.white12,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Row(children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 22, height: 22,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: selected ? const Color(0xFFFF6B35) : Colors.white30,
-                width: 2,
-              ),
-              color: selected ? const Color(0xFFFF6B35) : Colors.transparent,
-            ),
-            child: selected
-                ? const Icon(Icons.check, color: Colors.white, size: 13)
-                : null,
-          ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Text(title,
-                    style: TextStyle(
-                      color: selected ? Colors.white : Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    )),
-                if (badge != null) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                          color: const Color(0xFF4CAF50).withOpacity(0.5)),
-                    ),
-                    child: Text(badge,
-                        style: const TextStyle(
-                            color: Color(0xFF4CAF50),
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5)),
-                  ),
-                ],
-              ]),
-              const SizedBox(height: 2),
-              Text(subtitle,
-                  style: const TextStyle(color: Colors.white38, fontSize: 11)),
-            ],
-          )),
-          Text(price,
-              style: TextStyle(
-                color: selected ? const Color(0xFFFF6B35) : Colors.white54,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              )),
-        ]),
-      ),
-    );
-  }
-
   Future<void> _acheter() async {
-    final url = _selected == 0 ? _stripeUrlSaison : _stripeUrlVie;
-    final uri = Uri.parse(url);
+    final uri = Uri.parse(_stripeUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
