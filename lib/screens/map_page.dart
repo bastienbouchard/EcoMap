@@ -1637,16 +1637,10 @@ class _MapPageState extends State<MapPage> {
                 ],
               ),
               child: Center(
-                child: Stack(alignment: Alignment.bottomCenter, children: [
-                  CustomPaint(size: const Size(26, 26),
-                      painter: HuntingTowerPainter(color: towerColor.withOpacity(0.15))),
-                  ClipRect(child: Align(
-                    alignment: Alignment.bottomCenter,
-                    heightFactor: fillLevel,
-                    child: CustomPaint(size: const Size(26, 26),
-                        painter: HuntingTowerPainter(color: towerColor)),
-                  )),
-                ]),
+                child: CustomPaint(
+                  size: const Size(26, 26),
+                  painter: HuntingTowerPainter(color: towerColor, fillLevel: fillLevel),
+                ),
               ),
             ),
           ),
@@ -1868,15 +1862,10 @@ class _MapPageState extends State<MapPage> {
                 ],
               ),
               child: Center(
-                child: Stack(alignment: Alignment.bottomCenter, children: [
-                  const Opacity(opacity: 0.18,
-                      child: CustomPaint(size: Size(44, 44), painter: SaltCubePainter())),
-                  ClipRect(child: Align(
-                    alignment: Alignment.bottomCenter,
-                    heightFactor: fillLevel,
-                    child: const CustomPaint(size: Size(44, 44), painter: SaltCubePainter()),
-                  )),
-                ]),
+                child: CustomPaint(
+                  size: const Size(44, 44),
+                  painter: SaltCubePainter(fillLevel: fillLevel),
+                ),
               ),
             ),
           ),
