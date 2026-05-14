@@ -218,7 +218,7 @@ class HuntingTowerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width; final h = size.height;
-    _draw(canvas, w, h, color.withOpacity(0.15));
+    _draw(canvas, w, h, color.withOpacity(0.08));
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, h * (1.0 - fillLevel), w, h * fillLevel));
     _draw(canvas, w, h, color);
@@ -299,7 +299,7 @@ class SaltCubePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width; final h = size.height;
-    _draw(canvas, w, h, 0.18);
+    _draw(canvas, w, h, 0.08);
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, h * (1.0 - fillLevel), w, h * fillLevel));
     _draw(canvas, w, h, 1.0);
