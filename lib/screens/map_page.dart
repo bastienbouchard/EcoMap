@@ -1576,6 +1576,13 @@ class _MapPageState extends State<MapPage> {
     return MarkerLayer(
       markers: _pinchPoints.map((p) {
         final pos = LatLng(p['lat'] as double, p['lon'] as double);
+        final score = (p['score'] as num?)?.toInt() ?? 0;
+        final towerColor = score >= 18
+            ? const Color(0xFF2E7D32)
+            : score >= 12
+                ? const Color(0xFF4CAF50)
+                : const Color(0xFF81C784);
+        final fillLevel = (score / 25.0).clamp(0.2, 1.0);
         return Marker(
           point: pos,
           width: 48, height: 48,
@@ -1622,17 +1629,17 @@ class _MapPageState extends State<MapPage> {
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1A),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
+                border: Border.all(color: towerColor, width: 2.5),
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.55),
+                  BoxShadow(color: towerColor.withOpacity(0.55),
                       blurRadius: 10, spreadRadius: 1),
                   const BoxShadow(color: Colors.black54, blurRadius: 4),
                 ],
               ),
-              child: const Center(
+              child: Center(
                 child: CustomPaint(
-                  size: Size(26, 26),
-                  painter: HuntingTowerPainter(color: Color(0xFF4CAF50)),
+                  size: const Size(26, 26),
+                  painter: HuntingTowerPainter(color: towerColor, fillLevel: fillLevel),
                 ),
               ),
             ),
@@ -1796,6 +1803,8 @@ class _MapPageState extends State<MapPage> {
     return MarkerLayer(
       markers: _salines.map((s) {
         final pos = LatLng(s['lat'] as double, s['lon'] as double);
+        final score = (s['score'] as num?)?.toInt() ?? 0;
+        final fillLevel = (score / 20.0).clamp(0.2, 1.0);
         return Marker(
           point: pos,
           width: 48, height: 48,
@@ -1855,7 +1864,7 @@ class _MapPageState extends State<MapPage> {
               child: Center(
                 child: CustomPaint(
                   size: const Size(44, 44),
-                  painter: const SaltCubePainter(),
+                  painter: SaltCubePainter(fillLevel: fillLevel),
                 ),
               ),
             ),
