@@ -18,6 +18,11 @@ class AuthService {
   static String? get uid => _uid;
   static String? get email => _email;
 
+  static Future<String?> getIdToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyToken);
+  }
+
   // ── Restaure la session depuis le stockage local ──
   static Future<void> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../services/auth_service.dart';
 import '../services/photo_picker.dart';
 
 class ChatPage extends StatefulWidget {
@@ -59,11 +60,13 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   static const _workerUrl = 'https://ecomap-upload.bastienbouchard.workers.dev';
-  static const _uploadSecret = 'moosescan2026';
 
   Future<void> _envoyerPhoto() async {
     final bytes = await pickPhoto();
     if (bytes == null || bytes.isEmpty) return;
+
+    final idToken = await AuthService.getIdToken();
+    if (idToken == null) return;
 
     setState(() => _envoyantPhoto = true);
     try {
@@ -72,7 +75,7 @@ class _ChatPageState extends State<ChatPage> {
         Uri.parse(_workerUrl),
         headers: {
           'Content-Type': 'image/jpeg',
-          'X-Auth-Token': _uploadSecret,
+          'Authorization': 'Bearer $idToken',
           'X-Filename': filename,
         },
         body: bytes,
