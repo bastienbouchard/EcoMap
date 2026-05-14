@@ -498,9 +498,31 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
   final radiusM = (params['radiusM'] as num?)?.toDouble() ?? 4000.0;
   final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
 
+  // Pre-filter: keep only features whose geometry touches the search bbox
+  final latMargin = radiusM / 111000 * 1.3;
+  final lonMargin = radiusM / (111000 * cos(lat * pi / 180)) * 1.3;
+  final minLat = lat - latMargin; final maxLat = lat + latMargin;
+  final minLon = lon - lonMargin; final maxLon = lon + lonMargin;
+  final localFeatures = features.where((feat) {
+    try {
+      final geom = feat['geometry'] as Map;
+      final type = geom['type'] as String;
+      final List ring;
+      if (type == 'Polygon') ring = (geom['coordinates'] as List)[0] as List;
+      else if (type == 'MultiPolygon') ring = ((geom['coordinates'] as List)[0] as List)[0] as List;
+      else return false;
+      for (final c in ring) {
+        final fLon = (c[0] as num).toDouble();
+        final fLat = (c[1] as num).toDouble();
+        if (fLat >= minLat && fLat <= maxLat && fLon >= minLon && fLon <= maxLon) return true;
+      }
+      return false;
+    } catch (_) { return false; }
+  }).toList();
+
   // Collecte les centroids des plans/cours d'eau dans le rayon étendu
   final waterPoints = <List<double>>[];
-  for (final feat in features) {
+  for (final feat in localFeatures) {
     try {
       final props = feat['properties'] as Map;
       final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
@@ -531,7 +553,7 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
 
   final candidates = <Map<String, dynamic>>[];
 
-  for (final feat in features) {
+  for (final feat in localFeatures) {
     try {
       final props = feat['properties'] as Map;
       final drainVal = int.tryParse((props['cl_drai'] ?? '').toString()) ?? 0;
@@ -644,7 +666,29 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
   final radius = (params['radiusM'] as num?)?.toDouble() ?? 3000.0;
   final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
 
-  const stepM = 180.0;
+  // Pre-filter: keep only features whose geometry touches the search bbox
+  final latMargin = radius / 111000 * 1.3;
+  final lonMargin = radius / (111000 * cos(lat * pi / 180)) * 1.3;
+  final minLat = lat - latMargin; final maxLat = lat + latMargin;
+  final minLon = lon - lonMargin; final maxLon = lon + lonMargin;
+  final localFeatures = features.where((feat) {
+    try {
+      final geom = feat['geometry'] as Map;
+      final type = geom['type'] as String;
+      final List ring;
+      if (type == 'Polygon') ring = (geom['coordinates'] as List)[0] as List;
+      else if (type == 'MultiPolygon') ring = ((geom['coordinates'] as List)[0] as List)[0] as List;
+      else return false;
+      for (final c in ring) {
+        final fLon = (c[0] as num).toDouble();
+        final fLat = (c[1] as num).toDouble();
+        if (fLat >= minLat && fLat <= maxLat && fLon >= minLon && fLon <= maxLon) return true;
+      }
+      return false;
+    } catch (_) { return false; }
+  }).toList();
+
+  const stepM = 280.0;
   final stepLat = stepM / 111000;
   final stepLon = stepM / 111000 / cos(lat * pi / 180);
   final latN = (radius / stepM).ceil();
@@ -652,7 +696,7 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
 
   // Returns -1 for water, 0 for unknown, else scoreOrignal
   int scoreAt(double pLat, double pLon) {
-    for (final feat in features) {
+    for (final feat in localFeatures) {
       if (!pointInGeometry(LatLng(pLat, pLon), feat['geometry'] as Map)) continue;
       final props = feat['properties'] as Map;
       final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
