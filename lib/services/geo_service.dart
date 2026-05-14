@@ -714,8 +714,8 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
     int barriers = 0, goodNeighbors = 0;
     for (final other in nodes) {
       if (identical(node, other)) continue;
-      final dM = sqrt(pow((other['lat'] as double - nLat) * 111000, 2) +
-                      pow((other['lon'] as double - nLon) * 111000 * cosN, 2));
+      final dM = sqrt(pow(((other['lat'] as double) - nLat) * 111000, 2) +
+                      pow(((other['lon'] as double) - nLon) * 111000 * cosN, 2));
       if (dM > neighborM) continue;
       final oScore = other['score'] as int;
       if (oScore < 5) barriers++;
