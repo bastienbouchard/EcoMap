@@ -191,23 +191,24 @@ class MudHolePainter extends CustomPainter {
 
 class HuntingTowerPainter extends CustomPainter {
   final Color color;
-  final double fillLevel;
-  const HuntingTowerPainter({this.color = Colors.white, this.fillLevel = 1.0});
+  const HuntingTowerPainter({this.color = Colors.white});
 
-  void _draw(Canvas canvas, double w, double h, Color c) {
-    final fill   = Paint()..color = c..style = PaintingStyle.fill;
-    final stroke = Paint()..color = c..style = PaintingStyle.stroke..strokeWidth = 2.0..strokeCap = StrokeCap.round;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final fill   = Paint()..color = color..style = PaintingStyle.fill;
+    final stroke = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2.0..strokeCap = StrokeCap.round;
     canvas.drawRect(Rect.fromLTWH(w * .22, h * .04, w * .56, h * .36), fill);
     canvas.drawRect(Rect.fromLTWH(w * .22, h * .04, w * .56, h * .36),
-        Paint()..color = c.withOpacity(0.5)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+        Paint()..color = color.withOpacity(0.5)..style = PaintingStyle.stroke..strokeWidth = 1.5);
     canvas.drawRect(Rect.fromLTWH(w * .38, h * .11, w * .24, h * .20),
         Paint()..color = const Color(0xFFFFE082)..style = PaintingStyle.fill);
     canvas.drawLine(Offset(w * .20, h * .40), Offset(w * .80, h * .40), stroke);
     canvas.drawLine(Offset(w * .28, h * .40), Offset(w * .10, h * .96), stroke);
     canvas.drawLine(Offset(w * .72, h * .40), Offset(w * .90, h * .96), stroke);
     canvas.drawLine(Offset(w * .12, h * .72), Offset(w * .88, h * .72),
-        Paint()..color = c..style = PaintingStyle.stroke..strokeWidth = 1.5..strokeCap = StrokeCap.round);
-    final ladder = Paint()..color = c..style = PaintingStyle.stroke..strokeWidth = 1.2..strokeCap = StrokeCap.round;
+        Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 1.5..strokeCap = StrokeCap.round);
+    final ladder = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 1.2..strokeCap = StrokeCap.round;
     canvas.drawLine(Offset(w * .41, h * .40), Offset(w * .41, h * .96), ladder);
     canvas.drawLine(Offset(w * .59, h * .40), Offset(w * .59, h * .96), ladder);
     for (final y in [.52, .64, .76]) {
@@ -215,17 +216,7 @@ class HuntingTowerPainter extends CustomPainter {
     }
   }
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width; final h = size.height;
-    _draw(canvas, w, h, color.withOpacity(0.08));
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, h * (1.0 - fillLevel), w, h * fillLevel));
-    _draw(canvas, w, h, color);
-    canvas.restore();
-  }
-
-  @override bool shouldRepaint(HuntingTowerPainter old) => old.color != color || old.fillLevel != fillLevel;
+  @override bool shouldRepaint(HuntingTowerPainter old) => old.color != color;
 }
 
 class TrackingPainter extends CustomPainter {
@@ -265,10 +256,11 @@ class TrackingPainter extends CustomPainter {
 }
 
 class SaltCubePainter extends CustomPainter {
-  final double fillLevel;
-  const SaltCubePainter({this.fillLevel = 1.0});
+  const SaltCubePainter();
 
-  void _draw(Canvas canvas, double w, double h, double opacity) {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
     final s = min(w / sqrt(3), h / 2) * 0.82;
     final cx = w / 2; final cy = h / 2;
     final top    = Offset(cx, cy - s);
@@ -287,26 +279,16 @@ class SaltCubePainter extends CustomPainter {
     final leftFace = Path()
       ..moveTo(left.dx, left.dy) ..lineTo(center.dx, center.dy)
       ..lineTo(bottom.dx, bottom.dy) ..lineTo(botL.dx, botL.dy) ..close();
-    canvas.drawPath(topFace,   Paint()..color = Color(0xFFEF5350).withOpacity(opacity)..style = PaintingStyle.fill);
-    canvas.drawPath(rightFace, Paint()..color = Color(0xFFC62828).withOpacity(opacity)..style = PaintingStyle.fill);
-    canvas.drawPath(leftFace,  Paint()..color = Color(0xFF7F0000).withOpacity(opacity)..style = PaintingStyle.fill);
-    final edge = Paint()..color = Colors.white.withOpacity(0.55 * opacity)..strokeWidth = 1.2..style = PaintingStyle.stroke;
+    canvas.drawPath(topFace,   Paint()..color = const Color(0xFFEF5350)..style = PaintingStyle.fill);
+    canvas.drawPath(rightFace, Paint()..color = const Color(0xFFC62828)..style = PaintingStyle.fill);
+    canvas.drawPath(leftFace,  Paint()..color = const Color(0xFF7F0000)..style = PaintingStyle.fill);
+    final edge = Paint()..color = Colors.white.withOpacity(0.55)..strokeWidth = 1.2..style = PaintingStyle.stroke;
     canvas.drawPath(topFace, edge);
     canvas.drawPath(rightFace, edge);
     canvas.drawPath(leftFace, edge);
   }
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width; final h = size.height;
-    _draw(canvas, w, h, 0.08);
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, h * (1.0 - fillLevel), w, h * fillLevel));
-    _draw(canvas, w, h, 1.0);
-    canvas.restore();
-  }
-
-  @override bool shouldRepaint(SaltCubePainter old) => old.fillLevel != fillLevel;
+  @override bool shouldRepaint(_) => false;
 }
 
 class ShrubPainter extends CustomPainter {
