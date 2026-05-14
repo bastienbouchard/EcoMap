@@ -658,101 +658,80 @@ List<Map<String, dynamic>> buildPolygonLabelsIsolate(Map<String, dynamic> geoJso
 }
 
 // ── PINCH POINTS ───────────────────────────────────────────────────────────
-// Détecte les corridors naturels (col de bouteille) où l'orignal passe.
-// Un pinch = bon habitat flanqué de barrières (eau/ouvert) sur deux côtés opposés.
+// Détecte les corridors naturels où l'orignal est forcé de passer.
+// Approche centroïde : pas de point-in-polygon, O(N_local²) sur ~100 features.
 List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
   final lat    = params['lat'] as double;
   final lon    = params['lon'] as double;
   final radius = (params['radiusM'] as num?)?.toDouble() ?? 3000.0;
   final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
 
-  // Pre-filter: keep only features whose geometry touches the search bbox
-  final latMargin = radius / 111000 * 1.3;
-  final lonMargin = radius / (111000 * cos(lat * pi / 180)) * 1.3;
-  final minLat = lat - latMargin; final maxLat = lat + latMargin;
-  final minLon = lon - lonMargin; final maxLon = lon + lonMargin;
-  final localFeatures = features.where((feat) {
+  // Étape 1 : calculer centroïde + score pour chaque feature dans la zone
+  final cosLat = cos(lat * pi / 180);
+  final nodes = <Map<String, dynamic>>[];
+  for (final feat in features) {
     try {
       final geom = feat['geometry'] as Map;
       final type = geom['type'] as String;
       final List ring;
       if (type == 'Polygon') ring = (geom['coordinates'] as List)[0] as List;
       else if (type == 'MultiPolygon') ring = ((geom['coordinates'] as List)[0] as List)[0] as List;
-      else return false;
-      for (final c in ring) {
-        final fLon = (c[0] as num).toDouble();
-        final fLat = (c[1] as num).toDouble();
-        if (fLat >= minLat && fLat <= maxLat && fLon >= minLon && fLon <= maxLon) return true;
-      }
-      return false;
-    } catch (_) { return false; }
-  }).toList();
+      else continue;
 
-  const stepM = 280.0;
-  final stepLat = stepM / 111000;
-  final stepLon = stepM / 111000 / cos(lat * pi / 180);
-  final latN = (radius / stepM).ceil();
-  final lonN = (radius / stepM).ceil();
+      double sumLat = 0, sumLon = 0;
+      for (final c in ring) { sumLon += (c[0] as num).toDouble(); sumLat += (c[1] as num).toDouble(); }
+      final cLat = sumLat / ring.length;
+      final cLon = sumLon / ring.length;
 
-  // Returns -1 for water, 0 for unknown, else scoreOrignal
-  int scoreAt(double pLat, double pLon) {
-    for (final feat in localFeatures) {
-      if (!pointInGeometry(LatLng(pLat, pLon), feat['geometry'] as Map)) continue;
+      final distM = sqrt(pow((cLat - lat) * 111000, 2) + pow((cLon - lon) * 111000 * cosLat, 2));
+      if (distM > radius * 1.2) continue;
+
       final props = feat['properties'] as Map;
       final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
       final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
-      if (typeEco.contains('EAU') || codeCouv == 'EE') return -1;
-      return scoreOrignal(props);
-    }
-    return 0;
+      final score = (typeEco.contains('EAU') || codeCouv == 'EE') ? -1 : scoreOrignal(props);
+
+      nodes.add({'lat': cLat, 'lon': cLon, 'score': score, 'distM': distM});
+    } catch (_) {}
   }
 
-  bool isBarrier(int s) => s == -1 || s < 5;
-  bool isGood(int s) => s >= 10;
+  // Étape 2 : pour chaque bon habitat, vérifier si c'est une zone de transition
+  // (a des barrières ET du bon habitat dans un rayon de 450 m)
+  const neighborM = 450.0;
+  final result = <Map<String, dynamic>>[];
+  final seen = <String>{};
 
-  final List<Map<String, dynamic>> result = [];
-  final Set<String> seen = {};
+  // Trier par score décroissant pour trouver les meilleurs en premier
+  nodes.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
 
-  for (int i = -latN; i <= latN; i++) {
-    for (int j = -lonN; j <= lonN; j++) {
-      final pLat = lat + i * stepLat;
-      final pLon = lon + j * stepLon;
-      final distM = sqrt(pow((pLat - lat) * 111000, 2) +
-                         pow((pLon - lon) * 111000 * cos(lat * pi / 180), 2));
-      if (distM > radius) continue;
+  for (final node in nodes) {
+    final nScore = node['score'] as int;
+    if (nScore < 10) continue;
+    final nLat = node['lat'] as double;
+    final nLon = node['lon'] as double;
+    final cosN = cos(nLat * pi / 180);
 
-      final center = scoreAt(pLat, pLon);
-      if (center < 10) continue; // le pinch lui-même doit être bon habitat
-
-      final n = scoreAt(pLat + stepLat, pLon);
-      final s = scoreAt(pLat - stepLat, pLon);
-      final e = scoreAt(pLat, pLon + stepLon);
-      final w = scoreAt(pLat, pLon - stepLon);
-
-      final nsBlocked = isBarrier(n) && isBarrier(s);
-      final ewBlocked = isBarrier(e) && isBarrier(w);
-      final nBlocked  = isBarrier(n) && (isGood(s) || isGood(e) || isGood(w));
-      final sBlocked  = isBarrier(s) && (isGood(n) || isGood(e) || isGood(w));
-      final eBlocked  = isBarrier(e) && (isGood(w) || isGood(n) || isGood(s));
-      final wBlocked  = isBarrier(w) && (isGood(e) || isGood(n) || isGood(s));
-
-      final isPinch = nsBlocked || ewBlocked ||
-          (nBlocked && sBlocked) || (eBlocked && wBlocked) ||
-          (nBlocked && eBlocked) || (nBlocked && wBlocked) ||
-          (sBlocked && eBlocked) || (sBlocked && wBlocked);
-
-      if (!isPinch) continue;
-
-      // Déduplique à 360m
-      final key = '${(pLat * 3000).round()}_${(pLon * 3000).round()}';
-      if (seen.contains(key)) continue;
-      seen.add(key);
-      result.add({'lat': pLat, 'lon': pLon, 'score': center});
+    int barriers = 0, goodNeighbors = 0;
+    for (final other in nodes) {
+      if (identical(node, other)) continue;
+      final dM = sqrt(pow((other['lat'] as double - nLat) * 111000, 2) +
+                      pow((other['lon'] as double - nLon) * 111000 * cosN, 2));
+      if (dM > neighborM) continue;
+      final oScore = other['score'] as int;
+      if (oScore < 5) barriers++;
+      else if (oScore >= 10) goodNeighbors++;
     }
+
+    if (barriers < 1 || goodNeighbors < 1) continue;
+
+    final key = '${(nLat * 2500).round()}_${(nLon * 2500).round()}';
+    if (seen.contains(key)) continue;
+    seen.add(key);
+    result.add({'lat': nLat, 'lon': nLon, 'score': nScore});
+    if (result.length >= 5) break;
   }
 
-  result.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
-  return result.take(5).toList();
+  return result;
 }
 
 List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJsonData) {
