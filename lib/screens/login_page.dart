@@ -64,14 +64,19 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   String _friendlyError(String raw) {
-    if (raw.contains('EMAIL_NOT_FOUND') || raw.contains('INVALID_LOGIN_CREDENTIALS'))
+    if (raw.contains('user-not-found') || raw.contains('wrong-password') ||
+        raw.contains('invalid-credential') || raw.contains('INVALID_LOGIN_CREDENTIALS'))
       return 'Aucun compte avec cet email ou mot de passe incorrect';
-    if (raw.contains('INVALID_PASSWORD')) return 'Mot de passe incorrect';
-    if (raw.contains('EMAIL_EXISTS')) return 'Cet email est déjà utilisé';
-    if (raw.contains('WEAK_PASSWORD')) return 'Mot de passe trop faible (6 caractères min)';
-    if (raw.contains('INVALID_EMAIL')) return 'Email invalide';
-    if (raw.contains('TOO_MANY_ATTEMPTS')) return 'Trop de tentatives — réessaie plus tard';
-    if (raw.contains('network') || raw.contains('socket')) return 'Pas de connexion internet';
+    if (raw.contains('email-already-in-use') || raw.contains('EMAIL_EXISTS'))
+      return 'Cet email est déjà utilisé';
+    if (raw.contains('weak-password') || raw.contains('WEAK_PASSWORD'))
+      return 'Mot de passe trop faible (6 caractères min)';
+    if (raw.contains('invalid-email') || raw.contains('INVALID_EMAIL'))
+      return 'Email invalide';
+    if (raw.contains('too-many-requests') || raw.contains('TOO_MANY_ATTEMPTS'))
+      return 'Trop de tentatives — réessaie plus tard';
+    if (raw.contains('network-request-failed') || raw.contains('network') || raw.contains('socket'))
+      return 'Pas de connexion internet';
     return raw;
   }
 
