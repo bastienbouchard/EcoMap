@@ -1637,16 +1637,16 @@ class _MapPageState extends State<MapPage> {
                 ],
               ),
               child: Center(
-                child: SizedBox(width: 26, height: 26,
-                  child: Stack(alignment: Alignment.bottomCenter, children: [
-                    CustomPaint(painter: HuntingTowerPainter(color: towerColor.withOpacity(0.15))),
-                    ClipRect(child: Align(
-                      alignment: Alignment.bottomCenter,
-                      heightFactor: fillLevel,
-                      child: CustomPaint(painter: HuntingTowerPainter(color: towerColor)),
-                    )),
-                  ]),
-                ),
+                child: Stack(alignment: Alignment.bottomCenter, children: [
+                  CustomPaint(size: const Size(26, 26),
+                      painter: HuntingTowerPainter(color: towerColor.withOpacity(0.15))),
+                  ClipRect(child: Align(
+                    alignment: Alignment.bottomCenter,
+                    heightFactor: fillLevel,
+                    child: CustomPaint(size: const Size(26, 26),
+                        painter: HuntingTowerPainter(color: towerColor)),
+                  )),
+                ]),
               ),
             ),
           ),
@@ -1868,16 +1868,15 @@ class _MapPageState extends State<MapPage> {
                 ],
               ),
               child: Center(
-                child: SizedBox(width: 44, height: 44,
-                  child: Stack(alignment: Alignment.bottomCenter, children: [
-                    Opacity(opacity: 0.18, child: const CustomPaint(painter: SaltCubePainter())),
-                    ClipRect(child: Align(
-                      alignment: Alignment.bottomCenter,
-                      heightFactor: fillLevel,
-                      child: const CustomPaint(painter: SaltCubePainter()),
-                    )),
-                  ]),
-                ),
+                child: Stack(alignment: Alignment.bottomCenter, children: [
+                  const Opacity(opacity: 0.18,
+                      child: CustomPaint(size: Size(44, 44), painter: SaltCubePainter())),
+                  ClipRect(child: Align(
+                    alignment: Alignment.bottomCenter,
+                    heightFactor: fillLevel,
+                    child: const CustomPaint(size: Size(44, 44), painter: SaltCubePainter()),
+                  )),
+                ]),
               ),
             ),
           ),
