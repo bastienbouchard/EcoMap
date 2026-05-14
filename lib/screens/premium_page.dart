@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:ecomap/services/auth_service.dart';
 
 class PremiumPage extends StatefulWidget {
   const PremiumPage({super.key});
@@ -248,7 +249,9 @@ class _PremiumPageState extends State<PremiumPage> {
   }
 
   Future<void> _acheter() async {
-    final uri = Uri.parse(_stripeUrl);
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    final uri = Uri.parse('$_stripeUrl?client_reference_id=$uid');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
