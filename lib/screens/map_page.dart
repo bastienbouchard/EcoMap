@@ -118,6 +118,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   // ── Observations terrain ──
   List<Map<String, dynamic>> _observations = [];
   int? _newObsIdx;
+  OverlayEntry? _toastEntry;
 
   // ── Groupe ──
   List<Map<String, dynamic>> _obsGroupe = [];
@@ -173,6 +174,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       GroupeService.quitter(_groupeId!, _monNom!);
     }
     _layersGlowCtrl.dispose();
+    _toastEntry?.remove();
     super.dispose();
   }
 
@@ -1277,39 +1279,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
-    final accent = error ? const Color(0xFFEF5350) : const Color(0xFF66BB6A);
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(
-        content: Row(children: [
-          Container(
-            width: 30, height: 30,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              error ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-              color: accent, size: 17,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(msg,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500))),
-        ]),
-        backgroundColor: const Color(0xFF1E1E1E),
-        elevation: 10,
-        duration: Duration(seconds: error ? 3 : 2),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: accent.withOpacity(0.45)),
-        ),
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-      ));
+    _toastEntry?.remove();
+    _toastEntry = OverlayEntry(
+      builder: (_) => _AppToast(
+        msg: msg,
+        error: error,
+        onDone: () { _toastEntry?.remove(); _toastEntry = null; },
+      ),
+    );
+    Overlay.of(context).insert(_toastEntry!);
   }
 
   Widget _inputField(TextEditingController ctrl, String label) {
@@ -2786,6 +2764,113 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Toast notification (haut de l'écran)
+// ─────────────────────────────────────────────────────────────────────────────
+class _AppToast extends StatefulWidget {
+  final String msg;
+  final bool error;
+  final VoidCallback onDone;
+  const _AppToast({required this.msg, required this.error, required this.onDone});
+
+  @override
+  State<_AppToast> createState() => _AppToastState();
+}
+
+class _AppToastState extends State<_AppToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 320));
+    _slide = Tween<Offset>(
+            begin: const Offset(0, -1.2), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+    Future.delayed(Duration(seconds: widget.error ? 3 : 2), _dismiss);
+  }
+
+  Future<void> _dismiss() async {
+    if (!mounted) return;
+    await _ctrl.reverse();
+    widget.onDone();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent =
+        widget.error ? const Color(0xFFEF5350) : const Color(0xFF66BB6A);
+    final top = MediaQuery.of(context).padding.top + 12;
+    return Positioned(
+      top: top,
+      left: 16,
+      right: 16,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _fade,
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: _dismiss,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1C),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: accent.withOpacity(0.45)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.45),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4))
+                  ],
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      widget.error
+                          ? Icons.warning_amber_rounded
+                          : Icons.check_circle_outline,
+                      color: accent, size: 17,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(widget.msg,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
