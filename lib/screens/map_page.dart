@@ -2816,7 +2816,7 @@ class _AppToastState extends State<_AppToast>
   @override
   Widget build(BuildContext context) {
     final accent =
-        widget.error ? const Color(0xFFEF5350) : const Color(0xFF66BB6A);
+        widget.error ? const Color(0xFFFF6B35) : const Color(0xFF4CAF50);
     final top = MediaQuery.of(context).padding.top + 12;
     return Positioned(
       top: top,
@@ -2848,7 +2848,7 @@ class _AppToastState extends State<_AppToast>
                   Container(
                     width: 30, height: 30,
                     decoration: BoxDecoration(
-                      color: accent.withOpacity(0.15),
+                      color: accent.withOpacity(0.22),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
