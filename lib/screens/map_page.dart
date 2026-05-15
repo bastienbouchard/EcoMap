@@ -2578,16 +2578,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                         size: 22,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    mapActionBtn(
-                      icon: Icons.people,
-                      label: 'Groupe',
-                      color: _isOnline ? const Color(0xFFFF6B35) : Colors.white24,
-                      active: _groupeActif,
-                      onTap: _isOnline
-                          ? _sharePosition
-                          : () => _snack('Groupe non disponible hors ligne', error: true),
-                    ),
                   ],
                 ),
               ),
@@ -2708,6 +2698,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                           ),
                         )) : () => _snack('Météo non disponible hors ligne', error: true),
                         color: _isOnline ? const Color(0xFFBDBDBD) : Colors.white24),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.people, 'Groupe',
+                        _isOnline
+                            ? _sharePosition
+                            : () => _snack('Groupe non disponible hors ligne', error: true),
+                        color: _isOnline
+                            ? (_groupeActif ? const Color(0xFFFF6B35) : const Color(0xFFBDBDBD))
+                            : Colors.white24),
                     const SizedBox(height: 10),
                     _navBtn(Icons.info_outline_rounded, 'À propos',
                         () => Navigator.push(context, MaterialPageRoute(

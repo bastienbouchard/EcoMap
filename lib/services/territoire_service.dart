@@ -110,18 +110,18 @@ class TerritoireService {
             final coords = geom['type'] == 'Polygon'
                 ? (geom['coordinates'] as List)[0] as List
                 : ((geom['coordinates'] as List)[0] as List)[0] as List;
-            // Centroïde du polygone pour un filtrage plus précis
-            double sumLat = 0, sumLon = 0;
+            // Inclut si au moins une coordonnée est dans le bbox (gère les polygones à cheval sur 2 tuiles)
+            bool inBbox = false;
             for (final c in coords) {
-              sumLon += (c[0] as num).toDouble();
-              sumLat += (c[1] as num).toDouble();
+              final cLon = (c[0] as num).toDouble();
+              final cLat = (c[1] as num).toDouble();
+              if (cLat >= minLat && cLat <= maxLat &&
+                  cLon >= minLon && cLon <= maxLon) {
+                inBbox = true;
+                break;
+              }
             }
-            final cLat = sumLat / coords.length;
-            final cLon = sumLon / coords.length;
-            if (cLat >= minLat && cLat <= maxLat &&
-                cLon >= minLon && cLon <= maxLon) {
-              allFeatures.add(feat);
-            }
+            if (inBbox) allFeatures.add(feat);
           } catch (_) {
             // ignore les features avec géométrie invalide
           }
