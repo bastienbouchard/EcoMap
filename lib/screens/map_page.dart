@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show pi, min, max, cos, sqrt;
+import 'dart:math' show pi, min, max, cos, sqrt, pow;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -114,6 +114,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _recording = false;
   List<LatLng> _trackPoints = [];
   final List<({DateTime date, List<LatLng> points})> _savedTracks = [];
+  final List<String?> _savedTrackIds = [];
 
   // ── Observations terrain ──
   List<Map<String, dynamic>> _observations = [];
@@ -160,6 +161,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     PremiumService.load();
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
     _loadObservations();
+    _loadTracks();
   }
 
   @override
@@ -659,7 +661,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         _snack('Tracé trop court', error: true);
         return;
       }
-      setState(() => _savedTracks.add((date: DateTime.now(), points: pts)));
+      final newIdx = _savedTracks.length;
+      setState(() {
+        _savedTracks.add((date: DateTime.now(), points: pts));
+        _savedTrackIds.add(null);
+      });
+      _saveTrack(newIdx);
       _snack('Tracé sauvegardé — ${pts.length} points');
     } else {
       setState(() { _recording = true; _trackPoints = []; });
@@ -720,6 +727,64 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     try {
       await FirebaseFirestore.instance
           .collection('users').doc(uid).collection('observations')
+          .doc(id).delete();
+    } catch (_) {}
+  }
+
+  Future<void> _loadTracks() async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('tracks')
+          .orderBy('date', descending: false)
+          .get();
+      if (!mounted) return;
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        final pts = (d['points'] as List).map((p) =>
+            LatLng((p['lat'] as num).toDouble(),
+                   (p['lon'] as num).toDouble())).toList();
+        setState(() {
+          _savedTracks.add((
+            date: (d['date'] as Timestamp).toDate(),
+            points: pts,
+          ));
+          _savedTrackIds.add(doc.id);
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveTrack(int idx) async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final track = _savedTracks[idx];
+      final ref = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('tracks')
+          .add({
+        'date': Timestamp.fromDate(track.date),
+        'points': track.points
+            .map((p) => {'lat': p.latitude, 'lon': p.longitude})
+            .toList(),
+      });
+      if (mounted) setState(() => _savedTrackIds[idx] = ref.id);
+    } catch (_) {}
+  }
+
+  Future<void> _deleteTrack(int idx) async {
+    final id = idx < _savedTrackIds.length ? _savedTrackIds[idx] : null;
+    setState(() {
+      _savedTracks.removeAt(idx);
+      if (idx < _savedTrackIds.length) _savedTrackIds.removeAt(idx);
+    });
+    if (id == null) return;
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('tracks')
           .doc(id).delete();
     } catch (_) {}
   }
@@ -1131,74 +1196,70 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
-  void _showTracesDialog() {
+  double _trackDistanceM(List<LatLng> pts) {
+    double total = 0;
+    for (int i = 0; i < pts.length - 1; i++) {
+      final a = pts[i]; final b = pts[i + 1];
+      final c = cos(a.latitude * pi / 180);
+      total += sqrt(pow((b.latitude - a.latitude) * 111000, 2) +
+                    pow((b.longitude - a.longitude) * 111000 * c, 2));
+    }
+    return total;
+  }
+
+  void _showTrackPopup(int idx) {
+    final track = _savedTracks[idx];
+    final d = track.date;
+    final dateLabel =
+        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}  '
+        '${d.hour.toString().padLeft(2, '0')}h${d.minute.toString().padLeft(2, '0')}';
+    final distM = _trackDistanceM(track.points);
+    final distStr = distM >= 1000
+        ? '${(distM / 1000).toStringAsFixed(1)} km'
+        : '${distM.round()} m';
     showDialog(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: const Color(0xFF2D2D2D),
-          title: Row(children: [
-            const Expanded(child: Text('Tracés sauvegardés',
-                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
-            IconButton(
-              icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-              onPressed: () => Navigator.pop(ctx),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ]),
-          content: _savedTracks.isEmpty
-              ? const Text(
-                  'Aucun tracé sauvegardé.\nAppuie sur le bouton Suivi 🔴 pour enregistrer un déplacement.',
-                  style: TextStyle(color: Colors.white54, fontSize: 13))
-              : SizedBox(
-                  width: double.maxFinite,
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _savedTracks.length,
-                    itemBuilder: (_, i) {
-                      final t =
-                          _savedTracks[_savedTracks.length - 1 - i];
-                      final d = t.date;
-                      final label =
-                          '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')} '
-                          '${d.hour.toString().padLeft(2, '0')}h${d.minute.toString().padLeft(2, '0')}';
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(label,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 13)),
-                        subtitle: Text('${t.points.length} points',
-                            style: const TextStyle(
-                                color: Colors.white54, fontSize: 11)),
-                        leading: const Icon(Icons.fiber_manual_record,
-                            color: Colors.red, size: 20),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Color(0xFFFF6B35), size: 20),
-                          onPressed: () {
-                            setState(() => _savedTracks.removeAt(
-                                _savedTracks.length - 1 - i));
-                            setDlg(() {});
-                          },
-                        ),
-                        onTap: () {
-                          setState(() => _trackPoints =
-                              List<LatLng>.from(t.points));
-                          Navigator.pop(ctx);
-                        },
-                      );
-                    },
-                  ),
+      barrierColor: Colors.black54,
+      builder: (_) => Dialog(
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A90E2).withOpacity(0.15),
+                  shape: BoxShape.circle,
                 ),
-          actions: [
-            if (_savedTracks.isNotEmpty)
-              TextButton(
-                onPressed: () { setState(() => _savedTracks.clear()); setDlg(() {}); },
-                child: const Text('Tout supprimer',
-                    style: TextStyle(color: Colors.white38, fontSize: 12)),
+                child: const Icon(Icons.route_rounded,
+                    color: Color(0xFF4A90E2), size: 26),
               ),
-          ],
+              const SizedBox(height: 10),
+              Text(dateLabel,
+                  style: const TextStyle(color: Colors.white,
+                      fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text('$distStr · ${track.points.length} points',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12)),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _deleteTrack(idx);
+                  },
+                  icon: const Icon(Icons.delete_outline,
+                      size: 16, color: Colors.white38),
+                  label: const Text('Supprimer',
+                      style: TextStyle(color: Colors.white38, fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1477,6 +1538,47 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               borderStrokeWidth: 2,
             ),
           ]),
+        if (_savedTracks.isNotEmpty)
+          PolylineLayer(
+            polylines: _savedTracks.asMap().entries.map((e) => Polyline(
+              points: e.value.points,
+              color: const Color(0xFF4A90E2),
+              strokeWidth: 4,
+              borderColor: Colors.white,
+              borderStrokeWidth: 1.5,
+            )).toList(),
+          ),
+        if (_savedTracks.isNotEmpty)
+          MarkerLayer(
+            markers: _savedTracks.asMap().entries.map((e) {
+              final idx = e.key;
+              final pts = e.value.points;
+              return Marker(
+                point: pts.first,
+                width: 36, height: 36,
+                child: GestureDetector(
+                  onTap: () => _showTrackPopup(idx),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: const Color(0xFF4A90E2), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 4)
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.route_rounded,
+                          color: Color(0xFF4A90E2), size: 16),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         if (_trackPoints.length >= 2)
           PolylineLayer(polylines: [
             Polyline(
@@ -2606,9 +2708,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                           ),
                         )) : () => _snack('Météo non disponible hors ligne', error: true),
                         color: _isOnline ? const Color(0xFFBDBDBD) : Colors.white24),
-                    const SizedBox(height: 10),
-                    _navBtn(Icons.save_alt_rounded, 'Tracés',
-                        _showTracesDialog),
                     const SizedBox(height: 10),
                     _navBtn(Icons.info_outline_rounded, 'À propos',
                         () => Navigator.push(context, MaterialPageRoute(
