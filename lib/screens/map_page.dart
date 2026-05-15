@@ -598,6 +598,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         'lon': center.longitude,
         'radiusM': _visibleRadiusM(minM: 1500),
         'geoJson': geoJson,
+        'maxResults': _maxResults(),
       });
       if (!mounted) return;
       setState(() {
@@ -2426,17 +2427,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
-                      icon: Icons.route_rounded,
-                      label: 'Parcours',
-                      color: const Color(0xFF4CAF50),
-                      active: _showParcours,
-                      loading: _loadingParcours,
-                      onTap: _showParcours
-                          ? () => setState(() => _showParcours = false)
-                          : _showParcoursDialog,
-                    ),
-                    const SizedBox(height: 6),
-                    mapActionBtn(
                       icon: Icons.cabin,
                       label: 'Affût',
                       color: const Color(0xFF4CAF50),
@@ -2464,6 +2454,30 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
+                      icon: Icons.route_rounded,
+                      label: 'Parcours',
+                      color: const Color(0xFF4CAF50),
+                      active: _showParcours,
+                      loading: _loadingParcours,
+                      onTap: _showParcours
+                          ? () => setState(() => _showParcours = false)
+                          : _showParcoursDialog,
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: Icons.fiber_manual_record,
+                      label: 'Suivi',
+                      color: Colors.red,
+                      active: _recording,
+                      onTap: _toggleRecording,
+                      customIcon: Icon(
+                        _recording ? Icons.stop_rounded : Icons.fiber_manual_record,
+                        color: Colors.red,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
                       icon: Icons.people,
                       label: 'Groupe',
                       color: _isOnline ? const Color(0xFFFF6B35) : Colors.white24,
@@ -2471,19 +2485,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                       onTap: _isOnline
                           ? _sharePosition
                           : () => _snack('Groupe non disponible hors ligne', error: true),
-                    ),
-                    const SizedBox(height: 6),
-                    mapActionBtn(
-                      icon: Icons.fiber_manual_record,
-                      label: 'Suivi',
-                      color: Colors.red,
-                      active: true,
-                      onTap: _toggleRecording,
-                      customIcon: Icon(
-                        _recording ? Icons.stop_rounded : Icons.fiber_manual_record,
-                        color: Colors.red,
-                        size: 22,
-                      ),
                     ),
                   ],
                 ),

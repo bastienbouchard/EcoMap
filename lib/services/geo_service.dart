@@ -772,17 +772,53 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
   candidates.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
 
   // Déduplication à 300 m
-  final result = <Map<String, dynamic>>[];
+  final deduped = <Map<String, dynamic>>[];
   for (final c in candidates) {
     final cLat = c['lat'] as double;
     final cLon = c['lon'] as double;
     final cosC = cos(cLat * pi / 180);
-    final tooClose = result.any((r) =>
+    final tooClose = deduped.any((r) =>
       sqrt(pow(((r['lat'] as double) - cLat) * 111000, 2) +
            pow(((r['lon'] as double) - cLon) * 111000 * cosC, 2)) < 300);
-    if (!tooClose) result.add(c);
+    if (!tooClose) deduped.add(c);
   }
 
+  // Sélection par grille — garantit la couverture spatiale de toute la zone
+  final maxN = (params['maxResults'] as int?) ?? 10;
+  final latSpan = radius / 111000;
+  final lonSpan = radius / (111000 * cosLat);
+  final minLat = lat - latSpan;
+  final minLon = lon - lonSpan;
+  final gridDim = sqrt(maxN.toDouble()).ceil().clamp(2, 5);
+
+  final result = <Map<String, dynamic>>[];
+  final usedIdx = <int>{};
+
+  for (int row = 0; row < gridDim && result.length < maxN; row++) {
+    for (int col = 0; col < gridDim && result.length < maxN; col++) {
+      final rMin = minLat + row * (2 * latSpan) / gridDim;
+      final rMax = minLat + (row + 1) * (2 * latSpan) / gridDim;
+      final cMin = minLon + col * (2 * lonSpan) / gridDim;
+      final cMax = minLon + (col + 1) * (2 * lonSpan) / gridDim;
+      for (int i = 0; i < deduped.length; i++) {
+        if (usedIdx.contains(i)) continue;
+        final rLat = deduped[i]['lat'] as double;
+        final rLon = deduped[i]['lon'] as double;
+        if (rLat >= rMin && rLat < rMax && rLon >= cMin && rLon < cMax) {
+          result.add(deduped[i]);
+          usedIdx.add(i);
+          break;
+        }
+      }
+    }
+  }
+
+  // Compléter avec les meilleurs scores non encore inclus
+  for (int i = 0; i < deduped.length && result.length < maxN; i++) {
+    if (!usedIdx.contains(i)) result.add(deduped[i]);
+  }
+
+  result.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
   return result;
 }
 
