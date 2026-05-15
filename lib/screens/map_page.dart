@@ -1209,7 +1209,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _requireEcoMap() {
     final features = (geoJson['features'] as List?) ?? [];
     if (features.isNotEmpty) return true;
-    _snack('Télécharge d\'abord une carte écoforestière via le bouton Couches ↗', error: true);
+    _snack('Télécharge d\'abord une carte écoforestière via le bouton Couches', error: true);
     _layersGlowCtrl.repeat(reverse: true);
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted) _layersGlowCtrl.stop();
