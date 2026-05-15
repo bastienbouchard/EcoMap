@@ -1277,16 +1277,39 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
-      backgroundColor: error ? const Color(0xFF8B4513) : const Color(0xFFFF6B35),
-      duration: Duration(seconds: error ? 3 : 4),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-    ));
+    final accent = error ? const Color(0xFFEF5350) : const Color(0xFF66BB6A);
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Row(children: [
+          Container(
+            width: 30, height: 30,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              error ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+              color: accent, size: 17,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(msg,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500))),
+        ]),
+        backgroundColor: const Color(0xFF1E1E1E),
+        elevation: 10,
+        duration: Duration(seconds: error ? 3 : 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: accent.withOpacity(0.45)),
+        ),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+      ));
   }
 
   Widget _inputField(TextEditingController ctrl, String label) {
