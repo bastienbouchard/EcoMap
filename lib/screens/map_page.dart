@@ -55,7 +55,7 @@ class MapPage extends StatefulWidget {
   State<MapPage> createState() => _MapPageState();
 }
 
-class _MapPageState extends State<MapPage> {
+class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   static const double _opacity = 0.7;
 
   // ── Carte ──
@@ -92,6 +92,9 @@ class _MapPageState extends State<MapPage> {
 
   // ── Parcours ──
   bool _showParcours = false;
+  bool _parcoursBlocked = false;
+  late AnimationController _layersGlowCtrl;
+  late Animation<double> _layersGlowAnim;
   bool _loadingParcours = false;
   List<LatLng> _parcours = [];
   double _distanceParcours = 2.0;
@@ -143,6 +146,8 @@ class _MapPageState extends State<MapPage> {
   @override
   void initState() {
     super.initState();
+    _layersGlowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
+    _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
     _isOnline = ConnectivityService.isOnline;
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
       if (mounted) setState(() => _isOnline = online);
@@ -152,6 +157,7 @@ class _MapPageState extends State<MapPage> {
     _fetchWind();
     PremiumService.load();
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
+    _loadObservations();
   }
 
   @override
@@ -165,6 +171,7 @@ class _MapPageState extends State<MapPage> {
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
     }
+    _layersGlowCtrl.dispose();
     super.dispose();
   }
 
@@ -469,7 +476,7 @@ class _MapPageState extends State<MapPage> {
         result.add(info.position);
         infos.add(info);
       }
-      if (result.length >= 5) break;
+      if (result.length >= _maxResults()) break;
     }
     _hotspotInfos = infos;
     return result;
@@ -530,6 +537,7 @@ class _MapPageState extends State<MapPage> {
         _parcours = points;
         _showParcours = true;
         _parcoursScore = scorePct;
+        _parcoursBlocked = points.length < 5;
         _loadingParcours = false;
       });
       if (points.length < 5) {
@@ -561,6 +569,14 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  // 1 résultat max par cellule de 1000 pieds × 1000 pieds (≈305m)
+  int _maxResults() {
+    const cellSize = 305.0;
+    final r = _visibleRadiusM();
+    final count = (pi * r * r / (cellSize * cellSize)).round();
+    return count.clamp(2, 20);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Affût (pinch points)
   // ─────────────────────────────────────────────────────────────────────────
@@ -582,7 +598,7 @@ class _MapPageState extends State<MapPage> {
       });
       if (!mounted) return;
       setState(() {
-        _pinchPoints = result.take(5).toList();
+        _pinchPoints = result.take(_maxResults()).toList();
         _showPinchPoints = true;
         _loadingPinch = false;
       });
@@ -614,7 +630,7 @@ class _MapPageState extends State<MapPage> {
       });
       if (!mounted) return;
       setState(() {
-        _salines = result.take(5).toList();
+        _salines = result.take(_maxResults()).toList();
         _showSalines = true;
         _loadingSalines = false;
       });
@@ -650,74 +666,123 @@ class _MapPageState extends State<MapPage> {
   // ─────────────────────────────────────────────────────────────────────────
   // Observations
   // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _loadObservations() async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('observations')
+          .orderBy('time', descending: false)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _observations = snap.docs.map((doc) {
+          final d = doc.data();
+          return {
+            'id': doc.id,
+            'pos': LatLng((d['lat'] as num).toDouble(), (d['lon'] as num).toDouble()),
+            'note': d['note'] as String,
+            'time': (d['time'] as Timestamp).toDate(),
+          };
+        }).toList();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveObservation(Map<String, dynamic> obs) async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final pos = obs['pos'] as LatLng;
+      final ref = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('observations')
+          .add({
+        'lat': pos.latitude,
+        'lon': pos.longitude,
+        'note': obs['note'],
+        'time': Timestamp.fromDate(obs['time'] as DateTime),
+      });
+      if (mounted) setState(() => obs['id'] = ref.id);
+    } catch (_) {}
+  }
+
+  Future<void> _deleteObservation(int idx) async {
+    final obs = _observations[idx];
+    final id = obs['id'] as String?;
+    setState(() => _observations.removeAt(idx));
+    if (id == null) return;
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('observations')
+          .doc(id).delete();
+    } catch (_) {}
+  }
+
   void _addObservation() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
-        title: Row(children: [
-          const Expanded(child: Text('Type d\'observation',
-              style: TextStyle(color: Colors.white, fontSize: 16))),
-          IconButton(
-            icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-            onPressed: () => Navigator.pop(context),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ]),
-        contentPadding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 2.8,
-            children: _typesObservation.map((t) {
-              return GestureDetector(
-                onTap: () {
-                  final pos = _mapController.camera.center;
-                  setState(() => _observations.add({
-                    'pos': pos,
-                    'note': '${t.$1} ${t.$2}',
-                    'time': DateTime.now(),
-                  }));
-                  Navigator.pop(context);
-                  _snack('${t.$1} ${t.$2} ajouté');
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: const Color(0xFFFF6B35).withOpacity(0.3)),
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 32, height: 3,
+                decoration: BoxDecoration(color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 14),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Observation',
+                  style: TextStyle(color: Colors.white,
+                      fontSize: 15, fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _typesObservation.map((t) {
+                return GestureDetector(
+                  onTap: () {
+                    final pos = _mapController.camera.center;
+                    final obs = {
+                      'pos': pos,
+                      'note': '${t.$1} ${t.$2}',
+                      'time': DateTime.now(),
+                    };
+                    setState(() => _observations.add(obs));
+                    _saveObservation(obs);
+                    Navigator.pop(context);
+                    _snack('${t.$1} ${t.$2} ajouté');
+                  },
+                  child: Container(
+                    width: (MediaQuery.of(context).size.width - 52) / 3,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        obsIcon('${t.$1} ${t.$2}', size: 28),
+                        const SizedBox(height: 6),
+                        Text(t.$2,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                color: Colors.white60, fontSize: 11)),
+                      ],
+                    ),
                   ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A1A),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                              color: const Color(0xFFFF6B35), width: 1.5),
-                        ),
-                        child: Center(
-                            child: obsIcon('${t.$1} ${t.$2}', size: 20)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(t.$2,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 13)),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+                );
+              }).toList(),
+            ),
+          ],
         ),
-        actions: const [],
       ),
     );
   }
@@ -1131,7 +1196,11 @@ class _MapPageState extends State<MapPage> {
   bool _requireEcoMap() {
     final features = (geoJson['features'] as List?) ?? [];
     if (features.isNotEmpty) return true;
-    _snack('Télécharge d\'abord une carte éco via le bouton Couches', error: true);
+    _snack('Télécharge d\'abord une carte écoforestière via le bouton Couches ↗', error: true);
+    _layersGlowCtrl.repeat(reverse: true);
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) _layersGlowCtrl.stop();
+    });
     return false;
   }
 
@@ -1432,62 +1501,74 @@ class _MapPageState extends State<MapPage> {
           point: pos,
           width: 52, height: 52,
           child: GestureDetector(
-            onTap: () => showDialog(
+            onTap: () => showModalBottomSheet(
               context: context,
-              builder: (_) => AlertDialog(
-                backgroundColor: const Color(0xFF2D2D2D),
-                title: Row(children: [
-                  Expanded(child: Text(note,
-                      style: const TextStyle(color: Colors.white, fontSize: 15))),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-                    onPressed: () => Navigator.pop(context),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ]),
-                content: Column(
+              backgroundColor: const Color(0xFF1E1E1E),
+              shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              builder: (_) => Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${(obs['time'] as DateTime).day.toString().padLeft(2, '0')}/'
-                      '${(obs['time'] as DateTime).month.toString().padLeft(2, '0')}/'
-                      '${(obs['time'] as DateTime).year}',
-                      style: const TextStyle(color: Colors.white54, fontSize: 13),
-                    ),
-                    const SizedBox(height: 8),
+                    Container(width: 32, height: 3,
+                        decoration: BoxDecoration(color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2))),
+                    const SizedBox(height: 16),
+                    Row(children: [
+                      obsIcon(note, size: 28),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(note,
+                          style: const TextStyle(color: Colors.white,
+                              fontSize: 15, fontWeight: FontWeight.bold))),
+                      Text(
+                        '${(obs['time'] as DateTime).day.toString().padLeft(2, '0')}/'
+                        '${(obs['time'] as DateTime).month.toString().padLeft(2, '0')}',
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ]),
+                    const SizedBox(height: 12),
                     _coordsWidget(pos),
+                    const SizedBox(height: 16),
+                    Row(children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            _deleteObservation(idx);
+                            Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.delete_outline, size: 16, color: Colors.white38),
+                          label: const Text('Supprimer',
+                              style: TextStyle(color: Colors.white38, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.white12),
+                              padding: const EdgeInsets.symmetric(vertical: 12)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => NavigationPage(
+                                parcours: [_currentPosition, pos],
+                                score: 0, windDeg: _windDeg,
+                              ),
+                            ));
+                          },
+                          icon: const Icon(Icons.navigation, size: 16),
+                          label: const Text('Naviguer'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF6B35),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ]),
                   ],
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      setState(() => _observations.removeAt(idx));
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Supprimer',
-                        style: TextStyle(color: Colors.white38)),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => NavigationPage(
-                          parcours: [_currentPosition, pos],
-                          score: 0,
-                          windDeg: _windDeg,
-                        ),
-                      ));
-                    },
-                    icon: const Icon(Icons.navigation, size: 16),
-                    label: const Text('Naviguer'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF6B35),
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
               ),
             ),
             child: Container(
@@ -1523,9 +1604,10 @@ class _MapPageState extends State<MapPage> {
             : score >= 13
                 ? const Color(0xFFFF6B35)
                 : const Color(0xFFFFB347);
+        final hotspotFill = (score / 25.0).clamp(0.0, 1.0);
         return Marker(
           point: pos,
-          width: 56, height: 56,
+          width: 56, height: 66,
           child: GestureDetector(
             onTap: () {
               if (idx < _hotspotInfos.length) {
@@ -1533,38 +1615,59 @@ class _MapPageState extends State<MapPage> {
                     currentPosition: _currentPosition, windDeg: _windDeg);
               }
             },
-            child: Container(
-              width: 56, height: 56,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                shape: BoxShape.circle,
-                border: Border.all(color: flameColor, width: 3),
-                boxShadow: [
-                  BoxShadow(
-                      color: flameColor.withOpacity(0.7),
-                      blurRadius: 12,
-                      spreadRadius: 2),
-                  const BoxShadow(
-                      color: Colors.black54, blurRadius: 4),
-                ],
-              ),
-              child: Center(
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    Icon(Icons.local_fire_department,
-                        color: Colors.white12, size: 32),
-                    ClipRect(
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        heightFactor: (score / 25.0).clamp(0.25, 1.0),
-                        child: Icon(Icons.local_fire_department,
-                            color: flameColor, size: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: SizedBox(
+                    width: 48, height: 5,
+                    child: Stack(children: [
+                      Container(color: const Color(0xFF1B5E20)),
+                      FractionallySizedBox(
+                        widthFactor: hotspotFill,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)]),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ]),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 3),
+                Container(
+                  width: 56, height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: flameColor, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                          color: flameColor.withOpacity(0.7),
+                          blurRadius: 12,
+                          spreadRadius: 2),
+                    ],
+                  ),
+                  child: Center(
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        Icon(Icons.local_fire_department,
+                            color: Colors.white12, size: 32),
+                        ClipRect(
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            heightFactor: hotspotFill.clamp(0.25, 1.0),
+                            child: Icon(Icons.local_fire_department,
+                                color: flameColor, size: 32),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -1573,12 +1676,15 @@ class _MapPageState extends State<MapPage> {
   }
 
   MarkerLayer _buildPinchMarkers() {
+    final maxPinchScore = _pinchPoints.fold<int>(1, (m, p) => max(m, p['score'] as int? ?? 0));
     return MarkerLayer(
       markers: _pinchPoints.map((p) {
         final pos = LatLng(p['lat'] as double, p['lon'] as double);
+        final pScore = p['score'] as int? ?? 0;
+        final pFill = (pScore / maxPinchScore).clamp(0.0, 1.0);
         return Marker(
           point: pos,
-          width: 48, height: 48,
+          width: 48, height: 58,
           child: GestureDetector(
             onTap: () => showDialog(
               context: context,
@@ -1617,23 +1723,48 @@ class _MapPageState extends State<MapPage> {
                 ],
               ),
             ),
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
-                boxShadow: [
-                  BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.55),
-                      blurRadius: 10, spreadRadius: 1),
-                  const BoxShadow(color: Colors.black54, blurRadius: 4),
+            child: SizedBox(
+              width: 48, height: 58,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: SizedBox(
+                      width: 40, height: 5,
+                      child: Stack(children: [
+                        Container(color: const Color(0xFF1B5E20)),
+                        FractionallySizedBox(
+                          widthFactor: pFill,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)]),
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
+                      boxShadow: [
+                        BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.55),
+                            blurRadius: 10, spreadRadius: 1),
+                      ],
+                    ),
+                    child: const Center(
+                      child: CustomPaint(
+                        size: Size(26, 26),
+                        painter: HuntingTowerPainter(color: Color(0xFF4CAF50)),
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-              child: const Center(
-                child: CustomPaint(
-                  size: Size(26, 26),
-                  painter: HuntingTowerPainter(color: Color(0xFF4CAF50)),
-                ),
               ),
             ),
           ),
@@ -1794,11 +1925,16 @@ class _MapPageState extends State<MapPage> {
 
   MarkerLayer _buildSalineMarkers() {
     return MarkerLayer(
-      markers: _salines.map((s) {
+      markers: () {
+        final maxScore = _salines.fold<int>(1, (m, s) => max(m, s['score'] as int? ?? 0));
+        return _salines.map((s) {
         final pos = LatLng(s['lat'] as double, s['lon'] as double);
+        final score = s['score'] as int? ?? 0;
+        final fillLevel = (score / maxScore).clamp(0.0, 1.0);
+        final miniCubes = fillLevel >= 0.67 ? 3 : fillLevel >= 0.33 ? 2 : 1;
         return Marker(
           point: pos,
-          width: 48, height: 48,
+          width: 44, height: 54,
           child: GestureDetector(
             onTap: () => showDialog(
               context: context,
@@ -1817,6 +1953,11 @@ class _MapPageState extends State<MapPage> {
                 content: Column(mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text('Score: $score/20',
+                        style: const TextStyle(
+                            color: Color(0xFFEF5350),
+                            fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
                     const Text('Emplacement idéal identifié par l\'algorithme OrignalScan pour l\'installation d\'une saline.',
                         style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
                     const SizedBox(height: 12),
@@ -1836,32 +1977,48 @@ class _MapPageState extends State<MapPage> {
                     icon: const Icon(Icons.navigation, size: 16),
                     label: const Text('Naviguer'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC62828),
+                      backgroundColor: const Color(0xFF37474F),
                       foregroundColor: Colors.white,
                     ),
                   ),
                 ],
               ),
             ),
-            child: Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(color: const Color(0xFFC62828).withOpacity(0.6),
-                      blurRadius: 12, spreadRadius: 2),
-                  const BoxShadow(color: Colors.black54, blurRadius: 4),
+            child: SizedBox(
+              width: 44, height: 54,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Barre de score verte
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: SizedBox(
+                      width: 40, height: 5,
+                      child: Stack(children: [
+                        Container(color: const Color(0xFF1B5E20)),
+                        FractionallySizedBox(
+                          widthFactor: fillLevel,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)]),
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const SizedBox(
+                    width: 44, height: 44,
+                    child: CustomPaint(painter: SaltCubePainter()),
+                  ),
                 ],
-              ),
-              child: Center(
-                child: CustomPaint(
-                  size: const Size(44, 44),
-                  painter: const SaltCubePainter(),
-                ),
               ),
             ),
           ),
         );
-      }).toList(),
+      }).toList();
+      }(),
     );
   }
 
@@ -2076,6 +2233,15 @@ class _MapPageState extends State<MapPage> {
           ],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (_parcoursBlocked)
+            const Row(children: [
+              Icon(Icons.block, color: Color(0xFFFF6B35), size: 16),
+              SizedBox(width: 6),
+              Text('Parcours bloqué',
+                  style: TextStyle(color: Color(0xFFFF6B35),
+                      fontWeight: FontWeight.bold, fontSize: 13)),
+            ])
+          else ...[
           if (_parcoursScore > 0)
             Container(
               margin: const EdgeInsets.only(right: 10),
@@ -2117,9 +2283,10 @@ class _MapPageState extends State<MapPage> {
                       fontSize: 13)),
             ]),
           ),
+          ],
           const SizedBox(width: 12),
           GestureDetector(
-            onTap: () => setState(() => _showParcours = false),
+            onTap: () => setState(() { _showParcours = false; _parcoursBlocked = false; }),
             child: const Icon(Icons.close,
                 color: Color(0xFFFF6B35), size: 20),
           ),
@@ -2422,10 +2589,47 @@ class _MapPageState extends State<MapPage> {
                 mapIconBtn(Icons.my_location, _goToCurrentLocation,
                     loading: _loading),
                 mapDividerV(),
-                mapIconBtn(
-                  Icons.layers_rounded,
-                  () => setState(() => _showLayerPanel = !_showLayerPanel),
-                  active: _showLayerPanel,
+                AnimatedBuilder(
+                  animation: _layersGlowAnim,
+                  builder: (_, __) => GestureDetector(
+                    onTap: () {
+                      _layersGlowCtrl.stop();
+                      setState(() => _showLayerPanel = !_showLayerPanel);
+                    },
+                    child: SizedBox(
+                      width: 42, height: 36,
+                      child: Center(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (_layersGlowCtrl.isAnimating)
+                              Container(
+                                width: 28 + _layersGlowAnim.value * 14,
+                                height: 28 + _layersGlowAnim.value * 14,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFFFF6B35).withOpacity(0.15 + _layersGlowAnim.value * 0.25),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFF6B35).withOpacity(0.5 * _layersGlowAnim.value),
+                                      blurRadius: 10,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            Icon(
+                              Icons.layers_rounded,
+                              size: 20,
+                              color: _layersGlowCtrl.isAnimating
+                                  ? Color.lerp(Colors.white, const Color(0xFFFF6B35), _layersGlowAnim.value)
+                                  : (_showLayerPanel ? const Color(0xFF4A90E2) : Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

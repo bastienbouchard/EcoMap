@@ -658,16 +658,43 @@ List<Map<String, dynamic>> buildPolygonLabelsIsolate(Map<String, dynamic> geoJso
 }
 
 // ── PINCH POINTS ───────────────────────────────────────────────────────────
-// Détecte les corridors naturels où l'orignal est forcé de passer.
-// Approche centroïde : pas de point-in-polygon, O(N_local²) sur ~100 features.
+// Détecte les meilleurs emplacements d'affût : zones de transition entre habitats.
+// Critères : proximité eau, feuillu, résineux, jeune peuplement/coupe/brûlis.
 List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
   final lat    = params['lat'] as double;
   final lon    = params['lon'] as double;
   final radius = (params['radiusM'] as num?)?.toDouble() ?? 3000.0;
   final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
 
-  // Étape 1 : calculer centroïde + score pour chaque feature dans la zone
   final cosLat = cos(lat * pi / 180);
+
+  // Types de zones
+  const zEau = 0, zFeuillu = 1, zResineux = 2, zMixte = 3, zJeune = 4, zAutre = 5;
+
+  int zoneType(Map props) {
+    final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+    final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+    final ess = (props['type_couv'] ?? '').toString().toUpperCase();
+    final age = (props['cl_age'] ?? '').toString().toUpperCase();
+    final origine = (props['origine'] ?? '').toString().toUpperCase();
+    if (typeEco.contains('EAU') || typeEco.contains('RIV') || codeCouv == 'EE') return zEau;
+    final isJeune = age == 'J' || age == 'JIN' || age == '10' || age == '20' ||
+                    origine == 'CP' || origine == 'BR' || origine == 'EP';
+    if (isJeune) return zJeune;
+    if (codeCouv == 'F') return zFeuillu;
+    if (codeCouv == 'R') return zResineux;
+    if (codeCouv == 'M') return zMixte;
+    final decidus = ['PE', 'AU', 'SA', 'BP', 'ERR', 'BJ', 'PB'];
+    final conifes = ['EP', 'EN', 'MEL', 'SAB', 'PIR', 'PIG', 'THO'];
+    final hasD = decidus.any((e) => ess.contains(e));
+    final hasC = conifes.any((e) => ess.contains(e));
+    if (hasD && hasC) return zMixte;
+    if (hasD) return zFeuillu;
+    if (hasC) return zResineux;
+    return zAutre;
+  }
+
+  // Étape 1 : centroïdes + score + type de zone
   final nodes = <Map<String, dynamic>>[];
   for (final feat in features) {
     try {
@@ -677,58 +704,83 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
       if (type == 'Polygon') ring = (geom['coordinates'] as List)[0] as List;
       else if (type == 'MultiPolygon') ring = ((geom['coordinates'] as List)[0] as List)[0] as List;
       else continue;
-
       double sumLat = 0, sumLon = 0;
       for (final c in ring) { sumLon += (c[0] as num).toDouble(); sumLat += (c[1] as num).toDouble(); }
       final cLat = sumLat / ring.length;
       final cLon = sumLon / ring.length;
-
       final distM = sqrt(pow((cLat - lat) * 111000, 2) + pow((cLon - lon) * 111000 * cosLat, 2));
       if (distM > radius * 1.2) continue;
-
       final props = feat['properties'] as Map;
-      final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
-      final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
-      final score = (typeEco.contains('EAU') || codeCouv == 'EE') ? -1 : scoreOrignal(props);
-
-      nodes.add({'lat': cLat, 'lon': cLon, 'score': score, 'distM': distM});
+      final zt = zoneType(props);
+      final score = (zt == zEau) ? -1 : scoreOrignal(props);
+      nodes.add({'lat': cLat, 'lon': cLon, 'score': score, 'zone': zt});
     } catch (_) {}
   }
 
-  // Étape 2 : pour chaque bon habitat, vérifier si c'est une zone de transition
-  // (a des barrières ET du bon habitat dans un rayon de 450 m)
-  const neighborM = 450.0;
-  final result = <Map<String, dynamic>>[];
-  final seen = <String>{};
+  // Étape 2 : score de transition pour chaque bon habitat
+  const neighborM = 400.0;
+  final candidates = <Map<String, dynamic>>[];
 
-  // Trier par score décroissant pour trouver les meilleurs en premier
   nodes.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
 
   for (final node in nodes) {
     final nScore = node['score'] as int;
-    if (nScore < 10) continue;
+    if (nScore < 8) continue;
     final nLat = node['lat'] as double;
     final nLon = node['lon'] as double;
     final cosN = cos(nLat * pi / 180);
 
-    int barriers = 0, goodNeighbors = 0;
+    bool hasWater = false, hasFeuillu = false, hasResineux = false, hasJeune = false;
+    int goodNeighbors = 0, barriers = 0;
+    double closestWaterM = double.infinity;
+
     for (final other in nodes) {
       if (identical(node, other)) continue;
       final dM = sqrt(pow(((other['lat'] as double) - nLat) * 111000, 2) +
                       pow(((other['lon'] as double) - nLon) * 111000 * cosN, 2));
       if (dM > neighborM) continue;
       final oScore = other['score'] as int;
-      if (oScore < 5) barriers++;
-      else if (oScore >= 10) goodNeighbors++;
+      final oZone  = other['zone'] as int;
+      if (oZone == zEau) {
+        hasWater = true;
+        barriers++;
+        if (dM < closestWaterM) closestWaterM = dM;
+      } else if (oScore < 5) {
+        barriers++;
+      } else {
+        goodNeighbors++;
+        if (oZone == zFeuillu || oZone == zMixte) hasFeuillu = true;
+        if (oZone == zResineux || oZone == zMixte) hasResineux = true;
+        if (oZone == zJeune) hasJeune = true;
+      }
     }
 
-    if (barriers < 1 || goodNeighbors < 1) continue;
+    if (goodNeighbors < 1) continue;
 
-    final key = '${(nLat * 2500).round()}_${(nLon * 2500).round()}';
-    if (seen.contains(key)) continue;
-    seen.add(key);
-    result.add({'lat': nLat, 'lon': nLon, 'score': nScore});
-    if (result.length >= 5) break;
+    // Score final : terrain + bonuses de transition
+    int finalScore = nScore;
+    if (hasWater) finalScore += closestWaterM < 150 ? 10 : 7;
+    if (hasFeuillu) finalScore += 4;
+    if (hasResineux) finalScore += 3;
+    if (hasJeune) finalScore += 6;
+    if (hasFeuillu && hasResineux) finalScore += 3; // corridor mixte
+    if (hasWater && hasJeune) finalScore += 4;      // eau + jeune = habitat parfait
+
+    candidates.add({'lat': nLat, 'lon': nLon, 'score': finalScore});
+  }
+
+  candidates.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+
+  // Déduplication à 300 m
+  final result = <Map<String, dynamic>>[];
+  for (final c in candidates) {
+    final cLat = c['lat'] as double;
+    final cLon = c['lon'] as double;
+    final cosC = cos(cLat * pi / 180);
+    final tooClose = result.any((r) =>
+      sqrt(pow(((r['lat'] as double) - cLat) * 111000, 2) +
+           pow(((r['lon'] as double) - cLon) * 111000 * cosC, 2)) < 300);
+    if (!tooClose) result.add(c);
   }
 
   return result;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/auth_service.dart';
 
 class PremiumPage extends StatefulWidget {
   const PremiumPage({super.key});
@@ -8,8 +9,7 @@ class PremiumPage extends StatefulWidget {
 }
 
 class _PremiumPageState extends State<PremiumPage> {
-  // ── Remplace par ton vrai lien Stripe Checkout ──
-  static const _stripeUrl = 'https://buy.stripe.com/PLACEHOLDER_VIE';
+  static const _stripeUrl = 'https://buy.stripe.com/bJeaEXeq59m3bvY9Vt83C00';
 
   static const _freeFeatures = [
     (Icons.gps_fixed_rounded,       'GPS & localisation'),
@@ -248,7 +248,9 @@ class _PremiumPageState extends State<PremiumPage> {
   }
 
   Future<void> _acheter() async {
-    final uri = Uri.parse(_stripeUrl);
+    final uid = AuthService.uid;
+    final url = uid != null ? '$_stripeUrl?client_reference_id=$uid' : _stripeUrl;
+    final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
