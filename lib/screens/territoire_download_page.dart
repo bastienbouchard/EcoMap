@@ -115,7 +115,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       await _loadTerritoires();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$nom téléchargé !'),
+          content: Text('$nom téléchargé !', style: const TextStyle(color: Colors.white, fontSize: 13)),
           backgroundColor: const Color(0xFF1C1C1C),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
