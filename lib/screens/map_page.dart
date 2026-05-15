@@ -117,6 +117,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   // ── Observations terrain ──
   List<Map<String, dynamic>> _observations = [];
+  int? _newObsIdx;
 
   // ── Groupe ──
   List<Map<String, dynamic>> _obsGroupe = [];
@@ -754,27 +755,37 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                       'note': '${t.$1} ${t.$2}',
                       'time': DateTime.now(),
                     };
-                    setState(() => _observations.add(obs));
+                    final newIdx = _observations.length;
+                    setState(() {
+                      _observations.add(obs);
+                      _newObsIdx = newIdx;
+                    });
                     _saveObservation(obs);
                     Navigator.pop(context);
                     _snack('${t.$1} ${t.$2} ajouté');
+                    Future.delayed(const Duration(milliseconds: 800),
+                        () { if (mounted) setState(() => _newObsIdx = null); });
                   },
                   child: Container(
                     width: (MediaQuery.of(context).size.width - 52) / 3,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 16, horizontal: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
-                      borderRadius: BorderRadius.circular(12),
+                      color: const Color(0xFF252525),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white10),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        obsIcon('${t.$1} ${t.$2}', size: 28),
-                        const SizedBox(height: 6),
+                        obsIcon('${t.$1} ${t.$2}', size: 34),
+                        const SizedBox(height: 8),
                         Text(t.$2,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                                color: Colors.white60, fontSize: 11)),
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500)),
                       ],
                     ),
                   ),
@@ -1335,7 +1346,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 9)),
+          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 10)),
         ],
       ),
     );
@@ -1358,6 +1369,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           _buildActionPanel(),
           _buildNavPanel(),
           if (!_isOnline) _buildOfflineBanner(),
+          if (_windDeg != null) _buildWindIndicator(),
           if (_showLayerPanel) _buildLayerPanel(),
           Positioned(
             bottom: 20,
@@ -1497,95 +1509,121 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         final obs = entry.value;
         final pos = obs['pos'] as LatLng;
         final note = obs['note'] as String;
+        final isNew = idx == _newObsIdx;
+        Widget markerBall = Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFFFF6B35), width: 2),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)
+            ],
+          ),
+          child: Center(child: obsIcon(note)),
+        );
+        if (isNew) {
+          markerBall = TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.elasticOut,
+            builder: (_, v, child) => Transform.scale(scale: v, child: child),
+            child: markerBall,
+          );
+        }
         return Marker(
           point: pos,
           width: 52, height: 52,
           child: GestureDetector(
-            onTap: () => showModalBottomSheet(
-              context: context,
-              backgroundColor: const Color(0xFF1E1E1E),
-              shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-              builder: (_) => Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(width: 32, height: 3,
-                        decoration: BoxDecoration(color: Colors.white24,
-                            borderRadius: BorderRadius.circular(2))),
-                    const SizedBox(height: 16),
-                    Row(children: [
-                      obsIcon(note, size: 28),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(note,
-                          style: const TextStyle(color: Colors.white,
-                              fontSize: 15, fontWeight: FontWeight.bold))),
-                      Text(
-                        '${(obs['time'] as DateTime).day.toString().padLeft(2, '0')}/'
-                        '${(obs['time'] as DateTime).month.toString().padLeft(2, '0')}',
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
-                      ),
-                    ]),
-                    const SizedBox(height: 12),
-                    _coordsWidget(pos),
-                    const SizedBox(height: 16),
-                    Row(children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            _deleteObservation(idx);
-                            Navigator.pop(context);
-                          },
-                          icon: const Icon(Icons.delete_outline, size: 16, color: Colors.white38),
-                          label: const Text('Supprimer',
-                              style: TextStyle(color: Colors.white38, fontSize: 13)),
-                          style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.white12),
-                              padding: const EdgeInsets.symmetric(vertical: 12)),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            Navigator.push(context, MaterialPageRoute(
-                              builder: (_) => NavigationPage(
-                                parcours: [_currentPosition, pos],
-                                score: 0, windDeg: _windDeg,
-                              ),
-                            ));
-                          },
-                          icon: const Icon(Icons.navigation, size: 16),
-                          label: const Text('Naviguer'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF6B35),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+            onTap: () {
+              final dt = obs['time'] as DateTime;
+              final parts = note.trim().split(' ');
+              final label = parts.length > 1 ? parts.sublist(1).join(' ') : parts.first;
+              final dateStr =
+                '${dt.day.toString().padLeft(2, '0')}/'
+                '${dt.month.toString().padLeft(2, '0')}/'
+                '${dt.year}';
+              showDialog(
+                context: context,
+                barrierColor: Colors.black54,
+                builder: (_) => Dialog(
+                  backgroundColor: const Color(0xFF1C1C1C),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        obsIcon(note, size: 52),
+                        const SizedBox(height: 10),
+                        Text(label,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(dateStr,
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 12)),
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(10),
                           ),
+                          child: _coordsWidget(pos),
                         ),
-                      ),
-                    ]),
-                  ],
+                        const SizedBox(height: 20),
+                        Row(children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: () {
+                                _deleteObservation(idx);
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 16, color: Colors.white38),
+                              label: const Text('Supprimer',
+                                  style: TextStyle(
+                                      color: Colors.white38, fontSize: 13)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                Navigator.push(context,
+                                    MaterialPageRoute(builder: (_) =>
+                                        NavigationPage(
+                                          parcours: [_currentPosition, pos],
+                                          score: 0, windDeg: _windDeg,
+                                        )));
+                              },
+                              icon: const Icon(Icons.navigation, size: 16),
+                              label: const Text('Naviguer'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF6B35),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ]),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: const Color(0xFFFF6B35), width: 2),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
-                      blurRadius: 4)
-                ],
-              ),
-              child: Center(child: obsIcon(note)),
-            ),
+              );
+            },
+            child: markerBall,
           ),
         );
       }).toList(),
@@ -2169,6 +2207,42 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildWindIndicator() {
+    final deg = _windDeg!;
+    final speed = _windSpeed ?? 0.0;
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 12,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A).withOpacity(0.88),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.rotate(
+              angle: deg * pi / 180,
+              child: const Icon(Icons.navigation,
+                  color: Colors.white70, size: 15),
+            ),
+            const SizedBox(width: 6),
+            Text('${speed.round()} km/h',
+                style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOfflineBanner() {
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
@@ -2470,13 +2544,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               child: Container(
                 width: 28, height: 64,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D2D2D).withOpacity(0.88),
+                  color: const Color(0xFF2D2D2D).withOpacity(0.92),
                   borderRadius: const BorderRadius.horizontal(
                       left: Radius.circular(12)),
-                  border: const Border(
-                    left: BorderSide(color: Colors.white24),
-                    top: BorderSide(color: Colors.white24),
-                    bottom: BorderSide(color: Colors.white24),
+                  border: Border(
+                    left: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                    top: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                    bottom: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -2489,7 +2566,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   _showNavPanel
                       ? Icons.chevron_right
                       : Icons.chevron_left,
-                  color: Colors.white54,
+                  color: const Color(0xFFFF6B35),
                   size: 16,
                 ),
               ),
