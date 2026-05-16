@@ -85,7 +85,7 @@ class CompassPainter extends CustomPainter {
 
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    canvas.rotate(targetBearing * pi / 180);
+    canvas.rotate((targetBearing * pi / 180) + rotation);
 
     final arrowPaint = Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill;
     final arrowPath = ui.Path()
