@@ -83,23 +83,38 @@ class CompassPainter extends CustomPainter {
     }
     canvas.restore();
 
+    // Flèche destination — RELATIVE à ta direction (relativeBearing = targetBearing - heading)
+    final relativeBearing = targetBearing - (rotation * -180 / pi);
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    canvas.rotate(targetBearing * pi / 180);
+    canvas.rotate(relativeBearing * pi / 180);
 
+    // Tige de la flèche
+    canvas.drawLine(
+      const Offset(0, 20),
+      Offset(0, -(radius - 35)),
+      Paint()..color = const Color(0xFFFF6B35).withOpacity(0.6)..strokeWidth = 3..strokeCap = StrokeCap.round,
+    );
+    // Pointe
     final arrowPaint = Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill;
     final arrowPath = ui.Path()
-      ..moveTo(0, -radius + 30)
-      ..lineTo(-15, -radius + 60)
-      ..lineTo(0, -radius + 50)
-      ..lineTo(15, -radius + 60)
+      ..moveTo(0, -(radius - 20))
+      ..lineTo(-14, -(radius - 48))
+      ..lineTo(0, -(radius - 40))
+      ..lineTo(14, -(radius - 48))
       ..close();
     canvas.drawPath(arrowPath, arrowPaint);
-    canvas.drawPath(arrowPath, Paint()..color = Colors.white..strokeWidth = 2..style = PaintingStyle.stroke);
+    canvas.drawPath(arrowPath, Paint()..color = Colors.white..strokeWidth = 1.5..style = PaintingStyle.stroke);
+
+    // Label DEST au bout de la flèche (contre-rotation pour rester lisible)
+    canvas.rotate(-(relativeBearing * pi / 180));
+    final dp = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr)
+      ..text = const TextSpan(text: 'DEST', style: TextStyle(color: Color(0xFFFF6B35), fontSize: 11, fontWeight: FontWeight.bold))
+      ..layout();
+    dp.paint(canvas, Offset(-dp.width / 2, -(radius - 10)));
     canvas.restore();
 
-    // Flèche vent — entièrement à l'extérieur du cercle, tourne en espace absolu
-    // +180° : la flèche pointe vers la SOURCE du vent (d'où il arrive)
+    // Flèche vent — à l'extérieur du cercle, espace absolu, pointe vers la source
     if (windDeg != null) {
       canvas.save();
       canvas.translate(center.dx, center.dy);
@@ -111,15 +126,21 @@ class CompassPainter extends CustomPainter {
         ..color = Colors.white.withOpacity(0.6)
         ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke;
-      // Flèche entièrement hors du cercle — pointe vers l'extérieur (source du vent)
       final windPath = ui.Path()
-        ..moveTo(0, -(radius + 22))  // pointe (loin du cercle)
-        ..lineTo(-10, -(radius + 6)) // aile gauche (près du cercle)
-        ..lineTo(0, -(radius + 12))  // encoche
-        ..lineTo(10, -(radius + 6))  // aile droite
+        ..moveTo(0, -(radius + 22))
+        ..lineTo(-10, -(radius + 6))
+        ..lineTo(0, -(radius + 12))
+        ..lineTo(10, -(radius + 6))
         ..close();
       canvas.drawPath(windPath, windFill);
       canvas.drawPath(windPath, windStroke);
+
+      // Label VENT
+      canvas.rotate(-((windDeg! + 180) * pi / 180));
+      final wp = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr)
+        ..text = TextSpan(text: 'VENT', style: TextStyle(color: const Color(0xFF87CEEB).withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.bold))
+        ..layout();
+      wp.paint(canvas, Offset(-wp.width / 2, -(radius + 36)));
       canvas.restore();
     }
 
