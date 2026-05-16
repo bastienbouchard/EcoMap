@@ -2389,7 +2389,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           mainAxisSize: MainAxisSize.min,
           children: [
             Transform.rotate(
-              angle: deg * pi / 180,
+              angle: (deg + 180) * pi / 180,
               child: const Icon(Icons.navigation,
                   color: Colors.white70, size: 15),
             ),
