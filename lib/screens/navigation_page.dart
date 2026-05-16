@@ -60,6 +60,17 @@ class _NavigationPageState extends State<NavigationPage> {
     }
   }
 
+  Future<void> _activateCompass() async {
+    final granted = await requestCompassPermission();
+    if (!mounted) return;
+    setState(() => _compassPermissionGranted = granted);
+    if (granted && _compassSubscription == null) {
+      _compassSubscription = compassHeadingStream().listen((heading) {
+        if (mounted) setState(() => _currentHeading = heading);
+      });
+    }
+  }
+
   void _calculateTotalDistance() {
     double total = 0;
     for (int i = 0; i < widget.parcours.length - 1; i++) {
@@ -181,7 +192,26 @@ class _NavigationPageState extends State<NavigationPage> {
                     windDeg: widget.windDeg,
                   )),
                 ),
-                const SizedBox(height: 20),
+                if (!_compassPermissionGranted) ...[
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: _activateCompass,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3D3D3D),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.5)),
+                      ),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.explore, color: Color(0xFFFF6B35), size: 16),
+                        SizedBox(width: 6),
+                        Text('Activer la boussole', style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13)),
+                      ]),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
                 _buildDistanceCard(normalizedBearing),
               ],
             );
@@ -240,13 +270,17 @@ class _NavigationPageState extends State<NavigationPage> {
 
   Widget _buildDistanceCard(double normalizedBearing) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [Color(0xFF2D2D2D), Color(0xFF1A1A1A)]),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
       ),
-      child: Text(_getDirectionText(normalizedBearing), style: const TextStyle(color: Colors.white70, fontSize: 18)),
+      child: Column(children: [
+        Text('${_distanceToNext.round()} m', style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 28, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(_getDirectionText(normalizedBearing), style: const TextStyle(color: Colors.white70, fontSize: 16)),
+      ]),
     );
   }
 
