@@ -523,16 +523,17 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
     } catch (_) { return false; }
   }).toList();
 
-  // Collecte les centroids des plans/cours d'eau dans le rayon étendu
-  final waterPoints = <List<double>>[];
+  // Collecte les centroids des cours d'eau et zones inondées/intermittentes (pas les plans d'eau)
+  final riverPoints = <List<double>>[];      // cours d'eau permanents
+  final intermittentPoints = <List<double>>[]; // zones inondées/intermittentes
   for (final feat in localFeatures) {
     try {
       final props = feat['properties'] as Map;
       final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
-      final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
       final typeCouv = (props['type_couv'] ?? '').toString().toUpperCase();
-      if (!typeEco.contains('EAU') && !typeEco.contains('RIV') &&
-          codeCouv != 'EE' && typeCouv != 'IN') continue;
+      final isRiver = typeEco.contains('RIV');
+      final isIntermittent = typeCouv == 'IN';
+      if (!isRiver && !isIntermittent) continue;
       final geom = feat['geometry'] as Map;
       List<dynamic> ring;
       if (geom['type'] == 'Polygon') ring = geom['coordinates'][0] as List;
@@ -540,15 +541,20 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
       else continue;
       double sumLat = 0, sumLon = 0;
       for (final c in ring) { sumLon += (c[0] as num).toDouble(); sumLat += (c[1] as num).toDouble(); }
-      waterPoints.add([sumLat / ring.length, sumLon / ring.length]);
+      final pt = [sumLat / ring.length, sumLon / ring.length];
+      if (isIntermittent) { intermittentPoints.add(pt); } else { riverPoints.add(pt); }
     } catch (_) {}
   }
 
-  // Bonus si un plan/cours d'eau connu est à ≤ 800 m (pas un filtre dur — les rivières sont linéaires et souvent absentes des polygones écoforestiers)
+  // Bonus cours d'eau : +8 si intermittent ≤ 600 m, +5 si rivière ≤ 800 m
   int waterBonus(double cLat, double cLon) {
-    for (final w in waterPoints) {
-      final d = sqrt(pow((w[0] - cLat) * 111000, 2) +
-          pow((w[1] - cLon) * 111000 * cos(cLat * pi / 180), 2));
+    final cosC = cos(cLat * pi / 180);
+    for (final w in intermittentPoints) {
+      final d = sqrt(pow((w[0] - cLat) * 111000, 2) + pow((w[1] - cLon) * 111000 * cosC, 2));
+      if (d <= 600) return 8;
+    }
+    for (final w in riverPoints) {
+      final d = sqrt(pow((w[0] - cLat) * 111000, 2) + pow((w[1] - cLon) * 111000 * cosC, 2));
       if (d <= 800) return 5;
     }
     return 0;
