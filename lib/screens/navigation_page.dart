@@ -19,7 +19,7 @@ class NavigationPage extends StatefulWidget {
 
 class _NavigationPageState extends State<NavigationPage> {
   double _currentHeading = 0;
-  int _currentWaypointIndex = 0;
+  int _currentWaypointIndex = 1;
   double _distanceToNext = 0;
   double _bearingToNext = 0;
   StreamSubscription<Position>? _positionSubscription;
@@ -136,12 +136,12 @@ class _NavigationPageState extends State<NavigationPage> {
       _distanceToNext = distance;
       _bearingToNext = _calculateBearing(currentPos, nextWaypoint);
     });
-    if (distance < 20 && _currentWaypointIndex < widget.parcours.length - 1) {
+    if (distance < 20) {
       setState(() {
         _completedDistance += const Distance().as(
           LengthUnit.Meter,
+          widget.parcours[_currentWaypointIndex - 1],
           widget.parcours[_currentWaypointIndex],
-          widget.parcours[_currentWaypointIndex + 1],
         );
         _currentWaypointIndex++;
       });
