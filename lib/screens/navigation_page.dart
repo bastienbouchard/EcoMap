@@ -25,6 +25,11 @@ class _NavigationPageState extends State<NavigationPage> {
   double _totalDistance = 0;
   double _completedDistance = 0;
 
+  // Vitesse de marche : 3 km/h par défaut, ajustée toutes les 5 min
+  double _walkingSpeedKmh = 3.0;
+  DateTime? _lastSpeedUpdate;
+  double _distanceAtLastSpeedUpdate = 0;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +67,34 @@ class _NavigationPageState extends State<NavigationPage> {
     final newPos = LatLng(position.latitude, position.longitude);
     setState(() => _currentHeading = position.heading);
     _updateWaypoint(newPos);
+    _updateSpeed();
+  }
+
+  void _updateSpeed() {
+    final now = DateTime.now();
+    _lastSpeedUpdate ??= now;
+    if (now.difference(_lastSpeedUpdate!).inMinutes >= 5) {
+      final distDelta = _completedDistance - _distanceAtLastSpeedUpdate;
+      final timeDeltaH = now.difference(_lastSpeedUpdate!).inSeconds / 3600.0;
+      if (timeDeltaH > 0 && distDelta > 20) {
+        final speed = (distDelta / 1000) / timeDeltaH;
+        if (speed >= 0.5 && speed <= 15) {
+          setState(() => _walkingSpeedKmh = speed);
+        }
+      }
+      _lastSpeedUpdate = now;
+      _distanceAtLastSpeedUpdate = _completedDistance;
+    }
+  }
+
+  String _formatRemaining() {
+    final remainingKm = (_totalDistance - _completedDistance) / 1000;
+    if (remainingKm <= 0) return '0 min';
+    final minutes = (remainingKm / _walkingSpeedKmh * 60).round();
+    if (minutes < 60) return '$minutes min';
+    final h = minutes ~/ 60;
+    final m = (minutes % 60).toString().padLeft(2, '0');
+    return '${h}h$m';
   }
 
   void _updateWaypoint(LatLng currentPos) {
@@ -106,7 +139,7 @@ class _NavigationPageState extends State<NavigationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final progress = _totalDistance > 0 ? (_completedDistance / _totalDistance) : 0.0;
+    final progress = _totalDistance > 0 ? (_completedDistance / _totalDistance).clamp(0.0, 1.0) : 0.0;
     final relativeBearing = _bearingToNext - _currentHeading;
     final normalizedBearing = ((relativeBearing + 180) % 360) - 180;
 
@@ -114,29 +147,56 @@ class _NavigationPageState extends State<NavigationPage> {
       backgroundColor: const Color(0xFF1A1A1A),
       body: SafeArea(
         child: Column(children: [
-          _buildHeader(),
-          Expanded(child: Center(child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 280, height: 280,
-                child: CustomPaint(painter: CompassPainter(
-                  rotation: -_currentHeading * pi / 180,
-                  targetBearing: _bearingToNext,
-                  windDeg: widget.windDeg,
-                )),
-              ),
-              const SizedBox(height: 40),
-              _buildDistanceCard(normalizedBearing),
-            ],
-          ))),
+          _buildHeader(progress),
+          Expanded(child: LayoutBuilder(builder: (context, constraints) {
+            final compassSize = (constraints.maxHeight * 0.80).clamp(180.0, 300.0);
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: compassSize, height: compassSize,
+                  child: CustomPaint(painter: CompassPainter(
+                    rotation: -_currentHeading * pi / 180,
+                    targetBearing: _bearingToNext,
+                    windDeg: widget.windDeg,
+                  )),
+                ),
+                const SizedBox(height: 20),
+                _buildDistanceCard(normalizedBearing),
+              ],
+            );
+          })),
+          _buildLegend(),
+          const SizedBox(height: 8),
           _buildBottomStats(progress),
         ]),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildLegend() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _legendDot(const Color(0xFFFF6B35), 'Destination'),
+          if (widget.windDeg != null)
+            _legendDot(const Color(0xFF4CAF50), 'Face au vent'),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 6),
+      Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+    ]);
+  }
+
+  Widget _buildHeader(double progress) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -154,15 +214,6 @@ class _NavigationPageState extends State<NavigationPage> {
         ),
         const SizedBox(width: 16),
         const Text('Navigation', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: widget.score > 60 ? const Color(0xFF2D5016) : widget.score > 35 ? const Color(0xFFFF6B35) : const Color(0xFF8B4513),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text('${widget.score.round()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-        ),
       ]),
     );
   }
@@ -199,9 +250,9 @@ class _NavigationPageState extends State<NavigationPage> {
         ),
         const SizedBox(height: 20),
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _stat('Point', '${_currentWaypointIndex + 1}/${widget.parcours.length}', Icons.flag),
           _stat('Distance totale', '${(_totalDistance / 1000).toStringAsFixed(1)} km', Icons.straighten),
           _stat('Restant', '${((_totalDistance - _completedDistance) / 1000).toStringAsFixed(1)} km', Icons.timeline),
+          _stat('Temps est.', _formatRemaining(), Icons.timer_outlined),
         ]),
       ]),
     );

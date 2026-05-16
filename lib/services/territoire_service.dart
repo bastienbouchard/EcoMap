@@ -110,12 +110,18 @@ class TerritoireService {
             final coords = geom['type'] == 'Polygon'
                 ? (geom['coordinates'] as List)[0] as List
                 : ((geom['coordinates'] as List)[0] as List)[0] as List;
-            final lon = (coords[0][0] as num).toDouble();
-            final lat = (coords[0][1] as num).toDouble();
-            if (lat >= minLat && lat <= maxLat &&
-                lon >= minLon && lon <= maxLon) {
-              allFeatures.add(feat);
+            // Inclut si au moins une coordonnée est dans le bbox (gère les polygones à cheval sur 2 tuiles)
+            bool inBbox = false;
+            for (final c in coords) {
+              final cLon = (c[0] as num).toDouble();
+              final cLat = (c[1] as num).toDouble();
+              if (cLat >= minLat && cLat <= maxLat &&
+                  cLon >= minLon && cLon <= maxLon) {
+                inBbox = true;
+                break;
+              }
             }
+            if (inBbox) allFeatures.add(feat);
           } catch (_) {
             // ignore les features avec géométrie invalide
           }
@@ -127,8 +133,10 @@ class TerritoireService {
     }
 
     if (allFeatures.isEmpty) {
-      final detail = errors.isNotEmpty ? '\n${errors.take(3).join('\n')}' : '';
-      throw Exception('Aucune donnée dans cette zone.$detail');
+      throw Exception(
+        'Aucune donnée écoforestière dans ce secteur.\n'
+        'Essaie de dézoomer ou de te déplacer vers une zone plus forestière.',
+      );
     }
 
     onStatus?.call('Sauvegarde (${allFeatures.length} polygones)...');

@@ -115,15 +115,30 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       await _loadTerritoires();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$nom téléchargé !'),
-          backgroundColor: const Color(0xFFFF6B35),
+          content: Text('$nom téléchargé !', style: const TextStyle(color: Colors.white, fontSize: 13)),
+          backgroundColor: const Color(0xFF1C1C1C),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: const Color(0xFF4CAF50).withOpacity(0.5)),
+          ),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
         ));
         setState(() { _drawnLatLng = []; _drawPoints = []; });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('$e', style: const TextStyle(color: Colors.white, fontSize: 13)),
+          backgroundColor: const Color(0xFF1C1C1C),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.5)),
+          ),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+          duration: const Duration(seconds: 5),
+        ));
       }
     } finally {
       if (mounted) setState(() { _downloading = false; _status = ''; });

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show pi, min, max, cos, sqrt;
+import 'dart:math' show pi, min, max, cos, sqrt, pow;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -55,7 +55,7 @@ class MapPage extends StatefulWidget {
   State<MapPage> createState() => _MapPageState();
 }
 
-class _MapPageState extends State<MapPage> {
+class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   static const double _opacity = 0.7;
 
   // ── Carte ──
@@ -92,6 +92,9 @@ class _MapPageState extends State<MapPage> {
 
   // ── Parcours ──
   bool _showParcours = false;
+  bool _parcoursBlocked = false;
+  late AnimationController _layersGlowCtrl;
+  late Animation<double> _layersGlowAnim;
   bool _loadingParcours = false;
   List<LatLng> _parcours = [];
   double _distanceParcours = 2.0;
@@ -111,9 +114,12 @@ class _MapPageState extends State<MapPage> {
   bool _recording = false;
   List<LatLng> _trackPoints = [];
   final List<({DateTime date, List<LatLng> points})> _savedTracks = [];
+  final List<String?> _savedTrackIds = [];
 
   // ── Observations terrain ──
   List<Map<String, dynamic>> _observations = [];
+  int? _newObsIdx;
+  OverlayEntry? _toastEntry;
 
   // ── Groupe ──
   List<Map<String, dynamic>> _obsGroupe = [];
@@ -143,6 +149,8 @@ class _MapPageState extends State<MapPage> {
   @override
   void initState() {
     super.initState();
+    _layersGlowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
+    _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
     _isOnline = ConnectivityService.isOnline;
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
       if (mounted) setState(() => _isOnline = online);
@@ -152,6 +160,8 @@ class _MapPageState extends State<MapPage> {
     _fetchWind();
     PremiumService.load();
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
+    _loadObservations();
+    _loadTracks();
   }
 
   @override
@@ -165,6 +175,8 @@ class _MapPageState extends State<MapPage> {
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
     }
+    _layersGlowCtrl.dispose();
+    _toastEntry?.remove();
     super.dispose();
   }
 
@@ -469,7 +481,7 @@ class _MapPageState extends State<MapPage> {
         result.add(info.position);
         infos.add(info);
       }
-      if (result.length >= 5) break;
+      if (result.length >= _maxResults()) break;
     }
     _hotspotInfos = infos;
     return result;
@@ -530,6 +542,7 @@ class _MapPageState extends State<MapPage> {
         _parcours = points;
         _showParcours = true;
         _parcoursScore = scorePct;
+        _parcoursBlocked = points.length < 5;
         _loadingParcours = false;
       });
       if (points.length < 5) {
@@ -561,9 +574,49 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  // 1 résultat max par cellule de 1000 pieds × 1000 pieds (≈305m)
+  int _maxResults() {
+    const cellSize = 305.0;
+    final r = _visibleRadiusM();
+    final count = (pi * r * r / (cellSize * cellSize)).round();
+    return count.clamp(2, 20);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Affût (pinch points)
   // ─────────────────────────────────────────────────────────────────────────
+  Future<List<List<double>>> _fetchOsmInfra(LatLng center, double radiusM) async {
+    final r = radiusM.round();
+    final query =
+        '[out:json][timeout:15];'
+        '('
+        'way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|track|path|footway|cycleway|bridleway)\$"](around:$r,${center.latitude},${center.longitude});'
+        'way["building"](around:$r,${center.latitude},${center.longitude});'
+        'node["building"](around:$r,${center.latitude},${center.longitude});'
+        ');'
+        'out center;';
+    try {
+      final resp = await http
+          .post(Uri.parse('https://overpass-api.de/api/interpreter'), body: query)
+          .timeout(const Duration(seconds: 20));
+      if (resp.statusCode != 200) return [];
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final elements = data['elements'] as List;
+      final points = <List<double>>[];
+      for (final el in elements) {
+        if (el['type'] == 'node') {
+          points.add([(el['lat'] as num).toDouble(), (el['lon'] as num).toDouble()]);
+        } else if (el['center'] != null) {
+          final c = el['center'] as Map;
+          points.add([(c['lat'] as num).toDouble(), (c['lon'] as num).toDouble()]);
+        }
+      }
+      return points;
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<void> _togglePinchPoints() async {
     if (!_requirePremium()) return;
     if (_showPinchPoints) {
@@ -574,15 +627,19 @@ class _MapPageState extends State<MapPage> {
     setState(() => _loadingPinch = true);
     try {
       final center = _mapController.camera.center;
+      final radiusM = _visibleRadiusM(minM: 1500);
+      final infraPoints = await _fetchOsmInfra(center, radiusM);
       final result = await compute(findPinchPointsIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
-        'radiusM': _visibleRadiusM(minM: 1500),
+        'radiusM': radiusM,
         'geoJson': geoJson,
+        'maxResults': _maxResults(),
+        'infraPoints': infraPoints,
       });
       if (!mounted) return;
       setState(() {
-        _pinchPoints = result.take(5).toList();
+        _pinchPoints = result.take(_maxResults()).toList();
         _showPinchPoints = true;
         _loadingPinch = false;
       });
@@ -606,15 +663,18 @@ class _MapPageState extends State<MapPage> {
     setState(() => _loadingSalines = true);
     try {
       final center = _mapController.camera.center;
+      final radiusM = _visibleRadiusM(minM: 2000);
+      final infraPoints = await _fetchOsmInfra(center, radiusM);
       final result = await compute(findSalinesIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
-        'radiusM': _visibleRadiusM(minM: 2000),
+        'radiusM': radiusM,
         'geoJson': geoJson,
+        'infraPoints': infraPoints,
       });
       if (!mounted) return;
       setState(() {
-        _salines = result.take(5).toList();
+        _salines = result.take(_maxResults()).toList();
         _showSalines = true;
         _loadingSalines = false;
       });
@@ -639,7 +699,12 @@ class _MapPageState extends State<MapPage> {
         _snack('Tracé trop court', error: true);
         return;
       }
-      setState(() => _savedTracks.add((date: DateTime.now(), points: pts)));
+      final newIdx = _savedTracks.length;
+      setState(() {
+        _savedTracks.add((date: DateTime.now(), points: pts));
+        _savedTrackIds.add(null);
+      });
+      _saveTrack(newIdx);
       _snack('Tracé sauvegardé — ${pts.length} points');
     } else {
       setState(() { _recording = true; _trackPoints = []; });
@@ -650,74 +715,191 @@ class _MapPageState extends State<MapPage> {
   // ─────────────────────────────────────────────────────────────────────────
   // Observations
   // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _loadObservations() async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('observations')
+          .orderBy('time', descending: false)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _observations = snap.docs.map((doc) {
+          final d = doc.data();
+          return {
+            'id': doc.id,
+            'pos': LatLng((d['lat'] as num).toDouble(), (d['lon'] as num).toDouble()),
+            'note': d['note'] as String,
+            'time': (d['time'] as Timestamp).toDate(),
+          };
+        }).toList();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveObservation(Map<String, dynamic> obs) async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final pos = obs['pos'] as LatLng;
+      final ref = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('observations')
+          .add({
+        'lat': pos.latitude,
+        'lon': pos.longitude,
+        'note': obs['note'],
+        'time': Timestamp.fromDate(obs['time'] as DateTime),
+      });
+      if (mounted) setState(() => obs['id'] = ref.id);
+    } catch (_) {}
+  }
+
+  Future<void> _deleteObservation(int idx) async {
+    final obs = _observations[idx];
+    final id = obs['id'] as String?;
+    setState(() => _observations.removeAt(idx));
+    if (id == null) return;
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('observations')
+          .doc(id).delete();
+    } catch (_) {}
+  }
+
+  Future<void> _loadTracks() async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('tracks')
+          .orderBy('date', descending: false)
+          .get();
+      if (!mounted) return;
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        final pts = (d['points'] as List).map((p) =>
+            LatLng((p['lat'] as num).toDouble(),
+                   (p['lon'] as num).toDouble())).toList();
+        setState(() {
+          _savedTracks.add((
+            date: (d['date'] as Timestamp).toDate(),
+            points: pts,
+          ));
+          _savedTrackIds.add(doc.id);
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveTrack(int idx) async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final track = _savedTracks[idx];
+      final ref = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('tracks')
+          .add({
+        'date': Timestamp.fromDate(track.date),
+        'points': track.points
+            .map((p) => {'lat': p.latitude, 'lon': p.longitude})
+            .toList(),
+      });
+      if (mounted) setState(() => _savedTrackIds[idx] = ref.id);
+    } catch (_) {}
+  }
+
+  Future<void> _deleteTrack(int idx) async {
+    final id = idx < _savedTrackIds.length ? _savedTrackIds[idx] : null;
+    setState(() {
+      _savedTracks.removeAt(idx);
+      if (idx < _savedTrackIds.length) _savedTrackIds.removeAt(idx);
+    });
+    if (id == null) return;
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('tracks')
+          .doc(id).delete();
+    } catch (_) {}
+  }
+
   void _addObservation() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
-        title: Row(children: [
-          const Expanded(child: Text('Type d\'observation',
-              style: TextStyle(color: Colors.white, fontSize: 16))),
-          IconButton(
-            icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-            onPressed: () => Navigator.pop(context),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ]),
-        contentPadding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 2.8,
-            children: _typesObservation.map((t) {
-              return GestureDetector(
-                onTap: () {
-                  final pos = _mapController.camera.center;
-                  setState(() => _observations.add({
-                    'pos': pos,
-                    'note': '${t.$1} ${t.$2}',
-                    'time': DateTime.now(),
-                  }));
-                  Navigator.pop(context);
-                  _snack('${t.$1} ${t.$2} ajouté');
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: const Color(0xFFFF6B35).withOpacity(0.3)),
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 32, height: 3,
+                decoration: BoxDecoration(color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 14),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Observation',
+                  style: TextStyle(color: Colors.white,
+                      fontSize: 15, fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _typesObservation.map((t) {
+                return GestureDetector(
+                  onTap: () {
+                    final pos = _mapController.camera.center;
+                    final obs = {
+                      'pos': pos,
+                      'note': '${t.$1} ${t.$2}',
+                      'time': DateTime.now(),
+                    };
+                    final newIdx = _observations.length;
+                    setState(() {
+                      _observations.add(obs);
+                      _newObsIdx = newIdx;
+                    });
+                    _saveObservation(obs);
+                    Navigator.pop(context);
+                    _snack('${t.$1} ${t.$2} ajouté');
+                    Future.delayed(const Duration(milliseconds: 800),
+                        () { if (mounted) setState(() => _newObsIdx = null); });
+                  },
+                  child: Container(
+                    width: (MediaQuery.of(context).size.width - 52) / 3,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 16, horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF252525),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        obsIcon('${t.$1} ${t.$2}', size: 34),
+                        const SizedBox(height: 8),
+                        Text(t.$2,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500)),
+                      ],
+                    ),
                   ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A1A),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                              color: const Color(0xFFFF6B35), width: 1.5),
-                        ),
-                        child: Center(
-                            child: obsIcon('${t.$1} ${t.$2}', size: 20)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(t.$2,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 13)),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+                );
+              }).toList(),
+            ),
+          ],
         ),
-        actions: const [],
       ),
     );
   }
@@ -1052,74 +1234,70 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  void _showTracesDialog() {
+  double _trackDistanceM(List<LatLng> pts) {
+    double total = 0;
+    for (int i = 0; i < pts.length - 1; i++) {
+      final a = pts[i]; final b = pts[i + 1];
+      final c = cos(a.latitude * pi / 180);
+      total += sqrt(pow((b.latitude - a.latitude) * 111000, 2) +
+                    pow((b.longitude - a.longitude) * 111000 * c, 2));
+    }
+    return total;
+  }
+
+  void _showTrackPopup(int idx) {
+    final track = _savedTracks[idx];
+    final d = track.date;
+    final dateLabel =
+        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}  '
+        '${d.hour.toString().padLeft(2, '0')}h${d.minute.toString().padLeft(2, '0')}';
+    final distM = _trackDistanceM(track.points);
+    final distStr = distM >= 1000
+        ? '${(distM / 1000).toStringAsFixed(1)} km'
+        : '${distM.round()} m';
     showDialog(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setDlg) => AlertDialog(
-          backgroundColor: const Color(0xFF2D2D2D),
-          title: Row(children: [
-            const Expanded(child: Text('Tracés sauvegardés',
-                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
-            IconButton(
-              icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-              onPressed: () => Navigator.pop(ctx),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ]),
-          content: _savedTracks.isEmpty
-              ? const Text(
-                  'Aucun tracé sauvegardé.\nAppuie sur le bouton Suivi 🔴 pour enregistrer un déplacement.',
-                  style: TextStyle(color: Colors.white54, fontSize: 13))
-              : SizedBox(
-                  width: double.maxFinite,
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _savedTracks.length,
-                    itemBuilder: (_, i) {
-                      final t =
-                          _savedTracks[_savedTracks.length - 1 - i];
-                      final d = t.date;
-                      final label =
-                          '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')} '
-                          '${d.hour.toString().padLeft(2, '0')}h${d.minute.toString().padLeft(2, '0')}';
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(label,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 13)),
-                        subtitle: Text('${t.points.length} points',
-                            style: const TextStyle(
-                                color: Colors.white54, fontSize: 11)),
-                        leading: const Icon(Icons.fiber_manual_record,
-                            color: Colors.red, size: 20),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Color(0xFFFF6B35), size: 20),
-                          onPressed: () {
-                            setState(() => _savedTracks.removeAt(
-                                _savedTracks.length - 1 - i));
-                            setDlg(() {});
-                          },
-                        ),
-                        onTap: () {
-                          setState(() => _trackPoints =
-                              List<LatLng>.from(t.points));
-                          Navigator.pop(ctx);
-                        },
-                      );
-                    },
-                  ),
+      barrierColor: Colors.black54,
+      builder: (_) => Dialog(
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A90E2).withOpacity(0.15),
+                  shape: BoxShape.circle,
                 ),
-          actions: [
-            if (_savedTracks.isNotEmpty)
-              TextButton(
-                onPressed: () { setState(() => _savedTracks.clear()); setDlg(() {}); },
-                child: const Text('Tout supprimer',
-                    style: TextStyle(color: Colors.white38, fontSize: 12)),
+                child: const Icon(Icons.route_rounded,
+                    color: Color(0xFF4A90E2), size: 26),
               ),
-          ],
+              const SizedBox(height: 10),
+              Text(dateLabel,
+                  style: const TextStyle(color: Colors.white,
+                      fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text('$distStr · ${track.points.length} points',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12)),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _deleteTrack(idx);
+                  },
+                  icon: const Icon(Icons.delete_outline,
+                      size: 16, color: Colors.white38),
+                  label: const Text('Supprimer',
+                      style: TextStyle(color: Colors.white38, fontSize: 13)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1131,7 +1309,11 @@ class _MapPageState extends State<MapPage> {
   bool _requireEcoMap() {
     final features = (geoJson['features'] as List?) ?? [];
     if (features.isNotEmpty) return true;
-    _snack('Télécharge d\'abord une carte éco via le bouton Couches', error: true);
+    _snack('Télécharge d\'abord une carte écoforestière via le bouton Couches', error: true);
+    _layersGlowCtrl.repeat(reverse: true);
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) _layersGlowCtrl.stop();
+    });
     return false;
   }
 
@@ -1197,16 +1379,15 @@ class _MapPageState extends State<MapPage> {
 
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
-      backgroundColor: error ? const Color(0xFF8B4513) : const Color(0xFFFF6B35),
-      duration: Duration(seconds: error ? 3 : 4),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-    ));
+    _toastEntry?.remove();
+    _toastEntry = OverlayEntry(
+      builder: (_) => _AppToast(
+        msg: msg,
+        error: error,
+        onDone: () { _toastEntry?.remove(); _toastEntry = null; },
+      ),
+    );
+    Overlay.of(context).insert(_toastEntry!);
   }
 
   Widget _inputField(TextEditingController ctrl, String label) {
@@ -1266,7 +1447,7 @@ class _MapPageState extends State<MapPage> {
             child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 9)),
+          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 10)),
         ],
       ),
     );
@@ -1289,6 +1470,7 @@ class _MapPageState extends State<MapPage> {
           _buildActionPanel(),
           _buildNavPanel(),
           if (!_isOnline) _buildOfflineBanner(),
+          if (_windDeg != null) _buildWindIndicator(),
           if (_showLayerPanel) _buildLayerPanel(),
           Positioned(
             bottom: 20,
@@ -1344,21 +1526,41 @@ class _MapPageState extends State<MapPage> {
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
-        if (_showTerresPrivees && _cadastreRings.isNotEmpty)
+        if (_showTerresPrivees && _cadastreRings.isNotEmpty) ...[
+          // Halo blanc en dessous pour contraste sur carte éco
+          if (_opacity > 0)
+            PolygonLayer(
+              simplificationTolerance: 0,
+              polygons: _cadastreRings.asMap().entries.map((e) {
+                final selected = e.key == _selectedCadastreLot;
+                return Polygon(
+                  points: e.value,
+                  color: Colors.transparent,
+                  borderColor: Colors.white.withOpacity(0.85),
+                  borderStrokeWidth: selected ? 5.0 : 3.0,
+                );
+              }).toList(),
+            ),
           PolygonLayer(
             simplificationTolerance: 0,
             polygons: _cadastreRings.asMap().entries.map((e) {
               final selected = e.key == _selectedCadastreLot;
+              final onEco = _opacity > 0;
               return Polygon(
                 points: e.value,
                 color: selected
-                    ? const Color(0xFFFF6B35).withOpacity(0.25)
+                    ? (onEco
+                        ? Colors.black.withOpacity(0.12)
+                        : const Color(0xFFFF6B35).withOpacity(0.25))
                     : Colors.transparent,
-                borderColor: const Color(0xFFFF6B35),
-                borderStrokeWidth: selected ? 2.5 : 1.2,
+                borderColor: onEco ? Colors.black : const Color(0xFFFF6B35),
+                borderStrokeWidth: onEco
+                    ? (selected ? 2.5 : 1.8)
+                    : (selected ? 2.5 : 1.2),
               );
             }).toList(),
           ),
+        ],
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
           PolygonLayer(
               polygons: _polygonsCache, simplificationTolerance: 0),
@@ -1394,6 +1596,47 @@ class _MapPageState extends State<MapPage> {
               borderStrokeWidth: 2,
             ),
           ]),
+        if (_savedTracks.isNotEmpty)
+          PolylineLayer(
+            polylines: _savedTracks.asMap().entries.map((e) => Polyline(
+              points: e.value.points,
+              color: const Color(0xFF4A90E2),
+              strokeWidth: 4,
+              borderColor: Colors.white,
+              borderStrokeWidth: 1.5,
+            )).toList(),
+          ),
+        if (_savedTracks.isNotEmpty)
+          MarkerLayer(
+            markers: _savedTracks.asMap().entries.map((e) {
+              final idx = e.key;
+              final pts = e.value.points;
+              return Marker(
+                point: pts.first,
+                width: 36, height: 36,
+                child: GestureDetector(
+                  onTap: () => _showTrackPopup(idx),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: const Color(0xFF4A90E2), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 4)
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.route_rounded,
+                          color: Color(0xFF4A90E2), size: 16),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         if (_trackPoints.length >= 2)
           PolylineLayer(polylines: [
             Polyline(
@@ -1428,83 +1671,121 @@ class _MapPageState extends State<MapPage> {
         final obs = entry.value;
         final pos = obs['pos'] as LatLng;
         final note = obs['note'] as String;
+        final isNew = idx == _newObsIdx;
+        Widget markerBall = Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFFFF6B35), width: 2),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)
+            ],
+          ),
+          child: Center(child: obsIcon(note)),
+        );
+        if (isNew) {
+          markerBall = TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 650),
+            curve: Curves.elasticOut,
+            builder: (_, v, child) => Transform.scale(scale: v, child: child),
+            child: markerBall,
+          );
+        }
         return Marker(
           point: pos,
           width: 52, height: 52,
           child: GestureDetector(
-            onTap: () => showDialog(
-              context: context,
-              builder: (_) => AlertDialog(
-                backgroundColor: const Color(0xFF2D2D2D),
-                title: Row(children: [
-                  Expanded(child: Text(note,
-                      style: const TextStyle(color: Colors.white, fontSize: 15))),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-                    onPressed: () => Navigator.pop(context),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ]),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${(obs['time'] as DateTime).day.toString().padLeft(2, '0')}/'
-                      '${(obs['time'] as DateTime).month.toString().padLeft(2, '0')}/'
-                      '${(obs['time'] as DateTime).year}',
-                      style: const TextStyle(color: Colors.white54, fontSize: 13),
-                    ),
-                    const SizedBox(height: 8),
-                    _coordsWidget(pos),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      setState(() => _observations.removeAt(idx));
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Supprimer',
-                        style: TextStyle(color: Colors.white38)),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => NavigationPage(
-                          parcours: [_currentPosition, pos],
-                          score: 0,
-                          windDeg: _windDeg,
+            onTap: () {
+              final dt = obs['time'] as DateTime;
+              final parts = note.trim().split(' ');
+              final label = parts.length > 1 ? parts.sublist(1).join(' ') : parts.first;
+              final dateStr =
+                '${dt.day.toString().padLeft(2, '0')}/'
+                '${dt.month.toString().padLeft(2, '0')}/'
+                '${dt.year}';
+              showDialog(
+                context: context,
+                barrierColor: Colors.black54,
+                builder: (_) => Dialog(
+                  backgroundColor: const Color(0xFF1C1C1C),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        obsIcon(note, size: 52),
+                        const SizedBox(height: 10),
+                        Text(label,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(dateStr,
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 12)),
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: _coordsWidget(pos),
                         ),
-                      ));
-                    },
-                    icon: const Icon(Icons.navigation, size: 16),
-                    label: const Text('Naviguer'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF6B35),
-                      foregroundColor: Colors.white,
+                        const SizedBox(height: 20),
+                        Row(children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: () {
+                                _deleteObservation(idx);
+                                Navigator.pop(context);
+                              },
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 16, color: Colors.white38),
+                              label: const Text('Supprimer',
+                                  style: TextStyle(
+                                      color: Colors.white38, fontSize: 13)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                Navigator.push(context,
+                                    MaterialPageRoute(builder: (_) =>
+                                        NavigationPage(
+                                          parcours: [_currentPosition, pos],
+                                          score: 0, windDeg: _windDeg,
+                                        )));
+                              },
+                              icon: const Icon(Icons.navigation, size: 16),
+                              label: const Text('Naviguer'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF6B35),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ]),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: const Color(0xFFFF6B35), width: 2),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
-                      blurRadius: 4)
-                ],
-              ),
-              child: Center(child: obsIcon(note)),
-            ),
+                ),
+              );
+            },
+            child: markerBall,
           ),
         );
       }).toList(),
@@ -1523,9 +1804,10 @@ class _MapPageState extends State<MapPage> {
             : score >= 13
                 ? const Color(0xFFFF6B35)
                 : const Color(0xFFFFB347);
+        final hotspotFill = (score / 25.0).clamp(0.0, 1.0);
         return Marker(
           point: pos,
-          width: 56, height: 56,
+          width: 56, height: 66,
           child: GestureDetector(
             onTap: () {
               if (idx < _hotspotInfos.length) {
@@ -1533,38 +1815,59 @@ class _MapPageState extends State<MapPage> {
                     currentPosition: _currentPosition, windDeg: _windDeg);
               }
             },
-            child: Container(
-              width: 56, height: 56,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                shape: BoxShape.circle,
-                border: Border.all(color: flameColor, width: 3),
-                boxShadow: [
-                  BoxShadow(
-                      color: flameColor.withOpacity(0.7),
-                      blurRadius: 12,
-                      spreadRadius: 2),
-                  const BoxShadow(
-                      color: Colors.black54, blurRadius: 4),
-                ],
-              ),
-              child: Center(
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    Icon(Icons.local_fire_department,
-                        color: Colors.white12, size: 32),
-                    ClipRect(
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        heightFactor: (score / 25.0).clamp(0.25, 1.0),
-                        child: Icon(Icons.local_fire_department,
-                            color: flameColor, size: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: SizedBox(
+                    width: 48, height: 5,
+                    child: Stack(children: [
+                      Container(color: const Color(0xFF1B5E20)),
+                      FractionallySizedBox(
+                        widthFactor: hotspotFill,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)]),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ]),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 3),
+                Container(
+                  width: 56, height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: flameColor, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                          color: flameColor.withOpacity(0.7),
+                          blurRadius: 12,
+                          spreadRadius: 2),
+                    ],
+                  ),
+                  child: Center(
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        Icon(Icons.local_fire_department,
+                            color: Colors.white12, size: 32),
+                        ClipRect(
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            heightFactor: hotspotFill.clamp(0.25, 1.0),
+                            child: Icon(Icons.local_fire_department,
+                                color: flameColor, size: 32),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -1573,12 +1876,15 @@ class _MapPageState extends State<MapPage> {
   }
 
   MarkerLayer _buildPinchMarkers() {
+    final maxPinchScore = _pinchPoints.fold<int>(1, (m, p) => max(m, p['score'] as int? ?? 0));
     return MarkerLayer(
       markers: _pinchPoints.map((p) {
         final pos = LatLng(p['lat'] as double, p['lon'] as double);
+        final pScore = p['score'] as int? ?? 0;
+        final pFill = (pScore / maxPinchScore).clamp(0.0, 1.0);
         return Marker(
           point: pos,
-          width: 48, height: 48,
+          width: 48, height: 58,
           child: GestureDetector(
             onTap: () => showDialog(
               context: context,
@@ -1617,23 +1923,48 @@ class _MapPageState extends State<MapPage> {
                 ],
               ),
             ),
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
-                boxShadow: [
-                  BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.55),
-                      blurRadius: 10, spreadRadius: 1),
-                  const BoxShadow(color: Colors.black54, blurRadius: 4),
+            child: SizedBox(
+              width: 48, height: 58,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: SizedBox(
+                      width: 40, height: 5,
+                      child: Stack(children: [
+                        Container(color: const Color(0xFF1B5E20)),
+                        FractionallySizedBox(
+                          widthFactor: pFill,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)]),
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A1A),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF4CAF50), width: 2.5),
+                      boxShadow: [
+                        BoxShadow(color: const Color(0xFF4CAF50).withOpacity(0.55),
+                            blurRadius: 10, spreadRadius: 1),
+                      ],
+                    ),
+                    child: const Center(
+                      child: CustomPaint(
+                        size: Size(26, 26),
+                        painter: HuntingTowerPainter(color: Color(0xFF4CAF50)),
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-              child: const Center(
-                child: CustomPaint(
-                  size: Size(26, 26),
-                  painter: HuntingTowerPainter(color: Color(0xFF4CAF50)),
-                ),
               ),
             ),
           ),
@@ -1794,11 +2125,16 @@ class _MapPageState extends State<MapPage> {
 
   MarkerLayer _buildSalineMarkers() {
     return MarkerLayer(
-      markers: _salines.map((s) {
+      markers: () {
+        final maxScore = _salines.fold<int>(1, (m, s) => max(m, s['score'] as int? ?? 0));
+        return _salines.map((s) {
         final pos = LatLng(s['lat'] as double, s['lon'] as double);
+        final score = s['score'] as int? ?? 0;
+        final fillLevel = (score / maxScore).clamp(0.0, 1.0);
+        final miniCubes = fillLevel >= 0.67 ? 3 : fillLevel >= 0.33 ? 2 : 1;
         return Marker(
           point: pos,
-          width: 48, height: 48,
+          width: 44, height: 54,
           child: GestureDetector(
             onTap: () => showDialog(
               context: context,
@@ -1817,6 +2153,11 @@ class _MapPageState extends State<MapPage> {
                 content: Column(mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text('Score: $score/20',
+                        style: const TextStyle(
+                            color: Color(0xFFEF5350),
+                            fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
                     const Text('Emplacement idéal identifié par l\'algorithme OrignalScan pour l\'installation d\'une saline.',
                         style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
                     const SizedBox(height: 12),
@@ -1836,32 +2177,48 @@ class _MapPageState extends State<MapPage> {
                     icon: const Icon(Icons.navigation, size: 16),
                     label: const Text('Naviguer'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC62828),
+                      backgroundColor: const Color(0xFF37474F),
                       foregroundColor: Colors.white,
                     ),
                   ),
                 ],
               ),
             ),
-            child: Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(color: const Color(0xFFC62828).withOpacity(0.6),
-                      blurRadius: 12, spreadRadius: 2),
-                  const BoxShadow(color: Colors.black54, blurRadius: 4),
+            child: SizedBox(
+              width: 44, height: 54,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Barre de score verte
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: SizedBox(
+                      width: 40, height: 5,
+                      child: Stack(children: [
+                        Container(color: const Color(0xFF1B5E20)),
+                        FractionallySizedBox(
+                          widthFactor: fillLevel,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)]),
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const SizedBox(
+                    width: 44, height: 44,
+                    child: CustomPaint(painter: SaltCubePainter()),
+                  ),
                 ],
-              ),
-              child: Center(
-                child: CustomPaint(
-                  size: const Size(44, 44),
-                  painter: const SaltCubePainter(),
-                ),
               ),
             ),
           ),
         );
-      }).toList(),
+      }).toList();
+      }(),
     );
   }
 
@@ -2012,6 +2369,42 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  Widget _buildWindIndicator() {
+    final deg = _windDeg!;
+    final speed = _windSpeed ?? 0.0;
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 12,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A).withOpacity(0.88),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.rotate(
+              angle: (deg + 180) * pi / 180,
+              child: const Icon(Icons.navigation,
+                  color: Colors.white70, size: 15),
+            ),
+            const SizedBox(width: 6),
+            Text('${speed.round()} km/h',
+                style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOfflineBanner() {
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
@@ -2076,25 +2469,15 @@ class _MapPageState extends State<MapPage> {
           ],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (_parcoursScore > 0)
-            Container(
-              margin: const EdgeInsets.only(right: 10),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: _parcoursScore > 60
-                    ? const Color(0xFF2D5016)
-                    : _parcoursScore > 35
-                        ? const Color(0xFFFF6B35)
-                        : const Color(0xFF8B4513),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text('${_parcoursScore.round()}%',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13)),
-            ),
+          if (_parcoursBlocked)
+            const Row(children: [
+              Icon(Icons.block, color: Color(0xFFFF6B35), size: 16),
+              SizedBox(width: 6),
+              Text('Parcours bloqué',
+                  style: TextStyle(color: Color(0xFFFF6B35),
+                      fontWeight: FontWeight.bold, fontSize: 13)),
+            ])
+          else ...[
           GestureDetector(
             onTap: () => Navigator.push(
               context,
@@ -2117,9 +2500,10 @@ class _MapPageState extends State<MapPage> {
                       fontSize: 13)),
             ]),
           ),
+          ],
           const SizedBox(width: 12),
           GestureDetector(
-            onTap: () => setState(() => _showParcours = false),
+            onTap: () => setState(() { _showParcours = false; _parcoursBlocked = false; }),
             child: const Icon(Icons.close,
                 color: Color(0xFFFF6B35), size: 20),
           ),
@@ -2184,17 +2568,6 @@ class _MapPageState extends State<MapPage> {
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
-                      icon: Icons.route_rounded,
-                      label: 'Parcours',
-                      color: const Color(0xFF4CAF50),
-                      active: _showParcours,
-                      loading: _loadingParcours,
-                      onTap: _showParcours
-                          ? () => setState(() => _showParcours = false)
-                          : _showParcoursDialog,
-                    ),
-                    const SizedBox(height: 6),
-                    mapActionBtn(
                       icon: Icons.cabin,
                       label: 'Affût',
                       color: const Color(0xFF4CAF50),
@@ -2222,20 +2595,21 @@ class _MapPageState extends State<MapPage> {
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
-                      icon: Icons.people,
-                      label: 'Groupe',
-                      color: _isOnline ? const Color(0xFFFF6B35) : Colors.white24,
-                      active: _groupeActif,
-                      onTap: _isOnline
-                          ? _sharePosition
-                          : () => _snack('Groupe non disponible hors ligne', error: true),
+                      icon: Icons.route_rounded,
+                      label: 'Parcours',
+                      color: const Color(0xFF4CAF50),
+                      active: _showParcours,
+                      loading: _loadingParcours,
+                      onTap: _showParcours
+                          ? () => setState(() => _showParcours = false)
+                          : _showParcoursDialog,
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
                       icon: Icons.fiber_manual_record,
                       label: 'Suivi',
                       color: Colors.red,
-                      active: true,
+                      active: _recording,
                       onTap: _toggleRecording,
                       customIcon: Icon(
                         _recording ? Icons.stop_rounded : Icons.fiber_manual_record,
@@ -2303,13 +2677,16 @@ class _MapPageState extends State<MapPage> {
               child: Container(
                 width: 28, height: 64,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D2D2D).withOpacity(0.88),
+                  color: const Color(0xFF2D2D2D).withOpacity(0.92),
                   borderRadius: const BorderRadius.horizontal(
                       left: Radius.circular(12)),
-                  border: const Border(
-                    left: BorderSide(color: Colors.white24),
-                    top: BorderSide(color: Colors.white24),
-                    bottom: BorderSide(color: Colors.white24),
+                  border: Border(
+                    left: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                    top: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                    bottom: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -2322,7 +2699,7 @@ class _MapPageState extends State<MapPage> {
                   _showNavPanel
                       ? Icons.chevron_right
                       : Icons.chevron_left,
-                  color: Colors.white54,
+                  color: const Color(0xFFFF6B35),
                   size: 16,
                 ),
               ),
@@ -2361,8 +2738,13 @@ class _MapPageState extends State<MapPage> {
                         )) : () => _snack('Météo non disponible hors ligne', error: true),
                         color: _isOnline ? const Color(0xFFBDBDBD) : Colors.white24),
                     const SizedBox(height: 10),
-                    _navBtn(Icons.save_alt_rounded, 'Tracés',
-                        _showTracesDialog),
+                    _navBtn(Icons.people, 'Groupe',
+                        _isOnline
+                            ? _sharePosition
+                            : () => _snack('Groupe non disponible hors ligne', error: true),
+                        color: _isOnline
+                            ? (_groupeActif ? const Color(0xFFFF6B35) : const Color(0xFFBDBDBD))
+                            : Colors.white24),
                     const SizedBox(height: 10),
                     _navBtn(Icons.info_outline_rounded, 'À propos',
                         () => Navigator.push(context, MaterialPageRoute(
@@ -2422,10 +2804,47 @@ class _MapPageState extends State<MapPage> {
                 mapIconBtn(Icons.my_location, _goToCurrentLocation,
                     loading: _loading),
                 mapDividerV(),
-                mapIconBtn(
-                  Icons.layers_rounded,
-                  () => setState(() => _showLayerPanel = !_showLayerPanel),
-                  active: _showLayerPanel,
+                AnimatedBuilder(
+                  animation: _layersGlowAnim,
+                  builder: (_, __) => GestureDetector(
+                    onTap: () {
+                      _layersGlowCtrl.stop();
+                      setState(() => _showLayerPanel = !_showLayerPanel);
+                    },
+                    child: SizedBox(
+                      width: 42, height: 36,
+                      child: Center(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (_layersGlowCtrl.isAnimating)
+                              Container(
+                                width: 28 + _layersGlowAnim.value * 14,
+                                height: 28 + _layersGlowAnim.value * 14,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFFFF6B35).withOpacity(0.15 + _layersGlowAnim.value * 0.25),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFF6B35).withOpacity(0.5 * _layersGlowAnim.value),
+                                      blurRadius: 10,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            Icon(
+                              Icons.layers_rounded,
+                              size: 20,
+                              color: _layersGlowCtrl.isAnimating
+                                  ? Color.lerp(Colors.white, const Color(0xFFFF6B35), _layersGlowAnim.value)
+                                  : (_showLayerPanel ? const Color(0xFF4A90E2) : Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -2482,6 +2901,113 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Toast notification (haut de l'écran)
+// ─────────────────────────────────────────────────────────────────────────────
+class _AppToast extends StatefulWidget {
+  final String msg;
+  final bool error;
+  final VoidCallback onDone;
+  const _AppToast({required this.msg, required this.error, required this.onDone});
+
+  @override
+  State<_AppToast> createState() => _AppToastState();
+}
+
+class _AppToastState extends State<_AppToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 320));
+    _slide = Tween<Offset>(
+            begin: const Offset(0, -1.2), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+    Future.delayed(Duration(seconds: widget.error ? 3 : 2), _dismiss);
+  }
+
+  Future<void> _dismiss() async {
+    if (!mounted) return;
+    await _ctrl.reverse();
+    widget.onDone();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent =
+        widget.error ? const Color(0xFFFF6B35) : const Color(0xFF4CAF50);
+    final top = MediaQuery.of(context).padding.top + 12;
+    return Positioned(
+      top: top,
+      left: 16,
+      right: 16,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _fade,
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: _dismiss,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1C),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: accent.withOpacity(0.45)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.45),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4))
+                  ],
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.22),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      widget.error
+                          ? Icons.warning_amber_rounded
+                          : Icons.check_circle_outline,
+                      color: accent, size: 17,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(widget.msg,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

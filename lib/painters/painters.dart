@@ -55,6 +55,23 @@ class CompassPainter extends CustomPainter {
     canvas.drawCircle(Offset.zero, radius,
         Paint()..color = const Color(0xFFFF6B35)..strokeWidth = 3..style = PaintingStyle.stroke);
 
+    // Zone verte ±60° autour de la source du vent — pointe de tarte depuis le centre
+    if (windDeg != null) {
+      const span = 120.0 * pi / 180;
+      final windCenter = windDeg! * pi / 180 - pi / 2;
+      final arcStart = windCenter - span / 2;
+      final piePath = ui.Path()
+        ..moveTo(0, 0)
+        ..arcTo(Rect.fromCircle(center: Offset.zero, radius: radius - 2), arcStart, span, false)
+        ..close();
+      canvas.drawPath(piePath, Paint()..color = const Color(0xFF4CAF50).withOpacity(0.30)..style = PaintingStyle.fill);
+      // Bordures de la pointe
+      canvas.drawPath(piePath, Paint()
+        ..color = const Color(0xFF4CAF50).withOpacity(0.70)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2);
+    }
+
     final textPainter = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr);
     final directions = ['N', 'E', 'S', 'O'];
     final colors = [const Color(0xFFFF6B35), Colors.white70, Colors.white70, Colors.white70];
@@ -83,45 +100,30 @@ class CompassPainter extends CustomPainter {
     }
     canvas.restore();
 
+    // Flèche destination — RELATIVE à ta direction (relativeBearing = targetBearing - heading)
+    final relativeBearing = targetBearing - (rotation * -180 / pi);
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    canvas.rotate((targetBearing * pi / 180) + rotation);
+    canvas.rotate(relativeBearing * pi / 180);
 
+    // Tige de la flèche
+    canvas.drawLine(
+      const Offset(0, 20),
+      Offset(0, -(radius - 35)),
+      Paint()..color = const Color(0xFFFF6B35).withOpacity(0.6)..strokeWidth = 3..strokeCap = StrokeCap.round,
+    );
+    // Pointe
     final arrowPaint = Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill;
     final arrowPath = ui.Path()
-      ..moveTo(0, -radius + 30)
-      ..lineTo(-15, -radius + 60)
-      ..lineTo(0, -radius + 50)
-      ..lineTo(15, -radius + 60)
+      ..moveTo(0, -(radius - 20))
+      ..lineTo(-14, -(radius - 48))
+      ..lineTo(0, -(radius - 40))
+      ..lineTo(14, -(radius - 48))
       ..close();
     canvas.drawPath(arrowPath, arrowPaint);
-    canvas.drawPath(arrowPath, Paint()..color = Colors.white..strokeWidth = 2..style = PaintingStyle.stroke);
-    canvas.restore();
+    canvas.drawPath(arrowPath, Paint()..color = Colors.white..strokeWidth = 1.5..style = PaintingStyle.stroke);
 
-    // Flèche vent — entièrement à l'extérieur du cercle, tourne en espace absolu
-    // +180° : la flèche pointe vers la SOURCE du vent (d'où il arrive)
-    if (windDeg != null) {
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate((windDeg! + 180) * pi / 180);
-      final windFill = Paint()
-        ..color = const Color(0xFF87CEEB).withOpacity(0.92)
-        ..style = PaintingStyle.fill;
-      final windStroke = Paint()
-        ..color = Colors.white.withOpacity(0.6)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke;
-      // Flèche entièrement hors du cercle — pointe vers l'extérieur (source du vent)
-      final windPath = ui.Path()
-        ..moveTo(0, -(radius + 22))  // pointe (loin du cercle)
-        ..lineTo(-10, -(radius + 6)) // aile gauche (près du cercle)
-        ..lineTo(0, -(radius + 12))  // encoche
-        ..lineTo(10, -(radius + 6))  // aile droite
-        ..close();
-      canvas.drawPath(windPath, windFill);
-      canvas.drawPath(windPath, windStroke);
-      canvas.restore();
-    }
+    canvas.restore();
 
     canvas.drawCircle(center, 6, Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill);
     canvas.drawCircle(center, 6, Paint()..color = Colors.white..strokeWidth = 2..style = PaintingStyle.stroke);

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:ecomap/services/auth_service.dart';
+import '../services/auth_service.dart';
 
 class PremiumPage extends StatefulWidget {
   const PremiumPage({super.key});
@@ -9,8 +9,7 @@ class PremiumPage extends StatefulWidget {
 }
 
 class _PremiumPageState extends State<PremiumPage> {
-  // ── Remplace par ton vrai lien Stripe Checkout ──
-  static const _stripeUrl = 'https://buy.stripe.com/PLACEHOLDER_VIE';
+  static const _stripeUrl = 'https://buy.stripe.com/bJeaEXeq59m3bvY9Vt83C00';
 
   static const _freeFeatures = [
     (Icons.gps_fixed_rounded,       'GPS & localisation'),
