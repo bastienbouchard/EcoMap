@@ -65,11 +65,28 @@ class CompassPainter extends CustomPainter {
         ..arcTo(Rect.fromCircle(center: Offset.zero, radius: radius - 2), arcStart, span, false)
         ..close();
       canvas.drawPath(piePath, Paint()..color = const Color(0xFF4CAF50).withOpacity(0.30)..style = PaintingStyle.fill);
-      // Bordures de la pointe
       canvas.drawPath(piePath, Paint()
         ..color = const Color(0xFF4CAF50).withOpacity(0.70)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2);
+
+      // Flèches pointant de l'arc vers le centre (vent qui vient vers nous)
+      canvas.save();
+      canvas.rotate(windDeg! * pi / 180);
+      final arrowFill = Paint()..color = const Color(0xFF4CAF50).withOpacity(0.90)..style = PaintingStyle.fill;
+      final arrowStroke = Paint()
+        ..color = const Color(0xFF4CAF50).withOpacity(0.90)
+        ..strokeWidth = 1.5..strokeCap = StrokeCap.round..style = PaintingStyle.stroke;
+      for (final p in [radius * 0.75, radius * 0.48, radius * 0.22]) {
+        canvas.drawLine(Offset(0, -(p + 10)), Offset(0, -(p - 10) + 9), arrowStroke);
+        final head = ui.Path()
+          ..moveTo(0, -(p - 10))
+          ..lineTo(-5.0, -(p - 10) + 9)
+          ..lineTo(5.0, -(p - 10) + 9)
+          ..close();
+        canvas.drawPath(head, arrowFill);
+      }
+      canvas.restore();
     }
 
     final textPainter = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr);
@@ -98,16 +115,16 @@ class CompassPainter extends CustomPainter {
         );
       }
     }
-    // Repère de destination sur le cadran (tourne avec la boussole)
+    // Repère de destination sur le cadran (tourne avec la boussole) — blanc sur fond orange
     canvas.save();
     canvas.rotate(targetBearing * pi / 180);
     final destMark = ui.Path()
       ..moveTo(0, -(radius - 2))
-      ..lineTo(-10, -(radius - 20))
-      ..lineTo(10, -(radius - 20))
+      ..lineTo(-14, -(radius - 28))
+      ..lineTo(14, -(radius - 28))
       ..close();
-    canvas.drawPath(destMark, Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill);
-    canvas.drawPath(destMark, Paint()..color = Colors.white..strokeWidth = 1.2..style = PaintingStyle.stroke);
+    canvas.drawPath(destMark, Paint()..color = Colors.white..style = PaintingStyle.fill);
+    canvas.drawPath(destMark, Paint()..color = const Color(0xFFFF6B35)..strokeWidth = 2.5..style = PaintingStyle.stroke);
     canvas.restore();
 
     canvas.restore();
