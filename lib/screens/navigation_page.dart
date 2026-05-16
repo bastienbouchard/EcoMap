@@ -148,7 +148,8 @@ class _NavigationPageState extends State<NavigationPage> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _legendDot(const Color(0xFFFF6B35), 'Destination'),
-          _legendDot(const Color(0xFF87CEEB), widget.windDeg != null ? 'Vent' : 'Vent (n/a)'),
+          if (widget.windDeg != null)
+            _legendDot(const Color(0xFF4CAF50), 'Face au vent'),
         ],
       ),
     );
