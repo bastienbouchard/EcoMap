@@ -136,11 +136,11 @@ class CompassPainter extends CustomPainter {
       canvas.drawPath(windPath, windStroke);
 
       // Label VENT
-      canvas.rotate(-((windDeg! + 180) * pi / 180));
+      canvas.rotate(-(windDeg! * pi / 180));
       final wp = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr)
         ..text = TextSpan(text: 'VENT', style: TextStyle(color: const Color(0xFF87CEEB).withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.bold))
         ..layout();
-      wp.paint(canvas, Offset(-wp.width / 2, -(radius + 36)));
+      wp.paint(canvas, Offset(-wp.width / 2, -(radius - 18)));
       canvas.restore();
     }
 

@@ -149,7 +149,6 @@ class _NavigationPageState extends State<NavigationPage> {
         children: [
           _legendDot(const Color(0xFFFF6B35), 'Destination'),
           _legendDot(const Color(0xFF87CEEB), widget.windDeg != null ? 'Vent' : 'Vent (n/a)'),
-          _legendDot(Colors.white70, 'Boussole'),
         ],
       ),
     );
