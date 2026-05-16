@@ -106,12 +106,13 @@ class CompassPainter extends CustomPainter {
     canvas.drawPath(arrowPath, arrowPaint);
     canvas.drawPath(arrowPath, Paint()..color = Colors.white..strokeWidth = 1.5..style = PaintingStyle.stroke);
 
-    // Label DEST au bout de la flèche (contre-rotation pour rester lisible)
+    // Label DEST — se déplace à la pointe, puis contre-rotation pour rester lisible
+    canvas.translate(0, -(radius - 10));
     canvas.rotate(-(relativeBearing * pi / 180));
     final dp = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr)
       ..text = const TextSpan(text: 'DEST', style: TextStyle(color: Color(0xFFFF6B35), fontSize: 11, fontWeight: FontWeight.bold))
       ..layout();
-    dp.paint(canvas, Offset(-dp.width / 2, -(radius - 10)));
+    dp.paint(canvas, Offset(-dp.width / 2, -dp.height / 2));
     canvas.restore();
 
     // Flèche vent — à l'extérieur du cercle, espace absolu, pointe vers la source
@@ -135,12 +136,13 @@ class CompassPainter extends CustomPainter {
       canvas.drawPath(windPath, windFill);
       canvas.drawPath(windPath, windStroke);
 
-      // Label VENT
+      // Label VENT — se déplace à la pointe, puis contre-rotation pour rester lisible
+      canvas.translate(0, -(radius + 30));
       canvas.rotate(-((windDeg! + 180) * pi / 180));
       final wp = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr)
         ..text = TextSpan(text: 'VENT', style: TextStyle(color: const Color(0xFF87CEEB).withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.bold))
         ..layout();
-      wp.paint(canvas, Offset(-wp.width / 2, -(radius - 18)));
+      wp.paint(canvas, Offset(-wp.width / 2, -wp.height / 2));
       canvas.restore();
     }
 
