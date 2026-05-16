@@ -2478,25 +2478,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                       fontWeight: FontWeight.bold, fontSize: 13)),
             ])
           else ...[
-          if (_parcoursScore > 0)
-            Container(
-              margin: const EdgeInsets.only(right: 10),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: _parcoursScore > 60
-                    ? const Color(0xFF2D5016)
-                    : _parcoursScore > 35
-                        ? const Color(0xFFFF6B35)
-                        : const Color(0xFF8B4513),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text('${_parcoursScore.round()}%',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13)),
-            ),
           GestureDetector(
             onTap: () => Navigator.push(
               context,
