@@ -98,21 +98,28 @@ class CompassPainter extends CustomPainter {
         );
       }
     }
+    // Repère de destination sur le cadran (tourne avec la boussole)
+    canvas.save();
+    canvas.rotate(targetBearing * pi / 180);
+    final destMark = ui.Path()
+      ..moveTo(0, -(radius - 2))
+      ..lineTo(-10, -(radius - 20))
+      ..lineTo(10, -(radius - 20))
+      ..close();
+    canvas.drawPath(destMark, Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill);
+    canvas.drawPath(destMark, Paint()..color = Colors.white..strokeWidth = 1.2..style = PaintingStyle.stroke);
     canvas.restore();
 
-    // Flèche destination — RELATIVE à ta direction (relativeBearing = targetBearing - heading)
-    final relativeBearing = targetBearing - (rotation * -180 / pi);
+    canvas.restore();
+
+    // Flèche orange fixe en haut — toujours visible, indique "va dans cette direction"
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    canvas.rotate(relativeBearing * pi / 180);
-
-    // Tige de la flèche
     canvas.drawLine(
-      const Offset(0, 20),
+      const Offset(0, 18),
       Offset(0, -(radius - 35)),
-      Paint()..color = const Color(0xFFFF6B35).withOpacity(0.6)..strokeWidth = 3..strokeCap = StrokeCap.round,
+      Paint()..color = const Color(0xFFFF6B35).withOpacity(0.5)..strokeWidth = 3..strokeCap = StrokeCap.round,
     );
-    // Pointe
     final arrowPaint = Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill;
     final arrowPath = ui.Path()
       ..moveTo(0, -(radius - 20))
@@ -122,7 +129,6 @@ class CompassPainter extends CustomPainter {
       ..close();
     canvas.drawPath(arrowPath, arrowPaint);
     canvas.drawPath(arrowPath, Paint()..color = Colors.white..strokeWidth = 1.5..style = PaintingStyle.stroke);
-
     canvas.restore();
 
     canvas.drawCircle(center, 6, Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill);

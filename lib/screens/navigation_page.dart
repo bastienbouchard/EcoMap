@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../painters/painters.dart';
+import '../services/compass_heading.dart';
 
 class NavigationPage extends StatefulWidget {
   final List<LatLng> parcours;
@@ -30,17 +31,33 @@ class _NavigationPageState extends State<NavigationPage> {
   DateTime? _lastSpeedUpdate;
   double _distanceAtLastSpeedUpdate = 0;
 
+  StreamSubscription<double>? _compassSubscription;
+  bool _compassPermissionGranted = false;
+
   @override
   void initState() {
     super.initState();
     _calculateTotalDistance();
     _startTracking();
+    _initCompass();
   }
 
   @override
   void dispose() {
     _positionSubscription?.cancel();
+    _compassSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _initCompass() async {
+    final granted = await requestCompassPermission();
+    if (!mounted) return;
+    setState(() => _compassPermissionGranted = granted);
+    if (granted) {
+      _compassSubscription = compassHeadingStream().listen((heading) {
+        if (mounted) setState(() => _currentHeading = heading);
+      });
+    }
   }
 
   void _calculateTotalDistance() {
@@ -65,7 +82,10 @@ class _NavigationPageState extends State<NavigationPage> {
 
   void _updatePosition(Position position) {
     final newPos = LatLng(position.latitude, position.longitude);
-    setState(() => _currentHeading = position.heading);
+    // GPS heading seulement si le magnétomètre web n'est pas actif
+    if (!_compassPermissionGranted) {
+      setState(() => _currentHeading = position.heading);
+    }
     _updateWaypoint(newPos);
     _updateSpeed();
   }
