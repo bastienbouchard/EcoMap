@@ -25,6 +25,11 @@ class _NavigationPageState extends State<NavigationPage> {
   double _totalDistance = 0;
   double _completedDistance = 0;
 
+  // Vitesse de marche : 3 km/h par défaut, ajustée toutes les 5 min
+  double _walkingSpeedKmh = 3.0;
+  DateTime? _lastSpeedUpdate;
+  double _distanceAtLastSpeedUpdate = 0;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +67,34 @@ class _NavigationPageState extends State<NavigationPage> {
     final newPos = LatLng(position.latitude, position.longitude);
     setState(() => _currentHeading = position.heading);
     _updateWaypoint(newPos);
+    _updateSpeed();
+  }
+
+  void _updateSpeed() {
+    final now = DateTime.now();
+    _lastSpeedUpdate ??= now;
+    if (now.difference(_lastSpeedUpdate!).inMinutes >= 5) {
+      final distDelta = _completedDistance - _distanceAtLastSpeedUpdate;
+      final timeDeltaH = now.difference(_lastSpeedUpdate!).inSeconds / 3600.0;
+      if (timeDeltaH > 0 && distDelta > 20) {
+        final speed = (distDelta / 1000) / timeDeltaH;
+        if (speed >= 0.5 && speed <= 15) {
+          setState(() => _walkingSpeedKmh = speed);
+        }
+      }
+      _lastSpeedUpdate = now;
+      _distanceAtLastSpeedUpdate = _completedDistance;
+    }
+  }
+
+  String _formatRemaining() {
+    final remainingKm = (_totalDistance - _completedDistance) / 1000;
+    if (remainingKm <= 0) return '0 min';
+    final minutes = (remainingKm / _walkingSpeedKmh * 60).round();
+    if (minutes < 60) return '$minutes min';
+    final h = minutes ~/ 60;
+    final m = (minutes % 60).toString().padLeft(2, '0');
+    return '${h}h$m';
   }
 
   void _updateWaypoint(LatLng currentPos) {
@@ -221,9 +254,9 @@ class _NavigationPageState extends State<NavigationPage> {
         ),
         const SizedBox(height: 20),
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _stat('Point', '${_currentWaypointIndex + 1}/${widget.parcours.length}', Icons.flag),
           _stat('Distance totale', '${(_totalDistance / 1000).toStringAsFixed(1)} km', Icons.straighten),
           _stat('Restant', '${((_totalDistance - _completedDistance) / 1000).toStringAsFixed(1)} km', Icons.timeline),
+          _stat('Temps est.', _formatRemaining(), Icons.timer_outlined),
         ]),
       ]),
     );
