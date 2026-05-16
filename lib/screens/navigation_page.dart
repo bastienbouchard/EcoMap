@@ -181,15 +181,6 @@ class _NavigationPageState extends State<NavigationPage> {
         ),
         const SizedBox(width: 16),
         const Text('Navigation', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: progress >= 1.0 ? const Color(0xFF2D5016) : const Color(0xFF3D3D3D),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text('${(progress * 100).round()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-        ),
       ]),
     );
   }
