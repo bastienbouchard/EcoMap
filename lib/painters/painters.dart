@@ -55,6 +55,22 @@ class CompassPainter extends CustomPainter {
     canvas.drawCircle(Offset.zero, radius,
         Paint()..color = const Color(0xFFFF6B35)..strokeWidth = 3..style = PaintingStyle.stroke);
 
+    // Zone verte ±60° autour de la source du vent (vent dans la face)
+    if (windDeg != null) {
+      const span = 120.0 * pi / 180;
+      // windDeg = source du vent → se tourner vers windDeg = vent dans la face
+      // En coords Flutter canvas: 0 = droite, nord = -pi/2
+      final windCenter = windDeg! * pi / 180 - pi / 2;
+      final arcStart = windCenter - span / 2;
+      final outerR = radius - 2;
+      final innerR = radius - 14;
+      final arcPath = ui.Path()
+        ..arcTo(Rect.fromCircle(center: Offset.zero, radius: outerR), arcStart, span, false)
+        ..arcTo(Rect.fromCircle(center: Offset.zero, radius: innerR), arcStart + span, -span, false)
+        ..close();
+      canvas.drawPath(arcPath, Paint()..color = const Color(0xFF4CAF50).withOpacity(0.55)..style = PaintingStyle.fill);
+    }
+
     final textPainter = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr);
     final directions = ['N', 'E', 'S', 'O'];
     final colors = [const Color(0xFFFF6B35), Colors.white70, Colors.white70, Colors.white70];
@@ -106,45 +122,7 @@ class CompassPainter extends CustomPainter {
     canvas.drawPath(arrowPath, arrowPaint);
     canvas.drawPath(arrowPath, Paint()..color = Colors.white..strokeWidth = 1.5..style = PaintingStyle.stroke);
 
-    // Label DEST — se déplace à la pointe, puis contre-rotation pour rester lisible
-    canvas.translate(0, -(radius - 10));
-    canvas.rotate(-(relativeBearing * pi / 180));
-    final dp = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr)
-      ..text = const TextSpan(text: 'DEST', style: TextStyle(color: Color(0xFFFF6B35), fontSize: 11, fontWeight: FontWeight.bold))
-      ..layout();
-    dp.paint(canvas, Offset(-dp.width / 2, -dp.height / 2));
     canvas.restore();
-
-    // Flèche vent — à l'extérieur du cercle, espace absolu, pointe vers la source
-    if (windDeg != null) {
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate((windDeg! + 180) * pi / 180);
-      final windFill = Paint()
-        ..color = const Color(0xFF87CEEB).withOpacity(0.92)
-        ..style = PaintingStyle.fill;
-      final windStroke = Paint()
-        ..color = Colors.white.withOpacity(0.6)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke;
-      final windPath = ui.Path()
-        ..moveTo(0, -(radius + 22))
-        ..lineTo(-10, -(radius + 6))
-        ..lineTo(0, -(radius + 12))
-        ..lineTo(10, -(radius + 6))
-        ..close();
-      canvas.drawPath(windPath, windFill);
-      canvas.drawPath(windPath, windStroke);
-
-      // Label VENT — se déplace à la pointe, puis contre-rotation pour rester lisible
-      canvas.translate(0, -(radius + 30));
-      canvas.rotate(-((windDeg! + 180) * pi / 180));
-      final wp = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr)
-        ..text = TextSpan(text: 'VENT', style: TextStyle(color: const Color(0xFF87CEEB).withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.bold))
-        ..layout();
-      wp.paint(canvas, Offset(-wp.width / 2, -wp.height / 2));
-      canvas.restore();
-    }
 
     canvas.drawCircle(center, 6, Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill);
     canvas.drawCircle(center, 6, Paint()..color = Colors.white..strokeWidth = 2..style = PaintingStyle.stroke);
