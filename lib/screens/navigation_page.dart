@@ -17,7 +17,7 @@ class NavigationPage extends StatefulWidget {
   State<NavigationPage> createState() => _NavigationPageState();
 }
 
-class _NavigationPageState extends State<NavigationPage> {
+class _NavigationPageState extends State<NavigationPage> with SingleTickerProviderStateMixin {
   double _currentHeading = 0;
   int _currentWaypointIndex = 1;
   double _distanceToNext = 0;
@@ -33,10 +33,16 @@ class _NavigationPageState extends State<NavigationPage> {
 
   StreamSubscription<double>? _compassSubscription;
   bool _compassPermissionGranted = false;
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))
+      ..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
     _calculateTotalDistance();
     _startTracking();
     _initCompass();
@@ -44,6 +50,7 @@ class _NavigationPageState extends State<NavigationPage> {
 
   @override
   void dispose() {
+    _pulseController.dispose();
     _positionSubscription?.cancel();
     _compassSubscription?.cancel();
     super.dispose();
@@ -194,20 +201,27 @@ class _NavigationPageState extends State<NavigationPage> {
                 ),
                 if (!_compassPermissionGranted) ...[
                   const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: _activateCompass,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3D3D3D),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.5)),
+                  AnimatedBuilder(
+                    animation: _pulseAnim,
+                    builder: (context, _) => GestureDetector(
+                      onTap: _activateCompass,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Color.fromRGBO(61, 61, 61, 1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Color.fromRGBO(255, 107, 53, _pulseAnim.value), width: 1.5),
+                          boxShadow: [BoxShadow(
+                            color: Color.fromRGBO(255, 107, 53, _pulseAnim.value * 0.5),
+                            blurRadius: 8, spreadRadius: 1,
+                          )],
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.explore, color: Color.fromRGBO(255, 107, 53, _pulseAnim.value), size: 16),
+                          const SizedBox(width: 6),
+                          Text('Activer la boussole', style: TextStyle(color: Color.fromRGBO(255, 107, 53, _pulseAnim.value), fontSize: 13)),
+                        ]),
                       ),
-                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.explore, color: Color(0xFFFF6B35), size: 16),
-                        SizedBox(width: 6),
-                        Text('Activer la boussole', style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13)),
-                      ]),
                     ),
                   ),
                 ],
