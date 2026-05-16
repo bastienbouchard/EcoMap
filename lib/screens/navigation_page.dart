@@ -126,7 +126,9 @@ class _NavigationPageState extends State<NavigationPage> {
                   windDeg: widget.windDeg,
                 )),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 16),
+              _buildLegend(),
+              const SizedBox(height: 24),
               _buildDistanceCard(normalizedBearing),
             ],
           ))),
@@ -134,6 +136,60 @@ class _NavigationPageState extends State<NavigationPage> {
         ]),
       ),
     );
+  }
+
+  Widget _buildLegend() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _legendItem(
+            color: const Color(0xFFFF6B35),
+            icon: Icons.navigation,
+            label: 'Destination',
+            sub: 'Pointe où aller',
+          ),
+          Container(width: 1, height: 36, color: Colors.white12),
+          if (widget.windDeg != null)
+            _legendItem(
+              color: const Color(0xFF87CEEB),
+              icon: Icons.air,
+              label: 'Vent',
+              sub: 'Source du vent',
+            )
+          else
+            _legendItem(
+              color: Colors.white38,
+              icon: Icons.air,
+              label: 'Vent',
+              sub: 'Non disponible',
+            ),
+          Container(width: 1, height: 36, color: Colors.white12),
+          _legendItem(
+            color: Colors.white70,
+            icon: Icons.explore,
+            label: 'Boussole',
+            sub: 'Tourne avec toi',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendItem({required Color color, required IconData icon, required String label, required String sub}) {
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, color: color, size: 20),
+      const SizedBox(height: 3),
+      Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+      Text(sub, style: const TextStyle(color: Colors.white38, fontSize: 9)),
+    ]);
   }
 
   Widget _buildHeader() {
