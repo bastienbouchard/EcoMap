@@ -1488,21 +1488,41 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
-        if (_showTerresPrivees && _cadastreRings.isNotEmpty)
+        if (_showTerresPrivees && _cadastreRings.isNotEmpty) ...[
+          // Halo blanc en dessous pour contraste sur carte éco
+          if (_opacity > 0)
+            PolygonLayer(
+              simplificationTolerance: 0,
+              polygons: _cadastreRings.asMap().entries.map((e) {
+                final selected = e.key == _selectedCadastreLot;
+                return Polygon(
+                  points: e.value,
+                  color: Colors.transparent,
+                  borderColor: Colors.white.withOpacity(0.85),
+                  borderStrokeWidth: selected ? 5.0 : 3.0,
+                );
+              }).toList(),
+            ),
           PolygonLayer(
             simplificationTolerance: 0,
             polygons: _cadastreRings.asMap().entries.map((e) {
               final selected = e.key == _selectedCadastreLot;
+              final onEco = _opacity > 0;
               return Polygon(
                 points: e.value,
                 color: selected
-                    ? const Color(0xFFFF6B35).withOpacity(0.25)
+                    ? (onEco
+                        ? Colors.black.withOpacity(0.12)
+                        : const Color(0xFFFF6B35).withOpacity(0.25))
                     : Colors.transparent,
-                borderColor: const Color(0xFFFF6B35),
-                borderStrokeWidth: selected ? 2.5 : 1.2,
+                borderColor: onEco ? Colors.black : const Color(0xFFFF6B35),
+                borderStrokeWidth: onEco
+                    ? (selected ? 2.5 : 1.8)
+                    : (selected ? 2.5 : 1.2),
               );
             }).toList(),
           ),
+        ],
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
           PolygonLayer(
               polygons: _polygonsCache, simplificationTolerance: 0),
