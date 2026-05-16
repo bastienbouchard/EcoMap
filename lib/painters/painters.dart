@@ -55,20 +55,21 @@ class CompassPainter extends CustomPainter {
     canvas.drawCircle(Offset.zero, radius,
         Paint()..color = const Color(0xFFFF6B35)..strokeWidth = 3..style = PaintingStyle.stroke);
 
-    // Zone verte ±60° autour de la source du vent (vent dans la face)
+    // Zone verte ±60° autour de la source du vent — pointe de tarte depuis le centre
     if (windDeg != null) {
       const span = 120.0 * pi / 180;
-      // windDeg = source du vent → se tourner vers windDeg = vent dans la face
-      // En coords Flutter canvas: 0 = droite, nord = -pi/2
       final windCenter = windDeg! * pi / 180 - pi / 2;
       final arcStart = windCenter - span / 2;
-      final outerR = radius - 2;
-      final innerR = radius - 14;
-      final arcPath = ui.Path()
-        ..arcTo(Rect.fromCircle(center: Offset.zero, radius: outerR), arcStart, span, false)
-        ..arcTo(Rect.fromCircle(center: Offset.zero, radius: innerR), arcStart + span, -span, false)
+      final piePath = ui.Path()
+        ..moveTo(0, 0)
+        ..arcTo(Rect.fromCircle(center: Offset.zero, radius: radius - 2), arcStart, span, false)
         ..close();
-      canvas.drawPath(arcPath, Paint()..color = const Color(0xFF4CAF50).withOpacity(0.55)..style = PaintingStyle.fill);
+      canvas.drawPath(piePath, Paint()..color = const Color(0xFF4CAF50).withOpacity(0.30)..style = PaintingStyle.fill);
+      // Bordures de la pointe
+      canvas.drawPath(piePath, Paint()
+        ..color = const Color(0xFF4CAF50).withOpacity(0.70)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2);
     }
 
     final textPainter = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr);
