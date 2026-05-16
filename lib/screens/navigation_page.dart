@@ -175,11 +175,7 @@ class _NavigationPageState extends State<NavigationPage> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
       ),
-      child: Column(children: [
-        Text('${_distanceToNext.round()} m', style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 48, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(_getDirectionText(normalizedBearing), style: const TextStyle(color: Colors.white70, fontSize: 18)),
-      ]),
+      child: Text(_getDirectionText(normalizedBearing), style: const TextStyle(color: Colors.white70, fontSize: 18)),
     );
   }
 
