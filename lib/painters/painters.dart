@@ -118,7 +118,7 @@ class CompassPainter extends CustomPainter {
     if (windDeg != null) {
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.rotate((windDeg! + 180) * pi / 180);
+      canvas.rotate(windDeg! * pi / 180);
       final windFill = Paint()
         ..color = const Color(0xFF87CEEB).withOpacity(0.92)
         ..style = PaintingStyle.fill;

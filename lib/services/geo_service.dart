@@ -497,6 +497,9 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
   final lon = params['lon'] as double;
   final radiusM = (params['radiusM'] as num?)?.toDouble() ?? 4000.0;
   final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
+  final infraPoints = (params['infraPoints'] as List?)
+      ?.map((p) => [((p as List)[0] as num).toDouble(), (p[1] as num).toDouble()])
+      .toList() ?? <List<double>>[];
 
   // Pre-filter: keep only features whose geometry touches the search bbox
   final latMargin = radiusM / 111000 * 1.3;
@@ -579,6 +582,13 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
       final distM = sqrt(pow((cLat - lat) * 111000, 2) +
           pow((cLon - lon) * 111000 * cos(lat * pi / 180), 2));
       if (distM > radiusM) continue;
+
+      // Exclusion : aucun spot à moins de 100 m d'une route ou d'un bâtiment
+      final cosC = cos(cLat * pi / 180);
+      final tooCloseToInfra = infraPoints.any((p) =>
+          sqrt(pow((p[0] - cLat) * 111000, 2) +
+               pow((p[1] - cLon) * 111000 * cosC, 2)) < 100);
+      if (tooCloseToInfra) continue;
 
       // Score: qualité drainage + activité orignal + bonus eau à proximité
       final drainScore = (drainVal - 3) * 3; // 3-12
@@ -665,6 +675,9 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
   final lon    = params['lon'] as double;
   final radius = (params['radiusM'] as num?)?.toDouble() ?? 3000.0;
   final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
+  final infraPoints = (params['infraPoints'] as List?)
+      ?.map((p) => [((p as List)[0] as num).toDouble(), (p[1] as num).toDouble()])
+      .toList() ?? <List<double>>[];
 
   final cosLat = cos(lat * pi / 180);
 
@@ -710,6 +723,14 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
       final cLon = sumLon / ring.length;
       final distM = sqrt(pow((cLat - lat) * 111000, 2) + pow((cLon - lon) * 111000 * cosLat, 2));
       if (distM > radius * 1.2) continue;
+
+      // Exclusion : aucun spot à moins de 100 m d'une route ou d'un bâtiment
+      final cosC = cos(cLat * pi / 180);
+      final tooCloseToInfra = infraPoints.any((p) =>
+          sqrt(pow((p[0] - cLat) * 111000, 2) +
+               pow((p[1] - cLon) * 111000 * cosC, 2)) < 100);
+      if (tooCloseToInfra) continue;
+
       final props = feat['properties'] as Map;
       final zt = zoneType(props);
       final score = (zt == zEau) ? -1 : scoreOrignal(props);

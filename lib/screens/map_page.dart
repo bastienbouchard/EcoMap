@@ -585,6 +585,38 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   // ─────────────────────────────────────────────────────────────────────────
   // Affût (pinch points)
   // ─────────────────────────────────────────────────────────────────────────
+  Future<List<List<double>>> _fetchOsmInfra(LatLng center, double radiusM) async {
+    final r = radiusM.round();
+    final query =
+        '[out:json][timeout:15];'
+        '('
+        'way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|track|path|footway|cycleway|bridleway)\$"](around:$r,${center.latitude},${center.longitude});'
+        'way["building"](around:$r,${center.latitude},${center.longitude});'
+        'node["building"](around:$r,${center.latitude},${center.longitude});'
+        ');'
+        'out center;';
+    try {
+      final resp = await http
+          .post(Uri.parse('https://overpass-api.de/api/interpreter'), body: query)
+          .timeout(const Duration(seconds: 20));
+      if (resp.statusCode != 200) return [];
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final elements = data['elements'] as List;
+      final points = <List<double>>[];
+      for (final el in elements) {
+        if (el['type'] == 'node') {
+          points.add([(el['lat'] as num).toDouble(), (el['lon'] as num).toDouble()]);
+        } else if (el['center'] != null) {
+          final c = el['center'] as Map;
+          points.add([(c['lat'] as num).toDouble(), (c['lon'] as num).toDouble()]);
+        }
+      }
+      return points;
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<void> _togglePinchPoints() async {
     if (!_requirePremium()) return;
     if (_showPinchPoints) {
@@ -595,12 +627,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     setState(() => _loadingPinch = true);
     try {
       final center = _mapController.camera.center;
+      final radiusM = _visibleRadiusM(minM: 1500);
+      final infraPoints = await _fetchOsmInfra(center, radiusM);
       final result = await compute(findPinchPointsIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
-        'radiusM': _visibleRadiusM(minM: 1500),
+        'radiusM': radiusM,
         'geoJson': geoJson,
         'maxResults': _maxResults(),
+        'infraPoints': infraPoints,
       });
       if (!mounted) return;
       setState(() {
@@ -628,11 +663,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     setState(() => _loadingSalines = true);
     try {
       final center = _mapController.camera.center;
+      final radiusM = _visibleRadiusM(minM: 2000);
+      final infraPoints = await _fetchOsmInfra(center, radiusM);
       final result = await compute(findSalinesIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
-        'radiusM': _visibleRadiusM(minM: 2000),
+        'radiusM': radiusM,
         'geoJson': geoJson,
+        'infraPoints': infraPoints,
       });
       if (!mounted) return;
       setState(() {

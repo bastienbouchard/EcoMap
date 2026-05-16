@@ -106,7 +106,7 @@ class _NavigationPageState extends State<NavigationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final progress = _totalDistance > 0 ? (_completedDistance / _totalDistance) : 0.0;
+    final progress = _totalDistance > 0 ? (_completedDistance / _totalDistance).clamp(0.0, 1.0) : 0.0;
     final relativeBearing = _bearingToNext - _currentHeading;
     final normalizedBearing = ((relativeBearing + 180) % 360) - 180;
 
@@ -114,24 +114,27 @@ class _NavigationPageState extends State<NavigationPage> {
       backgroundColor: const Color(0xFF1A1A1A),
       body: SafeArea(
         child: Column(children: [
-          _buildHeader(),
-          Expanded(child: Center(child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 280, height: 280,
-                child: CustomPaint(painter: CompassPainter(
-                  rotation: -_currentHeading * pi / 180,
-                  targetBearing: _bearingToNext,
-                  windDeg: widget.windDeg,
-                )),
-              ),
-              const SizedBox(height: 16),
-              _buildLegend(),
-              const SizedBox(height: 24),
-              _buildDistanceCard(normalizedBearing),
-            ],
-          ))),
+          _buildHeader(progress),
+          Expanded(child: LayoutBuilder(builder: (context, constraints) {
+            final compassSize = (constraints.maxHeight * 0.80).clamp(180.0, 300.0);
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: compassSize, height: compassSize,
+                  child: CustomPaint(painter: CompassPainter(
+                    rotation: -_currentHeading * pi / 180,
+                    targetBearing: _bearingToNext,
+                    windDeg: widget.windDeg,
+                  )),
+                ),
+                const SizedBox(height: 20),
+                _buildDistanceCard(normalizedBearing),
+              ],
+            );
+          })),
+          _buildLegend(),
+          const SizedBox(height: 8),
           _buildBottomStats(progress),
         ]),
       ),
@@ -139,60 +142,28 @@ class _NavigationPageState extends State<NavigationPage> {
   }
 
   Widget _buildLegend() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _legendItem(
-            color: const Color(0xFFFF6B35),
-            icon: Icons.navigation,
-            label: 'Destination',
-            sub: 'Pointe où aller',
-          ),
-          Container(width: 1, height: 36, color: Colors.white12),
-          if (widget.windDeg != null)
-            _legendItem(
-              color: const Color(0xFF87CEEB),
-              icon: Icons.air,
-              label: 'Vent',
-              sub: 'Source du vent',
-            )
-          else
-            _legendItem(
-              color: Colors.white38,
-              icon: Icons.air,
-              label: 'Vent',
-              sub: 'Non disponible',
-            ),
-          Container(width: 1, height: 36, color: Colors.white12),
-          _legendItem(
-            color: Colors.white70,
-            icon: Icons.explore,
-            label: 'Boussole',
-            sub: 'Tourne avec toi',
-          ),
+          _legendDot(const Color(0xFFFF6B35), 'Destination'),
+          _legendDot(const Color(0xFF87CEEB), widget.windDeg != null ? 'Vent' : 'Vent (n/a)'),
+          _legendDot(Colors.white70, 'Boussole'),
         ],
       ),
     );
   }
 
-  Widget _legendItem({required Color color, required IconData icon, required String label, required String sub}) {
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, color: color, size: 20),
-      const SizedBox(height: 3),
-      Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-      Text(sub, style: const TextStyle(color: Colors.white38, fontSize: 9)),
+  Widget _legendDot(Color color, String label) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 6),
+      Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
     ]);
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(double progress) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -214,10 +185,10 @@ class _NavigationPageState extends State<NavigationPage> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: widget.score > 60 ? const Color(0xFF2D5016) : widget.score > 35 ? const Color(0xFFFF6B35) : const Color(0xFF8B4513),
+            color: progress >= 1.0 ? const Color(0xFF2D5016) : const Color(0xFF3D3D3D),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text('${widget.score.round()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+          child: Text('${(progress * 100).round()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
         ),
       ]),
     );
