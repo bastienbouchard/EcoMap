@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cosmos Catch 🚀</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+}
+#wrapper {
+  position: relative;
+  width: 800px;
+  height: 600px;
+}
+#game { display: block; border-radius: 10px; border: 1px solid #1a1a4a; }
+video { display: none; }
+#camBox {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 180px;
+  height: 135px;
+  border-radius: 8px;
+  border: 2px solid rgba(80, 80, 255, 0.5);
+  overflow: hidden;
+  background: #000;
+}
+#camCanvas { width: 100%; height: 100%; }
+#statusBar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.75);
+  color: #ccc;
+  padding: 3px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <canvas id="game" width="800" height="600"></canvas>
+  <video id="video" playsinline></video>
+  <div id="camBox">
+    <canvas id="camCanvas" width="180" height="135"></canvas>
+  </div>
+  <div id="statusBar">📷 Chargement…</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script>
+// =====================================================================
+//  COSMOS CATCH – contrôlé par gestes de la main
+//  ✋ Main ouverte → RALENTI  |  ✊ Poing → BOUCLIER
+// =====================================================================
+
+const gc  = document.getElementById('game');
+const ctx = gc.getContext('2d');
+const cc  = document.getElementById('camCanvas');
+const cctx= cc.getContext('2d');
+const vid = document.getElementById('video');
+const bar = document.getElementById('statusBar');
+
+const W = 800, H = 600;
+const CATCHER_W = 110, CATCHER_H = 18, CATCHER_Y = H - 58;
+
+// ---------- Game state ----------
+let state = 'intro'; // intro | playing | gameover
+let score = 0, lives = 3, level = 1;
+let items = [], particles = [], floats = [], bgStars = [];
+let catcherX = W / 2;
+let handX = 0.5;          // normalized 0-1 (0 = left)
+let gesture = 'none';     // 'open' | 'fist' | 'neutral' | 'none'
+let prevGesture = 'none';
+let gestureHold = 0;
+let handVisible = false, cameraReady = false;
+
+let freezeOn = false, freezeTimer = 0, freezeCD = 0;
+let shieldOn  = false, shieldTimer = 0, shieldCD  = 0;
+
+let spawnTimer = 0, spawnInterval = 90;
+let frameN = 0, gameTime = 0;
+let combo = 0, comboTimer = 0;
+let introTimer = 0, gameoverTimer = 0;
+
+// ---------- Background stars ----------
+function makeBgStars() {
+  bgStars = [];
+  for (let i = 0; i < 160; i++)
+    bgStars.push({ x: rand(0,W), y: rand(0,H), r: rand(0.3,1.8), a: rand(0.2,1), spd: rand(0.1,0.5) });
+}
+
+// ---------- Item templates ----------
+const TPL = [
+  { type:'star',  pts:10, clr:'#FFD700', sz:30, ico:'⭐', w:40 },
+  { type:'gem',   pts:25, clr:'#00E5FF', sz:26, ico:'💎', w:18 },
+  { type:'coin',  pts:5,  clr:'#FFA500', sz:22, ico:'🪙', w:30 },
+  { type:'bomb',  pts:0,  clr:'#FF3333', sz:32, ico:'💣', w:30 },
+  { type:'heart', pts:0,  clr:'#FF69B4', sz:28, ico:'❤️',  w:5  },
+];
+
+function wRand(arr) {
+  let total = arr.reduce((s,i)=>s+i.w,0), r=Math.random()*total;
+  for (const t of arr) { r-=t.w; if(r<=0) return t; }
+  return arr[0];
+}
+
+function spawnItem() {
+  const t = wRand(TPL);
+  const spd = (2.2 + level*0.35) * (freezeOn ? 0.18 : 1);
+  items.push({ ...t, x:rand(50,W-50), y:-45, vy:spd, rot:0, rs:rand(-0.08,0.08) });
+}
+
+// ---------- Particles ----------
+function burst(x, y, clr, n=14) {
+  for (let i=0;i<n;i++) {
+    const a=Math.PI*2*i/n+rand(-0.3,0.3), spd=rand(2,5.5);
+    particles.push({ x,y, vx:Math.cos(a)*spd, vy:Math.sin(a)*spd, clr, a:1, sz:rand(3,6) });
+  }
+}
+
+function floatText(x,y,txt,clr) {
+  floats.push({ x, y, txt, clr, a:1, vy:-2 });
+}
+
+// ---------- Draw helpers ----------
+function rand(a,b) { return a+(b-a)*Math.random(); }
+
+function drawBg() {
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#00000F'); g.addColorStop(1,'#00002A');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  bgStars.forEach(s => {
+    ctx.save(); ctx.globalAlpha=s.a;
+    ctx.fillStyle='#fff'; ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+    s.y+=s.spd; if(s.y>H){s.y=0;s.x=rand(0,W);}
+  });
+}
+
+function drawCatcher() {
+  const x = catcherX - CATCHER_W/2, y = CATCHER_Y;
+  if (shieldOn) {
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.15*Math.sin(frameN*0.25);
+    ctx.strokeStyle='#00FFFF'; ctx.lineWidth=3;
+    ctx.shadowColor='#00FFFF'; ctx.shadowBlur=20;
+    ctx.beginPath(); ctx.arc(catcherX,CATCHER_Y+9,72,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=0.07; ctx.fillStyle='#00FFFF'; ctx.fill();
+    ctx.restore();
+  }
+  const grd = ctx.createLinearGradient(x,y,x,y+CATCHER_H);
+  const top = shieldOn?'#00FFFF':'#7070FF', bot=shieldOn?'#0099FF':'#3535BB';
+  grd.addColorStop(0,top); grd.addColorStop(1,bot);
+  ctx.save();
+  ctx.shadowColor=top; ctx.shadowBlur=18;
+  ctx.fillStyle=grd;
+  roundRect(ctx,x,y,CATCHER_W,CATCHER_H,9); ctx.fill();
+  ctx.restore();
+  // rocket icon
+  ctx.save(); ctx.font='22px serif'; ctx.textAlign='center';
+  ctx.fillText('🚀',catcherX,y-4); ctx.restore();
+}
+
+function roundRect(c,x,y,w,h,r) {
+  c.beginPath();
+  c.moveTo(x+r,y); c.lineTo(x+w-r,y);
+  c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y);
+  c.closePath();
+}
+
+function drawItems() {
+  items.forEach(it => {
+    ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.rot);
+    ctx.font=`${it.sz}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.shadowColor=it.clr; ctx.shadowBlur=16;
+    ctx.fillText(it.ico,0,0); ctx.restore();
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.save(); ctx.globalAlpha=p.a;
+    ctx.fillStyle=p.clr; ctx.shadowColor=p.clr; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.sz*p.a,0,Math.PI*2); ctx.fill(); ctx.restore();
+  });
+}
+
+function drawFloats() {
+  floats.forEach(f => {
+    ctx.save(); ctx.globalAlpha=f.a;
+    ctx.font='bold 17px Courier New'; ctx.fillStyle=f.clr;
+    ctx.textAlign='center'; ctx.shadowColor=f.clr; ctx.shadowBlur=10;
+    ctx.fillText(f.txt,f.x,f.y); ctx.restore();
+  });
+}
+
+function drawHUD() {
+  // Score
+  ctx.save(); ctx.font='bold 22px Courier New'; ctx.fillStyle='#FFD700';
+  ctx.textAlign='left'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=12;
+  ctx.fillText(`Score: ${score}`,14,36); ctx.restore();
+
+  // Lives
+  ctx.save(); ctx.font='20px serif'; ctx.textAlign='right';
+  ctx.fillText('❤️'.repeat(lives)+'🖤'.repeat(Math.max(0,3-lives)),W-14,36);
+  ctx.restore();
+
+  // Level
+  ctx.save(); ctx.font='13px Courier New'; ctx.fillStyle='#8888FF';
+  ctx.textAlign='center'; ctx.fillText(`NIVEAU ${level}`,W/2,22); ctx.restore();
+
+  // Power-up bars
+  const now = frameN;
+  drawPowerBar(14, H-54, '✋ Ralenti', freezeOn, freezeTimer, freezeCD, 180, 600, '#00FFCC');
+  drawPowerBar(14, H-30, '✊ Bouclier', shieldOn, shieldTimer, shieldCD, 180, 600, '#66CCFF');
+
+  // Gesture badge
+  const badges = { open:'✋ Main ouverte', fist:'✊ Poing fermé', neutral:'🖐️ Neutre', none:'—' };
+  ctx.save(); ctx.font='12px Courier New';
+  ctx.fillStyle = handVisible?'rgba(180,255,180,0.85)':'rgba(255,120,120,0.85)';
+  ctx.textAlign='right';
+  ctx.fillText(handVisible ? (badges[gesture]||'—') : '👁️ Aucune main', W-195, H-30);
+  ctx.restore();
+
+  // Combo
+  if (combo>=3 && comboTimer>0) {
+    const a = Math.min(1,comboTimer/30);
+    ctx.save(); ctx.globalAlpha=a;
+    ctx.font=`bold ${26+combo*2}px Courier New`; ctx.fillStyle='#FFD700';
+    ctx.textAlign='center'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=25;
+    ctx.fillText(`COMBO x${combo}! 🔥`,W/2,H/2-80); ctx.restore();
+  }
+
+  // Freeze overlay tint
+  if (freezeOn) {
+    ctx.save(); ctx.globalAlpha=0.09; ctx.fillStyle='#00FFFF';
+    ctx.fillRect(0,0,W,H); ctx.restore();
+    // border
+    ctx.save(); ctx.globalAlpha=0.4+0.2*Math.sin(frameN*0.15);
+    ctx.strokeStyle='#00FFFF'; ctx.lineWidth=3;
+    ctx.strokeRect(2,2,W-4,H-4); ctx.restore();
+  }
+}
+
+function drawPowerBar(x, y, label, active, timer, cd, maxTimer, maxCD, clr) {
+  const ready = cd<=0 && !active;
+  const col = active ? clr : (ready ? clr : '#334455');
+  ctx.save(); ctx.font='12px Courier New'; ctx.fillStyle=col;
+  ctx.textAlign='left';
+  let status;
+  if (active)      status = `${(timer/60).toFixed(1)}s ●`;
+  else if (ready)  status = 'PRÊT';
+  else             status = `${(cd/60).toFixed(0)}s…`;
+  ctx.fillText(`${label}: ${status}`, x, y); ctx.restore();
+
+  // mini progress bar
+  ctx.save();
+  ctx.fillStyle='#111'; roundRect(ctx,x+140,y-10,60,8,3); ctx.fill();
+  const pct = active ? timer/maxTimer : Math.max(0,1-cd/maxCD);
+  ctx.fillStyle=col; ctx.globalAlpha=0.7;
+  roundRect(ctx,x+140,y-10,Math.max(0,60*pct),8,3); ctx.fill();
+  ctx.restore();
+}
+
+function drawIntro() {
+  drawBg();
+  ctx.save(); ctx.font='bold 48px Courier New'; ctx.fillStyle='#FFD700';
+  ctx.textAlign='center'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=30;
+  ctx.fillText('🚀 COSMOS CATCH',W/2,160); ctx.restore();
+
+  const lines = [
+    'Bougez votre main pour déplacer la fusée',
+    '',
+    '✋ Main ouverte (2s) → RALENTI les objets',
+    '✊ Poing fermé (2s) → BOUCLIER contre les bombes',
+    '',
+    '⭐ +10   💎 +25   🪙 +5   ❤️ +vie   💣 -vie',
+  ];
+  ctx.save(); ctx.font='17px Courier New'; ctx.fillStyle='#aaccff'; ctx.textAlign='center';
+  lines.forEach((l,i)=>ctx.fillText(l,W/2,240+i*30));
+  ctx.restore();
+
+  const pulse = 0.55+0.45*Math.sin(frameN*0.09);
+  ctx.save(); ctx.globalAlpha=pulse; ctx.font='bold 20px Courier New';
+  ctx.fillStyle=cameraReady?'#00FF88':'#FF8888'; ctx.textAlign='center';
+  ctx.shadowColor=cameraReady?'#00FF88':'#FF3333'; ctx.shadowBlur=20;
+  ctx.fillText(cameraReady
+    ? (handVisible?'Main détectée ! Début dans…':'Montrez votre main pour commencer !')
+    : 'En attente de la caméra…', W/2, 470);
+  ctx.restore();
+}
+
+function drawGameOver() {
+  ctx.save(); ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H); ctx.restore();
+  ctx.save(); ctx.font='bold 54px Courier New'; ctx.fillStyle='#FF4444';
+  ctx.textAlign='center'; ctx.shadowColor='#FF0000'; ctx.shadowBlur=35;
+  ctx.fillText('GAME OVER',W/2,210); ctx.restore();
+  ctx.save(); ctx.font='28px Courier New'; ctx.fillStyle='#FFD700';
+  ctx.textAlign='center'; ctx.fillText(`Score final : ${score}`,W/2,290); ctx.restore();
+  ctx.save(); ctx.font='17px Courier New'; ctx.fillStyle='#aaccff'; ctx.textAlign='center';
+  ctx.fillText('Montrez votre main pour rejouer !',W/2,370); ctx.restore();
+}
+
+// ---------- Gesture detection ----------
+function detectGesture(lm) {
+  // lm[i].y : 0=top, 1=bottom of image
+  const extended = [
+    lm[8].y  < lm[6].y,   // index
+    lm[12].y < lm[10].y,  // middle
+    lm[16].y < lm[14].y,  // ring
+    lm[20].y < lm[18].y,  // pinky
+  ];
+  const n = extended.filter(Boolean).length;
+  if (n >= 4) return 'open';
+  if (n <= 1) return 'fist';
+  return 'neutral';
+}
+
+// ---------- Update ----------
+function update() {
+  frameN++; gameTime++;
+
+  level = 1 + Math.floor(gameTime/1800);
+  spawnInterval = Math.max(28, 90-level*9);
+
+  // Smooth catcher follow
+  const targetX = handX * W;
+  catcherX += (targetX - catcherX) * 0.14;
+  catcherX = Math.max(CATCHER_W/2, Math.min(W-CATCHER_W/2, catcherX));
+
+  // Spawn
+  spawnTimer++;
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0; spawnItem();
+    if (level >= 3 && Math.random()<0.35) spawnItem();
+  }
+
+  // Items
+  items = items.filter(it => {
+    it.y += it.vy * (freezeOn ? 0.18 : 1);
+    it.rot += it.rs;
+
+    const caught =
+      it.y >= CATCHER_Y-12 && it.y <= CATCHER_Y+30 &&
+      Math.abs(it.x - catcherX) < (CATCHER_W/2 + it.sz/2);
+
+    if (caught) {
+      if (it.type === 'bomb') {
+        if (shieldOn) {
+          burst(it.x,it.y,'#00FFFF',20);
+          floatText(it.x,it.y,'🛡️ ABSORBÉ!','#00FFFF');
+          shieldOn=false; shieldTimer=0;
+        } else {
+          lives--;
+          burst(it.x,it.y,'#FF3333',20);
+          floatText(it.x,it.y-20,'💥 -1 vie!','#FF4444');
+          combo=0;
+          if (lives<=0) state='gameover';
+        }
+      } else if (it.type === 'heart') {
+        if (lives<3) { lives++; floatText(it.x,it.y,'❤️ +vie!','#FF69B4'); }
+        else { score+=20; floatText(it.x,it.y,'+20','#FF69B4'); }
+        burst(it.x,it.y,'#FF69B4',14);
+        combo++;
+      } else {
+        combo++;
+        comboTimer=100;
+        const mult = combo>=5 ? 3 : combo>=3 ? 2 : 1;
+        const pts = it.pts * mult;
+        score += pts;
+        burst(it.x,it.y,it.clr,12);
+        floatText(it.x,it.y-10,`+${pts}${mult>1?' x'+mult:''}`,it.clr);
+      }
+      return false;
+    }
+    if (it.y > H+55) { if(it.type!=='bomb') combo=0; return false; }
+    return true;
+  });
+
+  // Power-up timers
+  if (freezeOn) { if(--freezeTimer<=0) freezeOn=false; }
+  if (freezeCD>0) freezeCD--;
+  if (shieldOn) { if(--shieldTimer<=0) shieldOn=false; }
+  if (shieldCD>0) shieldCD--;
+
+  // Gesture → power-up (require held for ~2s)
+  if (gesture === prevGesture && gesture!=='none' && gesture!=='neutral') gestureHold++;
+  else gestureHold = 0;
+  prevGesture = gesture;
+
+  const HOLD = 40; // frames to hold before activating
+  if (gestureHold === HOLD) {
+    if (gesture==='open' && !freezeOn && freezeCD<=0) {
+      freezeOn=true; freezeTimer=180; freezeCD=600; gestureHold=0;
+    }
+    if (gesture==='fist' && !shieldOn && shieldCD<=0) {
+      shieldOn=true; shieldTimer=180; shieldCD=600; gestureHold=0;
+    }
+  }
+
+  if (comboTimer>0) comboTimer--;
+  else combo=0;
+
+  // Particles / floats
+  particles = particles.filter(p=>{
+    p.x+=p.vx; p.y+=p.vy; p.vx*=0.94; p.vy*=0.94; p.a-=0.022; return p.a>0;
+  });
+  floats = floats.filter(f=>{ f.y+=f.vy; f.a-=0.018; return f.a>0; });
+
+  // Bg stars always scroll
+  bgStars.forEach(s=>{ s.y+=s.spd; if(s.y>H){s.y=0;s.x=rand(0,W);} });
+}
+
+// ---------- Main loop ----------
+function loop() {
+  ctx.clearRect(0,0,W,H);
+
+  if (state==='intro') {
+    frameN++;
+    bgStars.forEach(s=>{ s.y+=s.spd; if(s.y>H){s.y=0;s.x=rand(0,W);} });
+    drawIntro();
+    if (cameraReady && handVisible) {
+      introTimer++;
+      if (introTimer>=80) startGame();
+    } else { introTimer=0; }
+
+  } else if (state==='playing') {
+    update();
+    drawBg();
+    drawItems();
+    drawParticles();
+    drawFloats();
+    drawCatcher();
+    drawHUD();
+
+  } else if (state==='gameover') {
+    frameN++;
+    bgStars.forEach(s=>{ s.y+=s.spd; if(s.y>H){s.y=0;s.x=rand(0,W);} });
+    drawBg(); drawParticles(); drawFloats(); drawGameOver();
+    if (handVisible) {
+      gameoverTimer++;
+      if (gameoverTimer>=80) startGame();
+    } else { gameoverTimer=0; }
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function startGame() {
+  score=0; lives=3; level=1;
+  items=[]; particles=[]; floats=[];
+  combo=0; comboTimer=0;
+  freezeOn=false; freezeTimer=0; freezeCD=0;
+  shieldOn=false; shieldTimer=0; shieldCD=0;
+  spawnTimer=0; gameTime=0; frameN=0;
+  introTimer=0; gameoverTimer=0;
+  catcherX=W/2; prevGesture='none'; gestureHold=0;
+  state='playing';
+}
+
+// ---------- MediaPipe Hands ----------
+function setupMediaPipe() {
+  const hands = new Hands({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+  });
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.6,
+  });
+
+  hands.onResults(results => {
+    // Camera preview (mirrored)
+    cctx.save();
+    cctx.scale(-1,1); cctx.translate(-180,0);
+    cctx.drawImage(results.image,0,0,180,135);
+    cctx.restore();
+
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length>0) {
+      const lm = results.multiHandLandmarks[0];
+      handVisible = true;
+
+      // Draw skeleton on cam preview (mirrored coords)
+      cctx.save();
+      cctx.scale(-1,1); cctx.translate(-180,0);
+      drawConnectors(cctx, lm, HAND_CONNECTIONS, {color:'#00FF88',lineWidth:1.5});
+      drawLandmarks(cctx, lm, {color:'#FF2222',lineWidth:1,radius:2.5});
+      cctx.restore();
+
+      // Palm center X (wrist + index MCP + middle MCP)
+      const palmX = (lm[0].x + lm[5].x + lm[9].x) / 3;
+      handX = 1 - palmX; // mirror so moving hand right → catcher moves right
+
+      gesture = detectGesture(lm);
+      bar.textContent = '✋ Main détectée';
+      bar.style.background = 'rgba(0,60,0,0.8)';
+    } else {
+      handVisible = false;
+      gesture = 'none';
+      bar.textContent = '👁️ Aucune main';
+      bar.style.background = 'rgba(80,0,0,0.8)';
+    }
+  });
+
+  const camera = new Camera(vid, {
+    onFrame: async () => { await hands.send({image: vid}); },
+    width: 320, height: 240,
+  });
+
+  camera.start()
+    .then(() => {
+      cameraReady = true;
+      bar.textContent = '📷 Caméra prête';
+      bar.style.background = 'rgba(0,0,0,0.75)';
+    })
+    .catch(err => {
+      bar.textContent = '❌ ' + err.message;
+      bar.style.background = 'rgba(120,0,0,0.9)';
+      // Fallback: mouse/touch control
+      setupMouseFallback();
+    });
+}
+
+function setupMouseFallback() {
+  cameraReady = true; // allow game to start without camera
+  bar.textContent = '🖱️ Mode souris (pas de caméra)';
+  gc.addEventListener('mousemove', e => {
+    const r = gc.getBoundingClientRect();
+    handX = (e.clientX - r.left) / r.width;
+    handVisible = true;
+  });
+  gc.addEventListener('click', () => {
+    // fist on click, open on next click
+    gesture = gesture==='fist'?'open':'fist';
+    gestureHold = 50; // instant trigger
+  });
+}
+
+// ---------- Init ----------
+makeBgStars();
+setupMediaPipe();
+loop();
+</script>
+</body>
+</html>
