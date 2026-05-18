@@ -798,7 +798,7 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
 
   candidates.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
 
-  // Déduplication à 300 m
+  // Déduplication à 600 m — évite la surpopulation de spots proches
   final deduped = <Map<String, dynamic>>[];
   for (final c in candidates) {
     final cLat = c['lat'] as double;
@@ -806,7 +806,7 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
     final cosC = cos(cLat * pi / 180);
     final tooClose = deduped.any((r) =>
       sqrt(pow(((r['lat'] as double) - cLat) * 111000, 2) +
-           pow(((r['lon'] as double) - cLon) * 111000 * cosC, 2)) < 300);
+           pow(((r['lon'] as double) - cLon) * 111000 * cosC, 2)) < 600);
     if (!tooClose) deduped.add(c);
   }
 

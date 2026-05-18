@@ -576,10 +576,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   // 1 résultat max par cellule de 1000 pieds × 1000 pieds (≈305m)
   int _maxResults() {
-    const cellSize = 305.0;
+    const cellSize = 600.0;
     final r = _visibleRadiusM();
     final count = (pi * r * r / (cellSize * cellSize)).round();
-    return count.clamp(2, 20);
+    return count.clamp(2, 10);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
