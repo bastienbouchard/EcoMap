@@ -2453,6 +2453,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
         ),
         child: Row(children: [
+          GestureDetector(
+            onTap: () => setState(() => _showDownloadTip = false),
+            child: const Icon(Icons.close, color: Colors.white38, size: 16),
+          ),
+          const SizedBox(width: 8),
           const Icon(Icons.download_for_offline_outlined, color: Color(0xFF4CAF50), size: 16),
           const SizedBox(width: 8),
           const Expanded(
@@ -2460,10 +2465,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               'Sans réseau en forêt ? Télécharge ta carte éco avant de partir — requis pour les algorithmes.',
               style: TextStyle(color: Colors.white70, fontSize: 11),
             ),
-          ),
-          GestureDetector(
-            onTap: () => setState(() => _showDownloadTip = false),
-            child: const Icon(Icons.close, color: Colors.white38, size: 16),
           ),
         ]),
       ),
