@@ -841,34 +841,76 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     } catch (_) {}
   }
 
+  // ── Cache local tracés ────────────────────────────────────────────────────
+
+  String _trackCacheKey(String uid) => 'tracks_cache_$uid';
+
+  Future<void> _persistTrackCache(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = List.generate(_savedTracks.length, (i) => {
+      'id': _savedTrackIds.length > i ? _savedTrackIds[i] : null,
+      'date': _savedTracks[i].date.toIso8601String(),
+      'points': _savedTracks[i].points
+          .map((p) => {'lat': p.latitude, 'lon': p.longitude}).toList(),
+    });
+    await prefs.setString(_trackCacheKey(uid), jsonEncode(list));
+  }
+
+  Future<void> _loadTracksFromCache(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_trackCacheKey(uid));
+    if (raw == null || !mounted) return;
+    try {
+      final list = jsonDecode(raw) as List;
+      setState(() {
+        for (final m in list) {
+          _savedTracks.add((
+            date: DateTime.parse(m['date'] as String),
+            points: (m['points'] as List).map((p) =>
+                LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())).toList(),
+          ));
+          _savedTrackIds.add(m['id'] as String?);
+        }
+      });
+    } catch (_) {}
+  }
+
   Future<void> _loadTracks() async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    // Cache local en premier
+    await _loadTracksFromCache(uid);
     try {
       final snap = await FirebaseFirestore.instance
           .collection('users').doc(uid).collection('tracks')
           .orderBy('date', descending: false)
           .get();
       if (!mounted) return;
+      final tracks = <({DateTime date, List<LatLng> points})>[];
+      final ids = <String?>[];
       for (final doc in snap.docs) {
         final d = doc.data();
-        final pts = (d['points'] as List).map((p) =>
-            LatLng((p['lat'] as num).toDouble(),
-                   (p['lon'] as num).toDouble())).toList();
-        setState(() {
-          _savedTracks.add((
-            date: (d['date'] as Timestamp).toDate(),
-            points: pts,
-          ));
-          _savedTrackIds.add(doc.id);
-        });
+        tracks.add((
+          date: (d['date'] as Timestamp).toDate(),
+          points: (d['points'] as List).map((p) =>
+              LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())).toList(),
+        ));
+        ids.add(doc.id);
       }
+      setState(() {
+        _savedTracks.clear();
+        _savedTrackIds.clear();
+        _savedTracks.addAll(tracks);
+        _savedTrackIds.addAll(ids);
+      });
+      await _persistTrackCache(uid);
     } catch (_) {}
   }
 
   Future<void> _saveTrack(int idx) async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    await _persistTrackCache(uid);
     try {
       final track = _savedTracks[idx];
       final ref = await FirebaseFirestore.instance
@@ -880,6 +922,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             .toList(),
       });
       if (mounted) setState(() => _savedTrackIds[idx] = ref.id);
+      await _persistTrackCache(uid);
     } catch (_) {}
   }
 
@@ -889,12 +932,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       _savedTracks.removeAt(idx);
       if (idx < _savedTrackIds.length) _savedTrackIds.removeAt(idx);
     });
-    if (id == null) return;
     final uid = AuthService.uid;
-    if (uid == null) return;
+    if (uid != null) await _persistTrackCache(uid);
+    if (id == null) return;
     try {
       await FirebaseFirestore.instance
-          .collection('users').doc(uid).collection('tracks')
+          .collection('users').doc(uid!).collection('tracks')
           .doc(id).delete();
     } catch (_) {}
   }
