@@ -176,9 +176,29 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       ),
       body: Column(
         children: [
+          // ── Explication offline ──
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A3A1A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.4)),
+            ),
+            child: const Row(children: [
+              Icon(Icons.download_for_offline_outlined, color: Color(0xFF4CAF50), size: 18),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Sans réseau en forêt, télécharge ta carte éco ici avant de partir — les algorithmes (affût, saline, parcours) en ont besoin.',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+            ]),
+          ),
           // ── Sélecteur de mode ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
             child: Row(children: [
               _modeBtn('Zone visible', Icons.crop_free, _SelectionMode.screen),
               const SizedBox(width: 10),

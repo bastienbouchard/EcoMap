@@ -141,6 +141,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   // ── Connectivité ──
   bool _isOnline = true;
+  bool _showDownloadTip = true;
   StreamSubscription<bool>? _connectivitySub;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1470,6 +1471,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           _buildActionPanel(),
           _buildNavPanel(),
           if (!_isOnline) _buildOfflineBanner(),
+          if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
           if (_windDeg != null) _buildWindIndicator(),
           if (_showLayerPanel) _buildLayerPanel(),
           Positioned(
@@ -2406,27 +2408,64 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   Widget _buildOfflineBanner() {
+    final hasData = _polygonsCache.isNotEmpty;
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
-      left: 40, right: 40,
+      left: 16, right: 16,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF8B4513).withOpacity(0.95),
-          borderRadius: BorderRadius.circular(20),
+          color: hasData
+              ? const Color(0xFF8B4513).withOpacity(0.95)
+              : const Color(0xFFB71C1C).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
         ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
           children: [
-            Icon(Icons.wifi_off, color: Colors.white, size: 14),
-            SizedBox(width: 6),
-            Text('Mode hors ligne — GPS, carte et spots disponibles',
-                style: TextStyle(color: Colors.white, fontSize: 11),
-                textAlign: TextAlign.center),
+            Icon(hasData ? Icons.wifi_off : Icons.warning_amber_rounded,
+                color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                hasData
+                    ? 'Hors ligne — GPS, carte et algorithmes disponibles'
+                    : 'Hors ligne sans carte — télécharge la carte éco avant de partir en chasse pour utiliser les algorithmes',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDownloadTip() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 16, right: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A3A1A).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+        ),
+        child: Row(children: [
+          const Icon(Icons.download_for_offline_outlined, color: Color(0xFF4CAF50), size: 16),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Sans réseau en forêt ? Télécharge ta carte éco avant de partir — requis pour les algorithmes.',
+              style: TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _showDownloadTip = false),
+            child: const Icon(Icons.close, color: Colors.white38, size: 16),
+          ),
+        ]),
       ),
     );
   }
