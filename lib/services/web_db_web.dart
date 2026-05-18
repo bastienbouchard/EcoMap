@@ -6,6 +6,19 @@ import 'dart:js_util' as js_util;
 
 dynamic _db;
 
+/// Demande au navigateur de marquer le stockage comme persistant (ne sera pas purgé).
+/// Sur iOS Safari 15.2+, affiche une permission utilisateur.
+Future<bool> requestPersistentStorage() async {
+  try {
+    final storage = js_util.getProperty(html.window.navigator, 'storage');
+    if (!js_util.hasProperty(storage, 'persist')) return false;
+    return await js_util.promiseToFuture<bool>(
+        js_util.callMethod(storage, 'persist', []));
+  } catch (_) {
+    return false;
+  }
+}
+
 Future<dynamic> _open() async {
   if (_db != null) return _db;
   final idb = js_util.getProperty(html.window, 'indexedDB');

@@ -1,5 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:js_util' as js_util;
 import 'dart:math' show pi, min, max, cos, sqrt, pow;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -16,6 +20,7 @@ import '../providers/mbtiles_provider.dart';
 import '../providers/arcgis_export_tile_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import '../services/web_db.dart';
 import '../services/connectivity_service.dart';
 import '../services/geo_service.dart';
 import '../services/groupe_service.dart';
@@ -144,6 +149,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _isOnline = true;
   bool _showOfflineBanner = true;
   bool _showDownloadTip = true;
+  bool _showPwaTip = false;
   StreamSubscription<bool>? _connectivitySub;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -169,6 +175,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
     _loadObservations();
     _loadTracks();
+    requestPersistentStorage();
+    Future.delayed(const Duration(seconds: 5), _checkPwaPrompt);
   }
 
   @override
@@ -1586,6 +1594,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           _buildActionPanel(),
           _buildNavPanel(),
           if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
+          if (_showPwaTip) _buildPwaTip(),
           if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
           if (_windDeg != null) _buildWindIndicator(),
           if (_showLayerPanel) _buildLayerPanel(),
@@ -2518,6 +2527,50 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     fontWeight: FontWeight.w500)),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _checkPwaPrompt() async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('pwa_tip_dismissed') == true) return;
+    // Détecte si déjà installé en PWA (standalone mode)
+    final isStandalone = js_util.getProperty(html.window.navigator, 'standalone') == true;
+    if (isStandalone) return;
+    if (mounted) setState(() => _showPwaTip = true);
+  }
+
+  Widget _buildPwaTip() {
+    return Positioned(
+      bottom: 80, left: 16, right: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A2A3A).withOpacity(0.97),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 8)],
+        ),
+        child: Row(children: [
+          GestureDetector(
+            onTap: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('pwa_tip_dismissed', true);
+              if (mounted) setState(() => _showPwaTip = false);
+            },
+            child: const Icon(Icons.close, color: Colors.white38, size: 16),
+          ),
+          const SizedBox(width: 10),
+          const Icon(Icons.add_to_home_screen, color: Colors.blueAccent, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Installe l\'app : appuie sur  ⎋  puis "Sur l\'écran d\'accueil" pour garder tes données hors ligne.',
+              style: TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ),
+        ]),
       ),
     );
   }
