@@ -142,6 +142,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   // ── Connectivité ──
   bool _isOnline = true;
+  bool _showOfflineBanner = true;
   bool _showDownloadTip = true;
   StreamSubscription<bool>? _connectivitySub;
 
@@ -155,7 +156,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
     _isOnline = ConnectivityService.isOnline;
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
-      if (mounted) setState(() => _isOnline = online);
+      if (mounted) setState(() { _isOnline = online; if (!online) _showOfflineBanner = true; });
       if (online) {
         _fetchWind();
         final uid = AuthService.uid;
@@ -1584,7 +1585,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           if (_selectedCadastreLot != null) _buildSelectedLotPanel(),
           _buildActionPanel(),
           _buildNavPanel(),
-          if (!_isOnline) _buildOfflineBanner(),
+          if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
           if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
           if (_windDeg != null) _buildWindIndicator(),
           if (_showLayerPanel) _buildLayerPanel(),
@@ -2537,6 +2538,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         ),
         child: Row(
           children: [
+            GestureDetector(
+              onTap: () => setState(() => _showOfflineBanner = false),
+              child: const Icon(Icons.close, color: Colors.white54, size: 16),
+            ),
+            const SizedBox(width: 8),
             Icon(hasData ? Icons.wifi_off : Icons.warning_amber_rounded,
                 color: Colors.white, size: 16),
             const SizedBox(width: 8),
