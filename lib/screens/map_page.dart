@@ -14,6 +14,7 @@ import '../models/hotspot_info.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
 import '../providers/arcgis_export_tile_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/geo_service.dart';
@@ -155,7 +156,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _isOnline = ConnectivityService.isOnline;
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
       if (mounted) setState(() => _isOnline = online);
-      if (online) _fetchWind();
+      if (online) {
+        _fetchWind();
+        final uid = AuthService.uid;
+        if (uid != null) _syncPendingObservations(uid);
+      }
     });
     _initLocation();
     _fetchWind();
@@ -716,56 +721,122 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   // ─────────────────────────────────────────────────────────────────────────
   // Observations
   // ─────────────────────────────────────────────────────────────────────────
+  // ── Cache local observations ───────────────────────────────────────────────
+
+  String _obsCacheKey(String uid) => 'obs_cache_$uid';
+
+  Future<void> _persistObsCache(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = _observations.map((o) {
+      final pos = o['pos'] as LatLng;
+      return {
+        'id': o['id'],
+        'lat': pos.latitude,
+        'lon': pos.longitude,
+        'note': o['note'],
+        'time': (o['time'] as DateTime).toIso8601String(),
+        if (o['pending'] == true) 'pending': true,
+      };
+    }).toList();
+    await prefs.setString(_obsCacheKey(uid), jsonEncode(list));
+  }
+
+  Future<void> _loadObsFromCache(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_obsCacheKey(uid));
+    if (raw == null || !mounted) return;
+    try {
+      final list = (jsonDecode(raw) as List).map<Map<String, dynamic>>((m) => {
+        'id': m['id'],
+        'pos': LatLng((m['lat'] as num).toDouble(), (m['lon'] as num).toDouble()),
+        'note': m['note'] as String,
+        'time': DateTime.parse(m['time'] as String),
+        if (m['pending'] == true) 'pending': true,
+      }).toList();
+      setState(() => _observations = list);
+    } catch (_) {}
+  }
+
+  Future<void> _syncPendingObservations(String uid) async {
+    final pending = _observations.where((o) => o['pending'] == true).toList();
+    for (final obs in pending) {
+      try {
+        final pos = obs['pos'] as LatLng;
+        final ref = await FirebaseFirestore.instance
+            .collection('users').doc(uid).collection('observations')
+            .add({
+          'lat': pos.latitude, 'lon': pos.longitude,
+          'note': obs['note'],
+          'time': Timestamp.fromDate(obs['time'] as DateTime),
+        });
+        if (mounted) setState(() { obs['id'] = ref.id; obs.remove('pending'); });
+      } catch (_) {}
+    }
+    if (pending.isNotEmpty) await _persistObsCache(uid);
+  }
+
   Future<void> _loadObservations() async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    // Charge le cache local immédiatement (fonctionne hors ligne)
+    await _loadObsFromCache(uid);
+    // Sync Firestore si en ligne
     try {
       final snap = await FirebaseFirestore.instance
           .collection('users').doc(uid).collection('observations')
           .orderBy('time', descending: false)
           .get();
       if (!mounted) return;
-      setState(() {
-        _observations = snap.docs.map((doc) {
-          final d = doc.data();
-          return {
-            'id': doc.id,
-            'pos': LatLng((d['lat'] as num).toDouble(), (d['lon'] as num).toDouble()),
-            'note': d['note'] as String,
-            'time': (d['time'] as Timestamp).toDate(),
-          };
-        }).toList();
-      });
+      final remote = snap.docs.map<Map<String, dynamic>>((doc) {
+        final d = doc.data();
+        return {
+          'id': doc.id,
+          'pos': LatLng((d['lat'] as num).toDouble(), (d['lon'] as num).toDouble()),
+          'note': d['note'] as String,
+          'time': (d['time'] as Timestamp).toDate(),
+        };
+      }).toList();
+      // Fusionne : garde les pending locaux non encore synchros
+      final pendingLocal = _observations.where((o) => o['pending'] == true).toList();
+      setState(() => _observations = [...remote, ...pendingLocal]);
+      await _persistObsCache(uid);
     } catch (_) {}
   }
 
   Future<void> _saveObservation(Map<String, dynamic> obs) async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    // Sauvegarde locale immédiate
+    await _persistObsCache(uid);
+    // Sync Firestore
     try {
       final pos = obs['pos'] as LatLng;
       final ref = await FirebaseFirestore.instance
           .collection('users').doc(uid).collection('observations')
           .add({
-        'lat': pos.latitude,
-        'lon': pos.longitude,
+        'lat': pos.latitude, 'lon': pos.longitude,
         'note': obs['note'],
         'time': Timestamp.fromDate(obs['time'] as DateTime),
       });
-      if (mounted) setState(() => obs['id'] = ref.id);
-    } catch (_) {}
+      if (mounted) setState(() { obs['id'] = ref.id; obs.remove('pending'); });
+      await _persistObsCache(uid);
+    } catch (_) {
+      // Hors ligne — marque comme pending pour sync ultérieure
+      if (mounted) setState(() => obs['pending'] = true);
+      await _persistObsCache(uid);
+    }
   }
 
   Future<void> _deleteObservation(int idx) async {
     final obs = _observations[idx];
     final id = obs['id'] as String?;
     setState(() => _observations.removeAt(idx));
-    if (id == null) return;
     final uid = AuthService.uid;
-    if (uid == null) return;
+    if (uid != null) await _persistObsCache(uid);
+    if (id == null || obs['pending'] == true) return;
     try {
       await FirebaseFirestore.instance
-          .collection('users').doc(uid).collection('observations')
+          .collection('users').doc(uid!).collection('observations')
           .doc(id).delete();
     } catch (_) {}
   }
