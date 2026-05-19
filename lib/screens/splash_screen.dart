@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'login_page.dart';
 import 'map_page.dart';
+import 'onboarding_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -59,14 +60,22 @@ class _SplashScreenState extends State<SplashScreen>
 
     _ctrl.forward();
 
-    Future.delayed(const Duration(milliseconds: 2000), () {
+    Future.delayed(const Duration(milliseconds: 2000), () async {
       if (!mounted) return;
       final isLoggedIn = AuthService.isLoggedIn;
+      Widget destination;
+      if (isLoggedIn) {
+        final showOnboarding = await OnboardingPage.shouldShow();
+        destination =
+            showOnboarding ? const OnboardingPage() : const MapPage();
+      } else {
+        destination = const LoginPage();
+      }
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) =>
-              isLoggedIn ? const MapPage() : const LoginPage(),
+          pageBuilder: (_, __, ___) => destination,
           transitionDuration: const Duration(milliseconds: 300),
           transitionsBuilder: (_, anim, __, child) =>
               FadeTransition(opacity: anim, child: child),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/premium_service.dart';
 import 'map_page.dart';
+import 'onboarding_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -37,9 +38,15 @@ class _LoginPageState extends State<LoginPage> {
       }
       await AuthService.ensureUserDoc();
       await PremiumService.load();
+      final showOnboarding = await OnboardingPage.shouldShow();
       if (mounted) {
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => const MapPage()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                showOnboarding ? const OnboardingPage() : const MapPage(),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) setState(() => _error = _friendlyError(e.toString()));
