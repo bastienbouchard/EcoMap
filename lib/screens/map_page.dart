@@ -2491,8 +2491,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Widget _buildWindIndicator() {
     final deg = _windDeg!;
     final speed = _windSpeed ?? 0.0;
+    final bannerVisible = (!_isOnline && _showOfflineBanner) ||
+        (_isOnline && _polygonsCache.isEmpty && _showDownloadTip);
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 12,
+      top: MediaQuery.of(context).padding.top + (bannerVisible ? 62 : 12),
       right: 16,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
