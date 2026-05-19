@@ -115,18 +115,18 @@ class CompassPainter extends CustomPainter {
         );
       }
     }
-    // Repère de destination sur le cadran (tourne avec la boussole) — blanc sur fond orange
+    canvas.restore();
+
+    // Triangle fixe en haut — direction du téléphone (toujours à 12h sur l'écran)
     canvas.save();
-    canvas.rotate(targetBearing * pi / 180);
-    final destMark = ui.Path()
+    canvas.translate(center.dx, center.dy);
+    final phoneMark = ui.Path()
       ..moveTo(0, -(radius - 2))
       ..lineTo(-14, -(radius - 28))
       ..lineTo(14, -(radius - 28))
       ..close();
-    canvas.drawPath(destMark, Paint()..color = Colors.white..style = PaintingStyle.fill);
-    canvas.drawPath(destMark, Paint()..color = const Color(0xFFFF6B35)..strokeWidth = 2.5..style = PaintingStyle.stroke);
-    canvas.restore();
-
+    canvas.drawPath(phoneMark, Paint()..color = Colors.white..style = PaintingStyle.fill);
+    canvas.drawPath(phoneMark, Paint()..color = const Color(0xFFFF6B35)..strokeWidth = 2.5..style = PaintingStyle.stroke);
     canvas.restore();
 
     // Flèche de navigation — pointe vers la destination (relèvement relatif)
