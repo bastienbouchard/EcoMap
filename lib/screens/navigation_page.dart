@@ -33,6 +33,7 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
 
   StreamSubscription<double>? _compassSubscription;
   bool _compassPermissionGranted = false;
+  double _currentSegmentLength = 0;
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnim;
 
@@ -126,8 +127,8 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
     }
   }
 
-  String _formatRemaining() {
-    final remainingKm = (_totalDistance - _completedDistance) / 1000;
+  String _formatRemaining(double effectiveCompleted) {
+    final remainingKm = (_totalDistance - effectiveCompleted) / 1000;
     if (remainingKm <= 0) return '0 min';
     final minutes = (remainingKm / _walkingSpeedKmh * 60).round();
     if (minutes < 60) return '$minutes min';
@@ -140,17 +141,20 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
     if (_currentWaypointIndex >= widget.parcours.length) return;
     final nextWaypoint = widget.parcours[_currentWaypointIndex];
     final distance = const Distance().as(LengthUnit.Meter, currentPos, nextWaypoint);
+    final segLen = const Distance().as(
+      LengthUnit.Meter,
+      widget.parcours[_currentWaypointIndex - 1],
+      widget.parcours[_currentWaypointIndex],
+    );
     setState(() {
       _distanceToNext = distance;
       _bearingToNext = _calculateBearing(currentPos, nextWaypoint);
+      _currentSegmentLength = segLen;
     });
     if (distance < 20) {
       setState(() {
-        _completedDistance += const Distance().as(
-          LengthUnit.Meter,
-          widget.parcours[_currentWaypointIndex - 1],
-          widget.parcours[_currentWaypointIndex],
-        );
+        _completedDistance += segLen;
+        _currentSegmentLength = 0;
         _currentWaypointIndex++;
       });
     }
@@ -178,7 +182,9 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final progress = _totalDistance > 0 ? (_completedDistance / _totalDistance).clamp(0.0, 1.0) : 0.0;
+    final effectiveCompleted = _completedDistance +
+        (_currentSegmentLength - _distanceToNext).clamp(0.0, _currentSegmentLength);
+    final progress = _totalDistance > 0 ? (effectiveCompleted / _totalDistance).clamp(0.0, 1.0) : 0.0;
     final relativeBearing = _bearingToNext - _currentHeading;
     final normalizedBearing = ((relativeBearing + 180) % 360) - 180;
 
@@ -229,12 +235,12 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
                 const SizedBox(height: 10),
                 _buildLegend(),
                 const SizedBox(height: 8),
-                _buildDistanceCard(normalizedBearing),
+                _buildDistanceCard(normalizedBearing, effectiveCompleted),
               ],
             );
           })),
           const SizedBox(height: 8),
-          _buildBottomStats(progress),
+          _buildBottomStats(progress, effectiveCompleted),
         ]),
       ),
     );
@@ -284,7 +290,7 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
     );
   }
 
-  Widget _buildDistanceCard(double normalizedBearing) {
+  Widget _buildDistanceCard(double normalizedBearing, double effectiveCompleted) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
@@ -300,7 +306,7 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
     );
   }
 
-  Widget _buildBottomStats(double progress) {
+  Widget _buildBottomStats(double progress, double effectiveCompleted) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -321,8 +327,8 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
         const SizedBox(height: 20),
         Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
           _stat('Distance totale', '${(_totalDistance / 1000).toStringAsFixed(1)} km', Icons.straighten),
-          _stat('Restant', '${((_totalDistance - _completedDistance) / 1000).toStringAsFixed(1)} km', Icons.timeline),
-          _stat('Temps est.', _formatRemaining(), Icons.timer_outlined),
+          _stat('Restant', '${((_totalDistance - effectiveCompleted) / 1000).toStringAsFixed(1)} km', Icons.timeline),
+          _stat('Temps est.', _formatRemaining(effectiveCompleted), Icons.timer_outlined),
         ]),
       ]),
     );
