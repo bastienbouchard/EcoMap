@@ -1589,7 +1589,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           _buildNavPanel(),
           if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
           if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
-          if (_windDeg != null) _buildWindIndicator(),
           if (_showLayerPanel) _buildLayerPanel(),
           Positioned(
             bottom: 20,
@@ -1597,6 +1596,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             child: ScaleBar(zoom: _mapZoom, lat: _mapLat),
           ),
           _buildZoomControls(),
+          if (_windDeg != null) _buildWindIndicator(),
         ],
       ),
     );
@@ -2394,7 +2394,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   Widget _buildLayerPanel() {
     return Positioned(
-      bottom: 90, right: 28,
+      bottom: 120, right: 28,
       child: Container(
         width: 220,
         decoration: BoxDecoration(
@@ -2619,7 +2619,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   Widget _buildParcoursBanner() {
     return Positioned(
-      bottom: 56, left: 16, right: 90,
+      top: MediaQuery.of(context).padding.top + 10, left: 16, right: 110,
       child: Container(
         padding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
