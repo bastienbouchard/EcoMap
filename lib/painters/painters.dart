@@ -129,9 +129,10 @@ class CompassPainter extends CustomPainter {
 
     canvas.restore();
 
-    // Flèche orange fixe en haut — toujours visible, indique "va dans cette direction"
+    // Flèche de navigation — pointe vers la destination (relèvement relatif)
     canvas.save();
     canvas.translate(center.dx, center.dy);
+    canvas.rotate(targetBearing * pi / 180 + rotation);
     canvas.drawLine(
       const Offset(0, 18),
       Offset(0, -(radius - 35)),
