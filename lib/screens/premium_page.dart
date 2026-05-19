@@ -249,8 +249,8 @@ class _PremiumPageState extends State<PremiumPage> {
 
   Future<void> _acheter() async {
     final uid = AuthService.uid;
-    final url = uid != null ? '$_stripeUrl?client_reference_id=$uid' : _stripeUrl;
-    final uri = Uri.parse(url);
+    if (uid == null) return;
+    final uri = Uri.parse('$_stripeUrl?client_reference_id=$uid');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }

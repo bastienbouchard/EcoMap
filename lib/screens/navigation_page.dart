@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../painters/painters.dart';
+import '../services/compass_heading.dart';
 
 class NavigationPage extends StatefulWidget {
   final List<LatLng> parcours;
@@ -16,9 +17,9 @@ class NavigationPage extends StatefulWidget {
   State<NavigationPage> createState() => _NavigationPageState();
 }
 
-class _NavigationPageState extends State<NavigationPage> {
+class _NavigationPageState extends State<NavigationPage> with SingleTickerProviderStateMixin {
   double _currentHeading = 0;
-  int _currentWaypointIndex = 0;
+  int _currentWaypointIndex = 1;
   double _distanceToNext = 0;
   double _bearingToNext = 0;
   StreamSubscription<Position>? _positionSubscription;
@@ -30,17 +31,52 @@ class _NavigationPageState extends State<NavigationPage> {
   DateTime? _lastSpeedUpdate;
   double _distanceAtLastSpeedUpdate = 0;
 
+  StreamSubscription<double>? _compassSubscription;
+  bool _compassPermissionGranted = false;
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnim;
+
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))
+      ..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
     _calculateTotalDistance();
     _startTracking();
+    _initCompass();
   }
 
   @override
   void dispose() {
+    _pulseController.dispose();
     _positionSubscription?.cancel();
+    _compassSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _initCompass() async {
+    final granted = await requestCompassPermission();
+    if (!mounted || !granted) return;
+    _compassSubscription = compassHeadingStream().listen((heading) {
+      if (mounted) setState(() {
+        _compassPermissionGranted = true;
+        _currentHeading = heading;
+      });
+    });
+  }
+
+  Future<void> _activateCompass() async {
+    if (_compassSubscription != null) return;
+    final granted = await requestCompassPermission();
+    if (!mounted || !granted) return;
+    _compassSubscription = compassHeadingStream().listen((heading) {
+      if (mounted) setState(() {
+        _compassPermissionGranted = true;
+        _currentHeading = heading;
+      });
+    });
   }
 
   void _calculateTotalDistance() {
@@ -65,7 +101,10 @@ class _NavigationPageState extends State<NavigationPage> {
 
   void _updatePosition(Position position) {
     final newPos = LatLng(position.latitude, position.longitude);
-    setState(() => _currentHeading = position.heading);
+    // GPS heading seulement si le magnétomètre web n'est pas actif
+    if (!_compassPermissionGranted) {
+      setState(() => _currentHeading = position.heading);
+    }
     _updateWaypoint(newPos);
     _updateSpeed();
   }
@@ -105,12 +144,12 @@ class _NavigationPageState extends State<NavigationPage> {
       _distanceToNext = distance;
       _bearingToNext = _calculateBearing(currentPos, nextWaypoint);
     });
-    if (distance < 20 && _currentWaypointIndex < widget.parcours.length - 1) {
+    if (distance < 20) {
       setState(() {
         _completedDistance += const Distance().as(
           LengthUnit.Meter,
+          widget.parcours[_currentWaypointIndex - 1],
           widget.parcours[_currentWaypointIndex],
-          widget.parcours[_currentWaypointIndex + 1],
         );
         _currentWaypointIndex++;
       });
@@ -149,7 +188,7 @@ class _NavigationPageState extends State<NavigationPage> {
         child: Column(children: [
           _buildHeader(progress),
           Expanded(child: LayoutBuilder(builder: (context, constraints) {
-            final compassSize = (constraints.maxHeight * 0.80).clamp(180.0, 300.0);
+            final compassSize = (constraints.maxHeight * 0.62).clamp(160.0, 270.0);
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -161,12 +200,39 @@ class _NavigationPageState extends State<NavigationPage> {
                     windDeg: widget.windDeg,
                   )),
                 ),
-                const SizedBox(height: 20),
+                if (!_compassPermissionGranted) ...[
+                  const SizedBox(height: 10),
+                  AnimatedBuilder(
+                    animation: _pulseAnim,
+                    builder: (context, _) => GestureDetector(
+                      onTap: _activateCompass,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Color.fromRGBO(61, 61, 61, 1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Color.fromRGBO(255, 107, 53, _pulseAnim.value), width: 1.5),
+                          boxShadow: [BoxShadow(
+                            color: Color.fromRGBO(255, 107, 53, _pulseAnim.value * 0.5),
+                            blurRadius: 8, spreadRadius: 1,
+                          )],
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.explore, color: Color.fromRGBO(255, 107, 53, _pulseAnim.value), size: 16),
+                          const SizedBox(width: 6),
+                          Text('Activer la boussole', style: TextStyle(color: Color.fromRGBO(255, 107, 53, _pulseAnim.value), fontSize: 13)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                _buildLegend(),
+                const SizedBox(height: 8),
                 _buildDistanceCard(normalizedBearing),
               ],
             );
           })),
-          _buildLegend(),
           const SizedBox(height: 8),
           _buildBottomStats(progress),
         ]),
@@ -220,16 +286,16 @@ class _NavigationPageState extends State<NavigationPage> {
 
   Widget _buildDistanceCard(double normalizedBearing) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [Color(0xFF2D2D2D), Color(0xFF1A1A1A)]),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
       ),
       child: Column(children: [
-        Text('${_distanceToNext.round()} m', style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 48, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(_getDirectionText(normalizedBearing), style: const TextStyle(color: Colors.white70, fontSize: 18)),
+        Text('${_distanceToNext.round()} m', style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 28, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(_getDirectionText(normalizedBearing), style: const TextStyle(color: Colors.white70, fontSize: 16)),
       ]),
     );
   }

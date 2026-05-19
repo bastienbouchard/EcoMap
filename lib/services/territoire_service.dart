@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'gzip_helper.dart';
+import 'web_db.dart';
 
 const _cdnBase = 'https://pub-5c51ef289e6943dbb647c2a2d1baa3bf.r2.dev';
-
-final Map<String, Map<String, dynamic>> _webCache = {};
+const _dbStore = 'territoires';
 
 class TerritoireService {
   static Future<String> _territoirePath(String id) async {
@@ -44,7 +44,8 @@ class TerritoireService {
 
   static Future<List<Map<String, dynamic>>> listTerritoires() async {
     if (kIsWeb) {
-      return _webCache.keys.map((k) => {'id': k, 'taille_mb': '?'}).toList();
+      final keys = await webDbKeys(_dbStore);
+      return keys.map((k) => {'id': k, 'taille_mb': '?'}).toList();
     }
     final dir = await getApplicationDocumentsDirectory();
     final folder = Directory('${dir.path}/territoires');
@@ -62,7 +63,11 @@ class TerritoireService {
   }
 
   static Future<Map<String, dynamic>?> loadTerritoire(String id) async {
-    if (kIsWeb) return _webCache[id];
+    if (kIsWeb) {
+      final raw = await webDbGet(_dbStore, id);
+      if (raw == null) return null;
+      return json.decode(raw) as Map<String, dynamic>;
+    }
     final path = await _territoirePath(id);
     final file = File(path);
     if (!file.existsSync()) return null;
@@ -146,7 +151,7 @@ class TerritoireService {
     };
 
     if (kIsWeb) {
-      _webCache[nom] = geojson;
+      await webDbPut(_dbStore, nom, json.encode(geojson));
     } else {
       final path = await _territoirePath(nom);
       final file = File(path);
@@ -158,7 +163,7 @@ class TerritoireService {
 
   static Future<void> deleteTerritoire(String id) async {
     if (kIsWeb) {
-      _webCache.remove(id);
+      await webDbDelete(_dbStore, id);
       return;
     }
     final path = await _territoirePath(id);

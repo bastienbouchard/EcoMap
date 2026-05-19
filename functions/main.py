@@ -4,13 +4,20 @@ import os
 import tempfile
 import zipfile
 
+import firebase_admin
 import geopandas as gpd
 import requests
+import stripe
+from firebase_admin import firestore as admin_firestore
 from firebase_functions import https_fn
 from firebase_functions.options import set_global_options, MemoryOption, CorsOptions
 from shapely.geometry import box
 
 set_global_options(max_instances=5)
+
+firebase_admin.initialize_app()
+
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
 _FEUILLETS_INDEX = None
 
@@ -162,3 +169,31 @@ def tile_proxy(req: https_fn.Request) -> https_fn.Response:
         )
     except Exception as e:
         return https_fn.Response(str(e), status=502)
+
+
+@https_fn.on_request(
+    timeout_sec=30,
+    memory=MemoryOption.MB_256,
+)
+def stripe_webhook(req: https_fn.Request) -> https_fn.Response:
+    if req.method != 'POST':
+        return https_fn.Response('Method not allowed', status=405)
+
+    payload = req.get_data()
+    sig = req.headers.get('Stripe-Signature', '')
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+    except ValueError:
+        return https_fn.Response('Invalid payload', status=400)
+    except stripe.error.SignatureVerificationError:
+        return https_fn.Response('Invalid signature', status=400)
+
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        uid = session.get('client_reference_id')
+        if uid:
+            db = admin_firestore.client()
+            db.collection('users').document(uid).update({'premium': True})
+
+    return https_fn.Response('OK', status=200)

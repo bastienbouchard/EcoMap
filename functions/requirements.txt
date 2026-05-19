@@ -5,3 +5,4 @@ pyogrio~=0.11
 shapely~=2.0
 requests~=2.31
 flask~=3.0
+stripe~=10.0

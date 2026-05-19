@@ -14,7 +14,9 @@ import '../models/hotspot_info.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
 import '../providers/arcgis_export_tile_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import '../services/web_db.dart';
 import '../services/connectivity_service.dart';
 import '../services/geo_service.dart';
 import '../services/groupe_service.dart';
@@ -141,6 +143,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   // ── Connectivité ──
   bool _isOnline = true;
+  bool _showOfflineBanner = true;
+  bool _showDownloadTip = true;
   StreamSubscription<bool>? _connectivitySub;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -153,8 +157,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
     _isOnline = ConnectivityService.isOnline;
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
-      if (mounted) setState(() => _isOnline = online);
-      if (online) _fetchWind();
+      if (mounted) setState(() { _isOnline = online; if (!online) _showOfflineBanner = true; });
+      if (online) {
+        _fetchWind();
+        final uid = AuthService.uid;
+        if (uid != null) _syncPendingObservations(uid);
+      }
     });
     _initLocation();
     _fetchWind();
@@ -162,6 +170,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
     _loadObservations();
     _loadTracks();
+    requestPersistentStorage();
   }
 
   @override
@@ -576,10 +585,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   // 1 résultat max par cellule de 1000 pieds × 1000 pieds (≈305m)
   int _maxResults() {
-    const cellSize = 305.0;
+    const cellSize = 600.0;
     final r = _visibleRadiusM();
     final count = (pi * r * r / (cellSize * cellSize)).round();
-    return count.clamp(2, 20);
+    return count.clamp(2, 10);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -715,88 +724,196 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   // ─────────────────────────────────────────────────────────────────────────
   // Observations
   // ─────────────────────────────────────────────────────────────────────────
+  // ── Cache local observations ───────────────────────────────────────────────
+
+  String _obsCacheKey(String uid) => 'obs_cache_$uid';
+
+  Future<void> _persistObsCache(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = _observations.map((o) {
+      final pos = o['pos'] as LatLng;
+      return {
+        'id': o['id'],
+        'lat': pos.latitude,
+        'lon': pos.longitude,
+        'note': o['note'],
+        'time': (o['time'] as DateTime).toIso8601String(),
+        if (o['pending'] == true) 'pending': true,
+      };
+    }).toList();
+    await prefs.setString(_obsCacheKey(uid), jsonEncode(list));
+  }
+
+  Future<void> _loadObsFromCache(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_obsCacheKey(uid));
+    if (raw == null || !mounted) return;
+    try {
+      final list = (jsonDecode(raw) as List).map<Map<String, dynamic>>((m) => {
+        'id': m['id'],
+        'pos': LatLng((m['lat'] as num).toDouble(), (m['lon'] as num).toDouble()),
+        'note': m['note'] as String,
+        'time': DateTime.parse(m['time'] as String),
+        if (m['pending'] == true) 'pending': true,
+      }).toList();
+      setState(() => _observations = list);
+    } catch (_) {}
+  }
+
+  Future<void> _syncPendingObservations(String uid) async {
+    final pending = _observations.where((o) => o['pending'] == true).toList();
+    for (final obs in pending) {
+      try {
+        final pos = obs['pos'] as LatLng;
+        final ref = await FirebaseFirestore.instance
+            .collection('users').doc(uid).collection('observations')
+            .add({
+          'lat': pos.latitude, 'lon': pos.longitude,
+          'note': obs['note'],
+          'time': Timestamp.fromDate(obs['time'] as DateTime),
+        });
+        if (mounted) setState(() { obs['id'] = ref.id; obs.remove('pending'); });
+      } catch (_) {}
+    }
+    if (pending.isNotEmpty) await _persistObsCache(uid);
+  }
+
   Future<void> _loadObservations() async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    // Charge le cache local immédiatement (fonctionne hors ligne)
+    await _loadObsFromCache(uid);
+    // Sync Firestore si en ligne
     try {
       final snap = await FirebaseFirestore.instance
           .collection('users').doc(uid).collection('observations')
           .orderBy('time', descending: false)
           .get();
       if (!mounted) return;
-      setState(() {
-        _observations = snap.docs.map((doc) {
-          final d = doc.data();
-          return {
-            'id': doc.id,
-            'pos': LatLng((d['lat'] as num).toDouble(), (d['lon'] as num).toDouble()),
-            'note': d['note'] as String,
-            'time': (d['time'] as Timestamp).toDate(),
-          };
-        }).toList();
-      });
+      final remote = snap.docs.map<Map<String, dynamic>>((doc) {
+        final d = doc.data();
+        return {
+          'id': doc.id,
+          'pos': LatLng((d['lat'] as num).toDouble(), (d['lon'] as num).toDouble()),
+          'note': d['note'] as String,
+          'time': (d['time'] as Timestamp).toDate(),
+        };
+      }).toList();
+      // Fusionne : garde les pending locaux non encore synchros
+      final pendingLocal = _observations.where((o) => o['pending'] == true).toList();
+      setState(() => _observations = [...remote, ...pendingLocal]);
+      await _persistObsCache(uid);
     } catch (_) {}
   }
 
   Future<void> _saveObservation(Map<String, dynamic> obs) async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    // Sauvegarde locale immédiate
+    await _persistObsCache(uid);
+    // Sync Firestore
     try {
       final pos = obs['pos'] as LatLng;
       final ref = await FirebaseFirestore.instance
           .collection('users').doc(uid).collection('observations')
           .add({
-        'lat': pos.latitude,
-        'lon': pos.longitude,
+        'lat': pos.latitude, 'lon': pos.longitude,
         'note': obs['note'],
         'time': Timestamp.fromDate(obs['time'] as DateTime),
       });
-      if (mounted) setState(() => obs['id'] = ref.id);
-    } catch (_) {}
+      if (mounted) setState(() { obs['id'] = ref.id; obs.remove('pending'); });
+      await _persistObsCache(uid);
+    } catch (_) {
+      // Hors ligne — marque comme pending pour sync ultérieure
+      if (mounted) setState(() => obs['pending'] = true);
+      await _persistObsCache(uid);
+    }
   }
 
   Future<void> _deleteObservation(int idx) async {
     final obs = _observations[idx];
     final id = obs['id'] as String?;
     setState(() => _observations.removeAt(idx));
-    if (id == null) return;
     final uid = AuthService.uid;
-    if (uid == null) return;
+    if (uid != null) await _persistObsCache(uid);
+    if (id == null || obs['pending'] == true) return;
     try {
       await FirebaseFirestore.instance
-          .collection('users').doc(uid).collection('observations')
+          .collection('users').doc(uid!).collection('observations')
           .doc(id).delete();
+    } catch (_) {}
+  }
+
+  // ── Cache local tracés ────────────────────────────────────────────────────
+
+  String _trackCacheKey(String uid) => 'tracks_cache_$uid';
+
+  Future<void> _persistTrackCache(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = List.generate(_savedTracks.length, (i) => {
+      'id': _savedTrackIds.length > i ? _savedTrackIds[i] : null,
+      'date': _savedTracks[i].date.toIso8601String(),
+      'points': _savedTracks[i].points
+          .map((p) => {'lat': p.latitude, 'lon': p.longitude}).toList(),
+    });
+    await prefs.setString(_trackCacheKey(uid), jsonEncode(list));
+  }
+
+  Future<void> _loadTracksFromCache(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_trackCacheKey(uid));
+    if (raw == null || !mounted) return;
+    try {
+      final list = jsonDecode(raw) as List;
+      setState(() {
+        for (final m in list) {
+          _savedTracks.add((
+            date: DateTime.parse(m['date'] as String),
+            points: (m['points'] as List).map((p) =>
+                LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())).toList(),
+          ));
+          _savedTrackIds.add(m['id'] as String?);
+        }
+      });
     } catch (_) {}
   }
 
   Future<void> _loadTracks() async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    // Cache local en premier
+    await _loadTracksFromCache(uid);
     try {
       final snap = await FirebaseFirestore.instance
           .collection('users').doc(uid).collection('tracks')
           .orderBy('date', descending: false)
           .get();
       if (!mounted) return;
+      final tracks = <({DateTime date, List<LatLng> points})>[];
+      final ids = <String?>[];
       for (final doc in snap.docs) {
         final d = doc.data();
-        final pts = (d['points'] as List).map((p) =>
-            LatLng((p['lat'] as num).toDouble(),
-                   (p['lon'] as num).toDouble())).toList();
-        setState(() {
-          _savedTracks.add((
-            date: (d['date'] as Timestamp).toDate(),
-            points: pts,
-          ));
-          _savedTrackIds.add(doc.id);
-        });
+        tracks.add((
+          date: (d['date'] as Timestamp).toDate(),
+          points: (d['points'] as List).map((p) =>
+              LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())).toList(),
+        ));
+        ids.add(doc.id);
       }
+      setState(() {
+        _savedTracks.clear();
+        _savedTrackIds.clear();
+        _savedTracks.addAll(tracks);
+        _savedTrackIds.addAll(ids);
+      });
+      await _persistTrackCache(uid);
     } catch (_) {}
   }
 
   Future<void> _saveTrack(int idx) async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    await _persistTrackCache(uid);
     try {
       final track = _savedTracks[idx];
       final ref = await FirebaseFirestore.instance
@@ -808,6 +925,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             .toList(),
       });
       if (mounted) setState(() => _savedTrackIds[idx] = ref.id);
+      await _persistTrackCache(uid);
     } catch (_) {}
   }
 
@@ -817,12 +935,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       _savedTracks.removeAt(idx);
       if (idx < _savedTrackIds.length) _savedTrackIds.removeAt(idx);
     });
-    if (id == null) return;
     final uid = AuthService.uid;
-    if (uid == null) return;
+    if (uid != null) await _persistTrackCache(uid);
+    if (id == null) return;
     try {
       await FirebaseFirestore.instance
-          .collection('users').doc(uid).collection('tracks')
+          .collection('users').doc(uid!).collection('tracks')
           .doc(id).delete();
     } catch (_) {}
   }
@@ -1469,7 +1587,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           if (_selectedCadastreLot != null) _buildSelectedLotPanel(),
           _buildActionPanel(),
           _buildNavPanel(),
-          if (!_isOnline) _buildOfflineBanner(),
+          if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
+          if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
           if (_windDeg != null) _buildWindIndicator(),
           if (_showLayerPanel) _buildLayerPanel(),
           Positioned(
@@ -2372,8 +2491,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Widget _buildWindIndicator() {
     final deg = _windDeg!;
     final speed = _windSpeed ?? 0.0;
+    final bannerVisible = (!_isOnline && _showOfflineBanner) ||
+        (_isOnline && _polygonsCache.isEmpty && _showDownloadTip);
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 12,
+      top: MediaQuery.of(context).padding.top + (bannerVisible ? 62 : 12),
       right: 16,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2405,28 +2526,72 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
+
   Widget _buildOfflineBanner() {
+    final hasData = _polygonsCache.isNotEmpty;
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
-      left: 40, right: 40,
+      left: 16, right: 16,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF8B4513).withOpacity(0.95),
-          borderRadius: BorderRadius.circular(20),
+          color: hasData
+              ? const Color(0xFF8B4513).withOpacity(0.95)
+              : const Color(0xFFB71C1C).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
         ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
           children: [
-            Icon(Icons.wifi_off, color: Colors.white, size: 14),
-            SizedBox(width: 6),
-            Text('Mode hors ligne — GPS, carte et spots disponibles',
-                style: TextStyle(color: Colors.white, fontSize: 11),
-                textAlign: TextAlign.center),
+            GestureDetector(
+              onTap: () => setState(() => _showOfflineBanner = false),
+              child: const Icon(Icons.close, color: Colors.white54, size: 16),
+            ),
+            const SizedBox(width: 8),
+            Icon(hasData ? Icons.wifi_off : Icons.warning_amber_rounded,
+                color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                hasData
+                    ? 'Hors ligne — GPS, carte et algorithmes disponibles'
+                    : 'Hors ligne sans carte — télécharge la carte éco avant de partir en chasse pour utiliser les algorithmes',
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDownloadTip() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 16, right: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A3A1A).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+        ),
+        child: Row(children: [
+          GestureDetector(
+            onTap: () => setState(() => _showDownloadTip = false),
+            child: const Icon(Icons.close, color: Colors.white38, size: 16),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.download_for_offline_outlined, color: Color(0xFF4CAF50), size: 16),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Sans réseau en forêt ? Télécharge ta carte éco avant de partir — requis pour les algorithmes.',
+              style: TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ),
+        ]),
       ),
     );
   }

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Ecomap</string>
+	<string>OrignalScan</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -49,5 +49,7 @@
 	<string>EcoMap utilise votre position pour afficher votre emplacement sur la carte.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>EcoMap utilise votre position pour la cartographie environnementale.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>OrignalScan utilise le magnétomètre pour la boussole de navigation.</string>
 </dict>
 </plist>
