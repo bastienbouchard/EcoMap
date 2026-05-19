@@ -655,7 +655,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       if (result.isEmpty) {
         _snack('Aucun affût détecté dans la zone visible — zoom arrière ou déplace la carte', error: true);
       } else {
-        _snack('${result.length} meilleur${result.length > 1 ? 's' : ''} emplacement${result.length > 1 ? 's' : ''} d\'affût dans la zone visible');
+        _snack('${result.length} meilleur${result.length > 1 ? 's' : ''} emplacement${result.length > 1 ? 's' : ''} d\'affût dans cette zone');
       }
     } catch (_) {
       if (mounted) setState(() => _loadingPinch = false);
@@ -690,7 +690,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       if (result.isEmpty) {
         _snack('Aucun site de saline trouvé — zoom arrière ou déplace la carte vers une zone plus humide', error: true);
       } else {
-        _snack('${result.length} meilleur${result.length > 1 ? 's' : ''} emplacement${result.length > 1 ? 's' : ''} de saline dans la zone visible');
+        _snack('${result.length} meilleur${result.length > 1 ? 's' : ''} emplacement${result.length > 1 ? 's' : ''} de saline dans cette zone');
       }
     } catch (_) {
       if (mounted) setState(() => _loadingSalines = false);
