@@ -58,24 +58,25 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
 
   Future<void> _initCompass() async {
     final granted = await requestCompassPermission();
-    if (!mounted) return;
-    setState(() => _compassPermissionGranted = granted);
-    if (granted) {
-      _compassSubscription = compassHeadingStream().listen((heading) {
-        if (mounted) setState(() => _currentHeading = heading);
+    if (!mounted || !granted) return;
+    _compassSubscription = compassHeadingStream().listen((heading) {
+      if (mounted) setState(() {
+        _compassPermissionGranted = true;
+        _currentHeading = heading;
       });
-    }
+    });
   }
 
   Future<void> _activateCompass() async {
+    if (_compassSubscription != null) return;
     final granted = await requestCompassPermission();
-    if (!mounted) return;
-    setState(() => _compassPermissionGranted = granted);
-    if (granted && _compassSubscription == null) {
-      _compassSubscription = compassHeadingStream().listen((heading) {
-        if (mounted) setState(() => _currentHeading = heading);
+    if (!mounted || !granted) return;
+    _compassSubscription = compassHeadingStream().listen((heading) {
+      if (mounted) setState(() {
+        _compassPermissionGranted = true;
+        _currentHeading = heading;
       });
-    }
+    });
   }
 
   void _calculateTotalDistance() {
@@ -187,7 +188,7 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
         child: Column(children: [
           _buildHeader(progress),
           Expanded(child: LayoutBuilder(builder: (context, constraints) {
-            final compassSize = (constraints.maxHeight * 0.80).clamp(180.0, 300.0);
+            final compassSize = (constraints.maxHeight * 0.62).clamp(160.0, 270.0);
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -225,12 +226,13 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
+                _buildLegend(),
+                const SizedBox(height: 8),
                 _buildDistanceCard(normalizedBearing),
               ],
             );
           })),
-          _buildLegend(),
           const SizedBox(height: 8),
           _buildBottomStats(progress),
         ]),
