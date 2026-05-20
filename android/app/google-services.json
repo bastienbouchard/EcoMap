@@ -7,12 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:115558656456:android:8c6747a393305c1ec038fd",
+        "mobilesdk_app_id": "1:115558656456:android:ade1715638df0149c038fd",
         "android_client_info": {
-          "package_name": "com.example.ecomap"
+          "package_name": "com.bastienbouchard.ecomap"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "115558656456-l51gd7dk50ahb5uis2bduf6m2fs9280e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBbObJJ1r-MMGNB-FJva_IougYRErUXSFY"
@@ -20,7 +25,55 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "115558656456-l51gd7dk50ahb5uis2bduf6m2fs9280e.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "115558656456-k1lojpis0tv21k8840v141qo1i92jd47.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.ecomap"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:115558656456:android:8c6747a393305c1ec038fd",
+        "android_client_info": {
+          "package_name": "com.example.ecomap"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "115558656456-l51gd7dk50ahb5uis2bduf6m2fs9280e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBbObJJ1r-MMGNB-FJva_IougYRErUXSFY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "115558656456-l51gd7dk50ahb5uis2bduf6m2fs9280e.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "115558656456-k1lojpis0tv21k8840v141qo1i92jd47.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.ecomap"
+              }
+            }
+          ]
         }
       }
     }
