@@ -6,30 +6,40 @@ plugins {
 }
 
 android {
-    namespace = "com.example.ecomap"
+    namespace = "com.bastienbouchard.ecomap"
     compileSdk = 35
-    ndkVersion = "27.0.12077973"  // ← Corrigé
-    
+    ndkVersion = "27.0.12077973"
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    
+
     kotlinOptions {
         jvmTarget = "11"
     }
-    
+
     defaultConfig {
-        applicationId = "com.example.ecomap"
+        applicationId = "com.bastienbouchard.ecomap"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
-    
+
+    signingConfigs {
+        create("release") {
+            keyAlias = System.getenv("CM_KEY_ALIAS") ?: "ecomap"
+            keyPassword = System.getenv("CM_KEY_PASSWORD") ?: ""
+            storeFile = System.getenv("CM_KEYSTORE_PATH")?.let { file(it) }
+            storePassword = System.getenv("CM_STORE_PASSWORD") ?: ""
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
         }
     }
 }
