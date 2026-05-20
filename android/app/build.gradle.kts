@@ -27,18 +27,8 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        create("release") {
-            keyAlias = System.getenv("CM_KEY_ALIAS") ?: "ecomap"
-            keyPassword = System.getenv("CM_KEY_PASSWORD") ?: ""
-            storeFile = System.getenv("CM_KEYSTORE_PATH")?.let { file(it) }
-            storePassword = System.getenv("CM_STORE_PASSWORD") ?: ""
-        }
-    }
-
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
         }
