@@ -569,7 +569,10 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
       if (drainVal < 4) continue; // besoin d'une zone humide (imparfait→hydrique)
 
       final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
-      if (typeEco.contains('EAU')) continue; // pas dans l'eau elle-même
+      final typeCourvS = (props['type_couv'] ?? '').toString().toUpperCase();
+      final codeCourvS = (props['code_couv'] ?? '').toString().toUpperCase();
+      if (typeEco.contains('EAU') || typeEco.contains('RIV') ||
+          codeCourvS == 'EE' || typeCourvS == 'IN') continue;
 
       final geom = feat['geometry'] as Map;
       List<dynamic> ring;
@@ -876,6 +879,11 @@ List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJson
   for (final feat in features) {
     try {
       final props = feat['properties'] as Map;
+      final typeEcoH = (props['type_eco'] ?? '').toString().toUpperCase();
+      final codeCourvH = (props['code_couv'] ?? '').toString().toUpperCase();
+      final typeCourvH = (props['type_couv'] ?? '').toString().toUpperCase();
+      if (typeEcoH.contains('EAU') || typeEcoH.contains('RIV') ||
+          codeCourvH == 'EE' || typeCourvH == 'IN') continue;
       int score = scoreOrignal(props);
       if (score < 3) continue;
       final geom = feat['geometry'] as Map;

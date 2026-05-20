@@ -2425,19 +2425,37 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   style: TextStyle(color: Colors.white54, fontSize: 11,
                       fontWeight: FontWeight.w600, letterSpacing: 0.8)),
             ),
-            _layerToggle('Carte écoforestière', Icons.forest_rounded,
-                _polygonsCache.isNotEmpty,
-                () async {
-                  setState(() => _showLayerPanel = false);
-                  if (!_requirePremium()) return;
-                  await Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => TerritoireDownloadPage(
-                      initialCenter: _mapController.camera.center,
-                      initialZoom: _mapController.camera.zoom,
-                    ),
-                  ));
-                  _reloadTerritoire();
-                }),
+            InkWell(
+              onTap: () async {
+                setState(() => _showLayerPanel = false);
+                if (!_requirePremium()) return;
+                await Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => TerritoireDownloadPage(
+                    initialCenter: _mapController.camera.center,
+                    initialZoom: _mapController.camera.zoom,
+                  ),
+                ));
+                _reloadTerritoire();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Row(children: [
+                  Icon(Icons.forest_rounded,
+                      color: _polygonsCache.isNotEmpty
+                          ? const Color(0xFFFF6B35)
+                          : Colors.white54,
+                      size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('Carte écoforestière',
+                      style: TextStyle(
+                          color: _polygonsCache.isNotEmpty
+                              ? Colors.white
+                              : Colors.white60,
+                          fontSize: 13))),
+                  const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+                ]),
+              ),
+            ),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
                   if (!_showTerresPrivees && !_requirePremium()) return;
