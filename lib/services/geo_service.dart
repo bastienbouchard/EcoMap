@@ -572,7 +572,7 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
       final typeCourvS = (props['type_couv'] ?? '').toString().toUpperCase();
       final codeCourvS = (props['code_couv'] ?? '').toString().toUpperCase();
       if (typeEco.contains('EAU') || typeEco.contains('RIV') ||
-          codeCourvS == 'EE' || typeCourvS == 'IN') continue;
+          codeCourvS == 'EE') continue;
 
       final geom = feat['geometry'] as Map;
       List<dynamic> ring;
@@ -883,7 +883,7 @@ List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJson
       final codeCourvH = (props['code_couv'] ?? '').toString().toUpperCase();
       final typeCourvH = (props['type_couv'] ?? '').toString().toUpperCase();
       if (typeEcoH.contains('EAU') || typeEcoH.contains('RIV') ||
-          codeCourvH == 'EE' || typeCourvH == 'IN') continue;
+          codeCourvH == 'EE') continue;
       int score = scoreOrignal(props);
       if (score < 3) continue;
       final geom = feat['geometry'] as Map;
