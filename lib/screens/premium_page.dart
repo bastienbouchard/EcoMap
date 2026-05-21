@@ -194,7 +194,7 @@ class _PremiumPageState extends State<PremiumPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text('49,99 \$',
+                    const Text('39,99 \$',
                         style: TextStyle(color: Color(0xFFFF6B35),
                             fontSize: 26, fontWeight: FontWeight.bold)),
                     Text('CAD', style: TextStyle(
@@ -218,7 +218,7 @@ class _PremiumPageState extends State<PremiumPage> {
                   elevation: 4,
                 ),
                 onPressed: _acheter,
-                child: const Text('Obtenir OrignalScan Pro — 49,99 \$',
+                child: const Text('Obtenir OrignalScan Pro — 39,99 \$',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
