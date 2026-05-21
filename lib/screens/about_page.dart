@@ -66,7 +66,7 @@ class AboutPage extends StatelessWidget {
             const Text(
               'L\'algorithme est basé sur les principes de l\'écologie de l\'orignal documentés par le MRNF et les universités québécoises (UQAR, UQAM) :\n\n'
               '• Alimentation — L\'orignal est un herbivore brouteur. Il préfère les jeunes peuplements feuillus (peuplier faux-tremble, aulne rugueux, saule, bouleau à papier) qui poussent dans les coupes et brûlis récents (5–25 ans).\n\n'
-              '• Abri — Les résineux denses (épinette, sapin) servent de protection thermique en hiver et de couvert de sécurité.\n\n'
+              '• Abri — Les résineux denses (épinette, sapin) servent de protection thermique en automne et de couvert de sécurité.\n\n'
               '• Eau — L\'orignal est étroitement lié aux milieux riverains, marécages et tourbières pour la végétation aquatique (été) et la thermorégulation.\n\n'
               '• Transitions — Les zones de transition entre feuillu et résineux concentrent l\'activité : nourriture et abri à portée.',
               style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.6),
@@ -172,7 +172,7 @@ class AboutPage extends StatelessWidget {
         Text(score, style: const TextStyle(color: Colors.white70, fontSize: 12,
             fontWeight: FontWeight.bold)),
         const SizedBox(width: 8),
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        Expanded(child: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12))),
       ]),
     );
   }
