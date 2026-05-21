@@ -1,4 +1,6 @@
 import java.util.Base64
+import java.util.Properties
+import java.io.File as JavaFile
 
 plugins {
     id("com.android.application")
@@ -12,8 +14,8 @@ val keystoreB64 = System.getenv("CM_KEYSTORE_B64")
 val keystorePath = "/tmp/ecomap-keystore.p12"
 if (keystoreB64 != null) {
     val keystoreBytes = Base64.getDecoder().decode(keystoreB64)
-    File(keystorePath).writeBytes(keystoreBytes)
-    File(rootDir, "app/key.properties").writeText(
+    JavaFile(keystorePath).writeBytes(keystoreBytes)
+    JavaFile(rootDir, "app/key.properties").writeText(
         "storeFile=$keystorePath\n" +
         "storePassword=${System.getenv("CM_KEYSTORE_PASSWORD") ?: ""}\n" +
         "keyAlias=${System.getenv("CM_KEY_ALIAS") ?: ""}\n" +
@@ -21,8 +23,8 @@ if (keystoreB64 != null) {
     )
 }
 
-val keyProps = java.util.Properties()
-val keyPropsFile = rootProject.file("app/key.properties")
+val keyProps = Properties()
+val keyPropsFile = JavaFile(rootDir, "app/key.properties")
 if (keyPropsFile.exists()) keyProps.load(keyPropsFile.inputStream())
 
 android {
@@ -49,7 +51,7 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = keyProps["storeFile"]?.let { file(it as String) }
+            storeFile = (keyProps["storeFile"] as String?)?.let { JavaFile(it) }
             storePassword = keyProps["storePassword"] as String? ?: ""
             keyAlias = keyProps["keyAlias"] as String? ?: ""
             keyPassword = keyProps["keyPassword"] as String? ?: ""
