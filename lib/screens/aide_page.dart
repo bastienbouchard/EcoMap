@@ -23,16 +23,22 @@ class AidePage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           _card(children: [
-            _title('Fonctions principales'),
+            _title('Légende des couleurs'),
             const SizedBox(height: 8),
-            _item('🔥 Points chauds', 'Détecte les meilleurs habitats orignal dans la zone visible.'),
-            _item('🗺 Parcours optimisé', 'Itinéraire calculé selon le vent, le terrain et les hotspots.'),
-            _item('🏕 Postes d\'affût', 'Corridors naturels où l\'orignal est forcé de passer — rayon 3 km.'),
-            _item('🧂 Salines', 'Identifie les zones humides idéales pour installer une saline.'),
-            _item('🗾 Carte écoforestière', 'Peuplement, âge, drainage et perturbation par secteur.'),
-            _item('📐 Terres privées', 'Limites de lots cadastraux — tap pour télécharger la carte éco du lot.'),
-            _item('👥 Groupe de chasseurs', 'Positions en temps réel, clavardage et partage d\'observations.'),
-            _item('📡 Partage traces', 'Envoie tes tracés GPS et observations à ton groupe.'),
+            _scoreRow('Blanc', 'Coupe / Régénération — meilleure nourriture', Colors.white),
+            const SizedBox(height: 2),
+            _scoreRow('Bleu', 'Riverain / Marécageux — eau et végétation aquatique', const Color(0xFF1565C0)),
+            const SizedBox(height: 2),
+            _scoreRow('Jaune', 'Feuillu — alimentation (peuplier, bouleau, érable)', const Color(0xFFFFD600)),
+            const SizedBox(height: 2),
+            _scoreRow('Orange', 'Mixte — transition nourriture + abri', const Color(0xFFFF6D00)),
+            const SizedBox(height: 2),
+            _scoreRow('Vert', 'Résineux — abri et couvert automnal', const Color(0xFF1B5E20)),
+            const SizedBox(height: 8),
+            const Text(
+              'L\'opacité de chaque couleur augmente avec le score orignal — plus c\'est opaque, meilleur est l\'habitat.',
+              style: TextStyle(color: Colors.white38, fontSize: 11, height: 1.5),
+            ),
           ]),
           const SizedBox(height: 12),
           _card(children: [
@@ -118,6 +124,19 @@ class AidePage extends StatelessWidget {
             style: const TextStyle(color: Colors.white60, fontSize: 12)),
       ]),
     ),
+  );
+
+  Widget _scoreRow(String score, String label, Color color) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      Container(width: 16, height: 16,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
+      const SizedBox(width: 10),
+      Text(score, style: const TextStyle(color: Colors.white70, fontSize: 12,
+          fontWeight: FontWeight.bold)),
+      const SizedBox(width: 8),
+      Expanded(child: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12))),
+    ]),
   );
 
   Widget _row(String code, String desc) => Padding(
