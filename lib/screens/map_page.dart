@@ -170,6 +170,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
     _loadObservations();
     _loadTracks();
+    _loadGroupePrefs();
     requestPersistentStorage();
   }
 
@@ -1161,7 +1162,18 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
+  Future<void> _loadGroupePrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString('last_groupe_code');
+    final nom = prefs.getString('last_groupe_nom');
+    if (code != null && mounted) setState(() { _groupeId = code; _monNom = nom; });
+  }
+
   void _rejoindreGroupe(String nom, String groupeId) {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('last_groupe_code', groupeId);
+      prefs.setString('last_groupe_nom', nom);
+    });
     setState(() {
       _monNom = nom;
       _groupeId = groupeId;

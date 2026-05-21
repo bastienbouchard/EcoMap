@@ -422,7 +422,7 @@ class _MeteoPageState extends State<MeteoPage> {
             border: Border.all(color: tipColor.withOpacity(0.3)),
           ),
           child: Row(children: [
-            Icon(Icons.pets, color: tipColor, size: 14),
+            _MooseTrackIcon(color: tipColor, size: 14),
             const SizedBox(width: 8),
             Expanded(child: Text(tip,
                 style: TextStyle(color: tipColor, fontSize: 12, height: 1.3))),
@@ -452,4 +452,38 @@ class _MeteoPageState extends State<MeteoPage> {
       ])),
     ]);
   }
+}
+
+class _MooseTrackIcon extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _MooseTrackIcon({required this.color, this.size = 14});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _MooseTrackPainter(color: color)),
+      );
+}
+
+class _MooseTrackPainter extends CustomPainter {
+  final Color color;
+  const _MooseTrackPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = color..style = PaintingStyle.fill;
+    final w = size.width;
+    final h = size.height;
+    // Deux sabots principaux (ongles du sabot fendu)
+    canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.30, h * 0.58), width: w * 0.30, height: h * 0.52), p);
+    canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.70, h * 0.58), width: w * 0.30, height: h * 0.52), p);
+    // Ergots (petits points au-dessus)
+    canvas.drawCircle(Offset(w * 0.26, h * 0.18), w * 0.09, p);
+    canvas.drawCircle(Offset(w * 0.74, h * 0.18), w * 0.09, p);
+  }
+
+  @override
+  bool shouldRepaint(_MooseTrackPainter old) => old.color != color;
 }
