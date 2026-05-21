@@ -152,6 +152,27 @@ bool pointInPolygon(LatLng point, List<dynamic> ring) {
   return inside;
 }
 
+// Returns centroid if inside polygon, else ring vertex closest to centroid
+List<double> _safeInteriorPoint(List<dynamic> ring) {
+  double sumLat = 0, sumLon = 0;
+  for (final c in ring) {
+    sumLon += (c[0] as num).toDouble();
+    sumLat += (c[1] as num).toDouble();
+  }
+  final cLat = sumLat / ring.length;
+  final cLon = sumLon / ring.length;
+  if (pointInPolygon(LatLng(cLat, cLon), ring)) return [cLat, cLon];
+  double minD = double.infinity;
+  double bLat = cLat, bLon = cLon;
+  for (final c in ring) {
+    final vLon = (c[0] as num).toDouble();
+    final vLat = (c[1] as num).toDouble();
+    final d = (pow(vLat - cLat, 2) + pow(vLon - cLon, 2)).toDouble();
+    if (d < minD) { minD = d; bLat = vLat; bLon = vLon; }
+  }
+  return [bLat, bLon];
+}
+
 bool pointInGeometry(LatLng point, Map geom) {
   final type = geom['type'];
   try {
@@ -580,19 +601,33 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
       else if (geom['type'] == 'MultiPolygon') ring = geom['coordinates'][0][0] as List;
       else continue;
 
-      double sumLat = 0, sumLon = 0;
-      for (final c in ring) {
-        sumLon += (c[0] as num).toDouble();
-        sumLat += (c[1] as num).toDouble();
+      // Position: vertex du ring le plus proche de l'eau, sinon centroïde sécurisé
+      List<double> pos;
+      if (riverPoints.isNotEmpty || intermittentPoints.isNotEmpty) {
+        final allWater = [...intermittentPoints, ...riverPoints];
+        double bestD = double.infinity;
+        List<double>? bestVtx;
+        for (final c in ring) {
+          final vLon = (c[0] as num).toDouble();
+          final vLat = (c[1] as num).toDouble();
+          final cosV = cos(vLat * pi / 180);
+          for (final w in allWater) {
+            final dM = sqrt(pow((vLat - w[0]) * 111000, 2) + pow((vLon - w[1]) * 111000 * cosV, 2));
+            if (dM < bestD && dM < 2000) { bestD = dM; bestVtx = [vLat, vLon]; }
+          }
+        }
+        pos = bestVtx ?? _safeInteriorPoint(ring);
+      } else {
+        pos = _safeInteriorPoint(ring);
       }
-      final cLat = sumLat / ring.length;
-      final cLon = sumLon / ring.length;
+      final cLat = pos[0];
+      final cLon = pos[1];
 
       final distM = sqrt(pow((cLat - lat) * 111000, 2) +
           pow((cLon - lon) * 111000 * cos(lat * pi / 180), 2));
       if (distM > radiusM) continue;
 
-      // Exclusion : aucun spot à moins de 100 m d'une route ou d'un bâtiment
+      // Exclusion : aucun spot à moins de 100 m d'une route, bâtiment ou chemin
       final cosC = cos(cLat * pi / 180);
       final tooCloseToInfra = infraPoints.any((p) =>
           sqrt(pow((p[0] - cLat) * 111000, 2) +
@@ -733,7 +768,7 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
       final distM = sqrt(pow((cLat - lat) * 111000, 2) + pow((cLon - lon) * 111000 * cosLat, 2));
       if (distM > radius * 1.2) continue;
 
-      // Exclusion : aucun spot à moins de 100 m d'une route ou d'un bâtiment
+      // Exclusion : aucun spot à moins de 100 m d'une route, bâtiment ou chemin
       final cosC = cos(cLat * pi / 180);
       final tooCloseToInfra = infraPoints.any((p) =>
           sqrt(pow((p[0] - cLat) * 111000, 2) +
@@ -743,7 +778,7 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
       final props = feat['properties'] as Map;
       final zt = zoneType(props);
       final score = (zt == zEau) ? -1 : scoreOrignal(props);
-      nodes.add({'lat': cLat, 'lon': cLon, 'score': score, 'zone': zt});
+      nodes.add({'lat': cLat, 'lon': cLon, 'score': score, 'zone': zt, 'ring': ring});
     } catch (_) {}
   }
 
@@ -796,7 +831,31 @@ List<Map<String, dynamic>> findPinchPointsIsolate(Map<String, dynamic> params) {
     if (hasFeuillu && hasResineux) finalScore += 3; // corridor mixte
     if (hasWater && hasJeune) finalScore += 4;      // eau + jeune = habitat parfait
 
-    candidates.add({'lat': nLat, 'lon': nLon, 'score': finalScore});
+    // Position: vertex du ring le plus proche d'une zone de type différent (frontière d'habitat)
+    final nRing = node['ring'] as List;
+    final nZone = node['zone'] as int;
+    double bdBest = double.infinity;
+    double bdLat = nLat, bdLon = nLon;
+    for (final other in nodes) {
+      final oZone = other['zone'] as int;
+      if (identical(other, node) || oZone == nZone || oZone == zEau) continue;
+      final oLat = other['lat'] as double;
+      final oLon = other['lon'] as double;
+      final dOther = sqrt(pow((oLat - nLat) * 111000, 2) + pow((oLon - nLon) * 111000 * cosN, 2));
+      if (dOther > neighborM) continue;
+      for (final c in nRing) {
+        final vLon = (c[0] as num).toDouble();
+        final vLat = (c[1] as num).toDouble();
+        final cosV = cos(vLat * pi / 180);
+        final d = (pow((vLat - oLat) * 111000, 2) + pow((vLon - oLon) * 111000 * cosV, 2)).toDouble();
+        if (d < bdBest) { bdBest = d; bdLat = vLat; bdLon = vLon; }
+      }
+    }
+    // Vérifier que le vertex frontière n'est pas trop près d'une route/chemin
+    final cosB = cos(bdLat * pi / 180);
+    final vtxNearInfra = infraPoints.any((p) =>
+        sqrt(pow((p[0] - bdLat) * 111000, 2) + pow((p[1] - bdLon) * 111000 * cosB, 2)) < 100);
+    candidates.add({'lat': vtxNearInfra ? nLat : bdLat, 'lon': vtxNearInfra ? nLon : bdLon, 'score': finalScore});
   }
 
   candidates.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
@@ -894,13 +953,9 @@ List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJson
       } else if (type == 'MultiPolygon') {
         ring = geom['coordinates'][0][0] as List;
       } else continue;
-      double sumLat = 0, sumLon = 0;
-      for (final c in ring) {
-        sumLon += (c[0] as num).toDouble();
-        sumLat += (c[1] as num).toDouble();
-      }
-      final lat = sumLat / ring.length;
-      final lon = sumLon / ring.length;
+      final pos = _safeInteriorPoint(ring);
+      final lat = pos[0];
+      final lon = pos[1];
 
       // Bonus proximité eau (même logique que parcours)
       if (waterCentroids.isNotEmpty) {

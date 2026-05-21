@@ -597,17 +597,17 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Future<List<List<double>>> _fetchOsmInfra(LatLng center, double radiusM) async {
     final r = radiusM.round();
     final query =
-        '[out:json][timeout:15];'
+        '[out:json][timeout:25];'
         '('
         'way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|track|path|footway|cycleway|bridleway)\$"](around:$r,${center.latitude},${center.longitude});'
         'way["building"](around:$r,${center.latitude},${center.longitude});'
         'node["building"](around:$r,${center.latitude},${center.longitude});'
         ');'
-        'out center;';
+        'out geom;';
     try {
       final resp = await http
           .post(Uri.parse('https://overpass-api.de/api/interpreter'), body: query)
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 30));
       if (resp.statusCode != 200) return [];
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final elements = data['elements'] as List;
@@ -615,9 +615,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       for (final el in elements) {
         if (el['type'] == 'node') {
           points.add([(el['lat'] as num).toDouble(), (el['lon'] as num).toDouble()]);
-        } else if (el['center'] != null) {
-          final c = el['center'] as Map;
-          points.add([(c['lat'] as num).toDouble(), (c['lon'] as num).toDouble()]);
+        } else if (el['type'] == 'way') {
+          // Géométrie complète de la route/chemin — tous les nœuds intermédiaires
+          final geom = el['geometry'] as List?;
+          if (geom != null) {
+            for (final node in geom) {
+              final nLat = (node['lat'] as num?)?.toDouble();
+              final nLon = (node['lon'] as num?)?.toDouble();
+              if (nLat != null && nLon != null) points.add([nLat, nLon]);
+            }
+          }
         }
       }
       return points;
