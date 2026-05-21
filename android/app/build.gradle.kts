@@ -27,13 +27,16 @@ android {
         versionName = flutter.versionName
     }
 
+    val keyProps = java.util.Properties()
+    val keyPropsFile = rootProject.file("app/key.properties")
+    if (keyPropsFile.exists()) keyProps.load(keyPropsFile.inputStream())
+
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("CM_KEYSTORE_PATH")
-                ?: "/Users/builder/.keystores/ecomap-release.p12")
-            storePassword = System.getenv("CM_KEYSTORE_PASSWORD") ?: "EcoMap2024"
-            keyAlias = System.getenv("CM_KEY_ALIAS") ?: "ecomap"
-            keyPassword = System.getenv("CM_KEY_PASSWORD") ?: "EcoMap2024"
+            storeFile = keyProps["storeFile"]?.let { file(it as String) }
+            storePassword = keyProps["storePassword"] as String? ?: ""
+            keyAlias = keyProps["keyAlias"] as String? ?: ""
+            keyPassword = keyProps["keyPassword"] as String? ?: ""
         }
     }
 
