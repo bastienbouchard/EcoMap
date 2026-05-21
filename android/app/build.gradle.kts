@@ -17,9 +17,9 @@ if (keystoreB64 != null) {
     JavaFile(keystorePath).writeBytes(keystoreBytes)
     JavaFile(rootDir, "app/key.properties").writeText(
         "storeFile=$keystorePath\n" +
-        "storePassword=${System.getenv("CM_KEYSTORE_PASSWORD") ?: ""}\n" +
-        "keyAlias=${System.getenv("CM_KEY_ALIAS") ?: ""}\n" +
-        "keyPassword=${System.getenv("CM_KEY_PASSWORD") ?: ""}\n"
+        "storePassword=${System.getenv("MY_STORE_PASSWORD") ?: ""}\n" +
+        "keyAlias=${System.getenv("MY_KEY_ALIAS") ?: "ecomap"}\n" +
+        "keyPassword=${System.getenv("MY_KEY_PASSWORD") ?: ""}\n"
     )
 }
 
