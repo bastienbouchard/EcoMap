@@ -1,8 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'onboarding_page.dart';
 
-class AboutPage extends StatelessWidget {
+class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
+
+  @override
+  State<AboutPage> createState() => _AboutPageState();
+}
+
+class _AboutPageState extends State<AboutPage> {
+  Future<void> _resetOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_done', false);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Onboarding réinitialisé — redémarre l\'app')),
+    );
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OnboardingPage(onDone: () => Navigator.pop(context)),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,9 +50,12 @@ class AboutPage extends StatelessWidget {
           Center(
             child: Column(children: [
               const SizedBox(height: 8),
-              ColorFiltered(
-                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                child: Image.asset('assets/logo.png', height: 72),
+              GestureDetector(
+                onLongPress: _resetOnboarding,
+                child: ColorFiltered(
+                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  child: Image.asset('assets/logo.png', height: 72),
+                ),
               ),
               const SizedBox(height: 12),
               const Text('OrignalScan',
