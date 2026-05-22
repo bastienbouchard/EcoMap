@@ -174,16 +174,17 @@ class _PageContent extends StatelessWidget {
   final _PageData data;
   const _PageContent({super.key, required this.data});
 
-  Widget _emojiWidget(String emoji, double size) {
+  Widget _emojiWidget(String emoji, double size, {double? logoSize}) {
     if (emoji == '__tower__') return _TowerIcon(size: size);
     if (emoji == '__cube__') return _CubeIcon(size: size);
     if (emoji == '__map__') return _MapIcon(size: size);
     if (emoji == '__pin__') return _PinIcon(size: size);
     if (emoji == '__compass__') return _CompassIcon(size: size);
     if (emoji == '__logo__') {
+      final s = logoSize ?? size * 3.0;
       return ColorFiltered(
         colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-        child: Image.asset('assets/logo.png', width: size * 6.6, height: size * 6.6),
+        child: Image.asset('assets/logo.png', width: s, height: s),
       );
     }
     return Text(emoji, style: TextStyle(fontSize: size));
@@ -191,12 +192,17 @@ class _PageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _emojiWidget(data.emoji, 72),
+    return LayoutBuilder(builder: (context, constraints) {
+      final logoSize = (constraints.maxHeight * 0.38).clamp(140.0, 260.0);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _emojiWidget(data.emoji, 72, logoSize: logoSize),
           const SizedBox(height: 24),
           Text(data.title,
               textAlign: TextAlign.center,
@@ -209,44 +215,47 @@ class _PageContent extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                   color: Colors.white60, fontSize: 14, height: 1.5)),
-          if (data.items.isNotEmpty) ...[
-            const SizedBox(height: 32),
-            ...data.items.map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Row(children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF6B35).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                            color: const Color(0xFFFF6B35).withOpacity(0.3)),
-                      ),
-                      child: Center(child: _emojiWidget(item.$1, 24)),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.$2,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15)),
-                            const SizedBox(height: 2),
-                            Text(item.$3,
-                                style: const TextStyle(
-                                    color: Colors.white54, fontSize: 12)),
-                          ]),
-                    ),
-                  ]),
-                )),
-          ],
-        ],
+              if (data.items.isNotEmpty) ...[
+                const SizedBox(height: 32),
+                ...data.items.map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Row(children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF6B35).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: const Color(0xFFFF6B35).withOpacity(0.3)),
+                          ),
+                          child: Center(child: _emojiWidget(item.$1, 24)),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(item.$2,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15)),
+                                const SizedBox(height: 2),
+                                Text(item.$3,
+                                    style: const TextStyle(
+                                        color: Colors.white54, fontSize: 12)),
+                              ]),
+                        ),
+                      ]),
+                    )),
+              ],
+            ],
+          ),
+        ),
       ),
     );
+    });
   }
 }
 
