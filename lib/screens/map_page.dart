@@ -2141,15 +2141,18 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     return MarkerLayer(
       markers: _membres.map((m) => Marker(
         point: m.position,
-        width: 56, height: 56,
+        width: 80, height: 64,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.person_pin_circle,
+              color: Color(0xFF4A90E2), size: 32),
+          const SizedBox(height: 2),
           Container(
             padding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: const Color(0xFF4A90E2),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white, width: 1.5),
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF4A90E2), width: 1),
             ),
             child: Text(m.nom,
                 style: const TextStyle(
@@ -2157,8 +2160,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     fontSize: 10,
                     fontWeight: FontWeight.bold)),
           ),
-          const Icon(Icons.person_pin_circle,
-              color: Color(0xFF4A90E2), size: 28),
         ]),
       )).toList(),
     );
