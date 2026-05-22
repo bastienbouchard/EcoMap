@@ -69,15 +69,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Future<void> _finish() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_done', true);
+    if (!mounted) return;
     widget.onDone();
   }
 
-  void _next() {
+  Future<void> _next() async {
     if (_page < _pages.length - 1) {
       _ctrl.nextPage(
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
-      _finish();
+      await _finish();
     }
   }
 
@@ -397,42 +398,73 @@ class _MapPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
     final sw = (w * 0.07).clamp(1.5, 4.0);
+    final thin = (sw * 0.55).clamp(1.0, 2.5);
 
-    final p = Paint()
+    final border = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = sw
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    // Cadre de la carte
+    // Cadre carte
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.05, h * 0.05, w * 0.90, h * 0.90),
+        Rect.fromLTWH(w * 0.04, h * 0.04, w * 0.92, h * 0.92),
         Radius.circular(w * 0.10),
       ),
-      p,
+      border,
     );
 
-    // Ligne de frontière 1 (ondulée)
-    final l1 = Path()
-      ..moveTo(w * 0.05, h * 0.37)
-      ..cubicTo(w * 0.28, h * 0.25, w * 0.45, h * 0.50, w * 0.65, h * 0.33)
-      ..cubicTo(w * 0.80, h * 0.22, w * 0.90, h * 0.37, w * 0.95, h * 0.37);
-    canvas.drawPath(l1, p);
+    // Courbes de niveau topographiques (ovales concentriques)
+    final cx = w * 0.44;
+    final cy = h * 0.56;
+    final contour = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    for (int i = 3; i >= 1; i--) {
+      contour.strokeWidth = i == 1 ? thin * 1.5 : thin;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(cx, cy),
+          width: w * (0.16 + i * 0.18),
+          height: h * (0.10 + i * 0.13),
+        ),
+        contour,
+      );
+    }
 
-    // Ligne de frontière 2 (ondulée)
-    final l2 = Path()
-      ..moveTo(w * 0.05, h * 0.63)
-      ..cubicTo(w * 0.22, h * 0.72, w * 0.42, h * 0.55, w * 0.60, h * 0.65)
-      ..cubicTo(w * 0.76, h * 0.73, w * 0.88, h * 0.60, w * 0.95, h * 0.63);
-    canvas.drawPath(l2, p);
+    // Sommet (triangle plein)
+    final peak = Path()
+      ..moveTo(cx, cy - h * 0.30)
+      ..lineTo(cx - w * 0.09, cy - h * 0.14)
+      ..lineTo(cx + w * 0.09, cy - h * 0.14)
+      ..close();
+    canvas.drawPath(
+        peak, Paint()..color = Colors.white..style = PaintingStyle.fill);
 
-    // Marqueur de position (cercle + point central)
-    final pin = Offset(w * 0.71, h * 0.49);
-    canvas.drawCircle(pin, w * 0.11, p);
-    canvas.drawCircle(pin, w * 0.035,
-        Paint()..color = Colors.white..style = PaintingStyle.fill);
+    // Mini boussole coin haut-droit
+    final nx = w * 0.80;
+    final ny = h * 0.22;
+    final nr = w * 0.08;
+    final north = Path()
+      ..moveTo(nx, ny - nr)
+      ..lineTo(nx - nr * 0.45, ny + nr * 0.35)
+      ..lineTo(nx, ny)
+      ..close();
+    canvas.drawPath(
+        north, Paint()..color = Colors.white..style = PaintingStyle.fill);
+    final south = Path()
+      ..moveTo(nx, ny + nr)
+      ..lineTo(nx + nr * 0.45, ny - nr * 0.35)
+      ..lineTo(nx, ny)
+      ..close();
+    canvas.drawPath(
+        south,
+        Paint()
+          ..color = const Color(0xFFFF6B35)
+          ..style = PaintingStyle.fill);
   }
 
   @override
