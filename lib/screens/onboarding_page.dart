@@ -15,9 +15,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   static const _pages = [
     _PageData(
-      emoji: '🦌',
+      emoji: '__logo__',
       title: 'Bienvenue dans OrignalScan',
-      subtitle: 'L\'outil de chasse à l\'orignal le plus avancé au Québec — données écoforestières officielles du MRNF.',
+      subtitle: 'Algorithmes IA + données écoforestières officielles du MRNF — l\'outil de chasse à l\'orignal le plus avancé au Québec.',
       items: [],
     ),
     _PageData(
@@ -175,6 +175,12 @@ class _PageContent extends StatelessWidget {
 
   Widget _emojiWidget(String emoji, double size) {
     if (emoji == '__tower__') return _TowerIcon(size: size);
+    if (emoji == '__logo__') {
+      return ColorFiltered(
+        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+        child: Image.asset('assets/logo.png', width: size, height: size),
+      );
+    }
     return Text(emoji, style: TextStyle(fontSize: size));
   }
 
