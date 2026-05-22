@@ -39,11 +39,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ],
     ),
     _PageData(
-      emoji: '🗾',
+      emoji: '__map__',
       title: 'Maîtrise le territoire',
       subtitle: 'Toutes les données officielles dans ta poche.',
       items: [
-        ('🗾', 'Carte écoforestière', 'Peuplement, âge et drainage par secteur'),
+        ('__map__', 'Carte écoforestière', 'Peuplement, âge et drainage par secteur'),
         ('📐', 'Terres privées', 'Limites de lots cadastraux en temps réel'),
       ],
     ),
@@ -176,6 +176,7 @@ class _PageContent extends StatelessWidget {
   Widget _emojiWidget(String emoji, double size) {
     if (emoji == '__tower__') return _TowerIcon(size: size);
     if (emoji == '__cube__') return _CubeIcon(size: size);
+    if (emoji == '__map__') return _MapIcon(size: size);
     if (emoji == '__logo__') {
       return ColorFiltered(
         colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
@@ -364,4 +365,64 @@ class _CubePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CubePainter old) => false;
+}
+
+class _MapIcon extends StatelessWidget {
+  final double size;
+  const _MapIcon({this.size = 24});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _MapPainter()),
+      );
+}
+
+class _MapPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final sw = (w * 0.07).clamp(1.5, 4.0);
+
+    final p = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sw
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // Cadre de la carte
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.05, h * 0.05, w * 0.90, h * 0.90),
+        Radius.circular(w * 0.10),
+      ),
+      p,
+    );
+
+    // Ligne de frontière 1 (ondulée)
+    final l1 = Path()
+      ..moveTo(w * 0.05, h * 0.37)
+      ..cubicTo(w * 0.28, h * 0.25, w * 0.45, h * 0.50, w * 0.65, h * 0.33)
+      ..cubicTo(w * 0.80, h * 0.22, w * 0.90, h * 0.37, w * 0.95, h * 0.37);
+    canvas.drawPath(l1, p);
+
+    // Ligne de frontière 2 (ondulée)
+    final l2 = Path()
+      ..moveTo(w * 0.05, h * 0.63)
+      ..cubicTo(w * 0.22, h * 0.72, w * 0.42, h * 0.55, w * 0.60, h * 0.65)
+      ..cubicTo(w * 0.76, h * 0.73, w * 0.88, h * 0.60, w * 0.95, h * 0.63);
+    canvas.drawPath(l2, p);
+
+    // Marqueur de position (cercle + point central)
+    final pin = Offset(w * 0.71, h * 0.49);
+    canvas.drawCircle(pin, w * 0.11, p);
+    canvas.drawCircle(pin, w * 0.035,
+        Paint()..color = Colors.white..style = PaintingStyle.fill);
+  }
+
+  @override
+  bool shouldRepaint(_MapPainter old) => false;
 }
