@@ -688,6 +688,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         'radiusM': radiusM,
         'geoJson': geoJson,
         'infraPoints': infraPoints,
+        'maxResults': _maxResults(),
       });
       if (!mounted) return;
       setState(() {

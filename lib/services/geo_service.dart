@@ -517,6 +517,7 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
   final lat = params['lat'] as double;
   final lon = params['lon'] as double;
   final radiusM = (params['radiusM'] as num?)?.toDouble() ?? 4000.0;
+  final maxN = (params['maxResults'] as int?) ?? 10;
   final features = (params['geoJson'] as Map<String, dynamic>)['features'] as List;
   final infraPoints = (params['infraPoints'] as List?)
       ?.map((p) => [((p as List)[0] as num).toDouble(), (p[1] as num).toDouble()])
@@ -652,7 +653,7 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
         const Distance().as(LengthUnit.Meter,
             LatLng(r['lat'] as double, r['lon'] as double), pos) < 500);
     if (!tooClose) result.add(c);
-    if (result.length >= 5) break;
+    if (result.length >= maxN) break;
   }
   return result;
 }
