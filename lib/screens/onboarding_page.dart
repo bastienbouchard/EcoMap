@@ -35,7 +35,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       subtitle: 'Détection par algorithme IA — basé sur les données écoforestières du MRNF.',
       items: [
         ('__tower__', 'Postes d\'affût — IA', 'Corridors naturels où l\'orignal est forcé de passer'),
-        ('🧂', 'Salines — IA', 'Zones humides idéales pour installer une saline'),
+        ('__cube__', 'Salines — IA', 'Zones humides idéales pour installer une saline'),
       ],
     ),
     _PageData(
@@ -175,6 +175,7 @@ class _PageContent extends StatelessWidget {
 
   Widget _emojiWidget(String emoji, double size) {
     if (emoji == '__tower__') return _TowerIcon(size: size);
+    if (emoji == '__cube__') return _CubeIcon(size: size);
     if (emoji == '__logo__') {
       return ColorFiltered(
         colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
@@ -305,4 +306,62 @@ class _TowerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TowerPainter old) => false;
+}
+
+class _CubeIcon extends StatelessWidget {
+  final double size;
+  const _CubeIcon({this.size = 24});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _CubePainter()),
+      );
+}
+
+class _CubePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // 7 sommets du cube isométrique
+    final topC  = Offset(w * 0.50, h * 0.06);
+    final midL  = Offset(w * 0.05, h * 0.30);
+    final midR  = Offset(w * 0.95, h * 0.30);
+    final ctr   = Offset(w * 0.50, h * 0.54);
+    final botL  = Offset(w * 0.05, h * 0.78);
+    final botR  = Offset(w * 0.95, h * 0.78);
+    final botC  = Offset(w * 0.50, h * 0.97);
+
+    Path face(List<Offset> pts) {
+      final p = Path()..moveTo(pts[0].dx, pts[0].dy);
+      for (final pt in pts.skip(1)) { p.lineTo(pt.dx, pt.dy); }
+      return p..close();
+    }
+
+    final top   = face([topC, midR, ctr, midL]);
+    final left  = face([midL, ctr, botC, botL]);
+    final right = face([ctr, midR, botR, botC]);
+
+    // Faces remplies — dégradé de luminosité pour effet 3D
+    canvas.drawPath(top,   Paint()..color = Colors.white.withOpacity(0.95)..style = PaintingStyle.fill);
+    canvas.drawPath(left,  Paint()..color = Colors.white.withOpacity(0.50)..style = PaintingStyle.fill);
+    canvas.drawPath(right, Paint()..color = Colors.white.withOpacity(0.28)..style = PaintingStyle.fill);
+
+    // Contour
+    final stroke = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (w * 0.06).clamp(1.0, 3.5)
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(top,   stroke);
+    canvas.drawPath(left,  stroke);
+    canvas.drawPath(right, stroke);
+  }
+
+  @override
+  bool shouldRepaint(_CubePainter old) => false;
 }
