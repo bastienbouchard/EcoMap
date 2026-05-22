@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -52,7 +53,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       title: 'Chasse en équipe',
       subtitle: 'Reste connecté avec ton équipe en temps réel.',
       items: [
-        ('👥', 'Positions GPS en direct', 'Vois où est chaque chasseur sur la carte'),
+        ('__compass__', 'Positions GPS en direct', 'Vois où est chaque chasseur sur la carte'),
         ('💬', 'Clavardage & photos', 'Échange messages et photos avec ton équipe'),
         ('__pin__', 'Traces & observations', 'Partage automatique en temps réel'),
       ],
@@ -178,6 +179,7 @@ class _PageContent extends StatelessWidget {
     if (emoji == '__cube__') return _CubeIcon(size: size);
     if (emoji == '__map__') return _MapIcon(size: size);
     if (emoji == '__pin__') return _PinIcon(size: size);
+    if (emoji == '__compass__') return _CompassIcon(size: size);
     if (emoji == '__logo__') {
       return ColorFiltered(
         colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
@@ -472,4 +474,77 @@ class _PinPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PinPainter old) => false;
+}
+
+class _CompassIcon extends StatelessWidget {
+  final double size;
+  const _CompassIcon({this.size = 24});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _CompassPainter()),
+      );
+}
+
+class _CompassPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final cx = w / 2;
+    final cy = h / 2;
+    final r = w * 0.44;
+    final sw = (w * 0.07).clamp(1.5, 4.0);
+
+    final stroke = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sw
+      ..strokeCap = StrokeCap.round;
+
+    // Cercle extérieur
+    canvas.drawCircle(Offset(cx, cy), r, stroke);
+
+    // Aiguille Nord (blanche — pointe vers le haut)
+    final north = Path()
+      ..moveTo(cx, cy - r * 0.72)
+      ..lineTo(cx - r * 0.18, cy + r * 0.10)
+      ..lineTo(cx, cy)
+      ..close();
+    canvas.drawPath(north,
+        Paint()..color = Colors.white..style = PaintingStyle.fill);
+
+    // Aiguille Sud (orange — pointe vers le bas)
+    final south = Path()
+      ..moveTo(cx, cy + r * 0.72)
+      ..lineTo(cx + r * 0.18, cy - r * 0.10)
+      ..lineTo(cx, cy)
+      ..close();
+    canvas.drawPath(south,
+        Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill);
+
+    // Point central
+    canvas.drawCircle(Offset(cx, cy), w * 0.06,
+        Paint()..color = Colors.white..style = PaintingStyle.fill);
+
+    // Marqueurs cardinaux N / S / E / O
+    final tick = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sw * 0.8
+      ..strokeCap = StrokeCap.round;
+    for (int i = 0; i < 4; i++) {
+      final angle = i * 3.14159 / 2;
+      final x1 = cx + (r - w * 0.10) * sin(angle);
+      final y1 = cy - (r - w * 0.10) * cos(angle);
+      final x2 = cx + r * sin(angle);
+      final y2 = cy - r * cos(angle);
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), tick);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CompassPainter old) => false;
 }
