@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import 'login_page.dart';
 import 'map_page.dart';
+import 'onboarding_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -59,14 +61,24 @@ class _SplashScreenState extends State<SplashScreen>
 
     _ctrl.forward();
 
-    Future.delayed(const Duration(milliseconds: 2000), () {
+    Future.delayed(const Duration(milliseconds: 2000), () async {
       if (!mounted) return;
+      final prefs = await SharedPreferences.getInstance();
+      final onboardingDone = prefs.getBool('onboarding_done') ?? false;
       final isLoggedIn = AuthService.isLoggedIn;
+      if (!mounted) return;
+
+      Widget next = isLoggedIn ? const MapPage() : const LoginPage();
+
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) =>
-              isLoggedIn ? const MapPage() : const LoginPage(),
+          pageBuilder: (ctx, __, ___) => onboardingDone
+              ? next
+              : OnboardingPage(onDone: () => Navigator.pushReplacement(
+                  ctx,
+                  MaterialPageRoute(builder: (_) => next),
+                )),
           transitionDuration: const Duration(milliseconds: 300),
           transitionsBuilder: (_, anim, __, child) =>
               FadeTransition(opacity: anim, child: child),
