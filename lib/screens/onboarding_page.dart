@@ -178,7 +178,7 @@ class _PageContent extends StatelessWidget {
     if (emoji == '__logo__') {
       return ColorFiltered(
         colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-        child: Image.asset('assets/logo.png', width: size * 2.2, height: size * 2.2),
+        child: Image.asset('assets/logo.png', width: size * 6.6, height: size * 6.6),
       );
     }
     return Text(emoji, style: TextStyle(fontSize: size));
