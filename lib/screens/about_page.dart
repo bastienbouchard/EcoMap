@@ -96,7 +96,7 @@ class _AboutPageState extends State<AboutPage> {
                 ),
                 icon: const Icon(Icons.play_circle_outline,
                     color: Color(0xFFFF6B35), size: 18),
-                label: const Text('Voir la démo',
+                label: const Text('Menu info',
                     style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13)),
               ),
               const SizedBox(height: 8),
