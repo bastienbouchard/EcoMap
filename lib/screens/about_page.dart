@@ -84,7 +84,22 @@ class _AboutPageState extends State<AboutPage> {
                   ]),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => OnboardingPage(
+                      onDone: () => Navigator.pop(context),
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.play_circle_outline,
+                    color: Color(0xFFFF6B35), size: 18),
+                label: const Text('Voir la démo',
+                    style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13)),
+              ),
+              const SizedBox(height: 8),
             ]),
           ),
           _card(children: [
