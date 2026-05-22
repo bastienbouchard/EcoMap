@@ -30,12 +30,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ],
     ),
     _PageData(
-      emoji: '🏕',
+      emoji: '__tower__',
       title: 'Trouve les meilleurs spots',
-      subtitle: 'Positionne-toi au bon endroit au bon moment.',
+      subtitle: 'Détection par algorithme IA — basé sur les données écoforestières du MRNF.',
       items: [
-        ('🏕', 'Postes d\'affût', 'Corridors naturels où l\'orignal est forcé de passer'),
-        ('🧂', 'Salines', 'Zones humides idéales pour installer une saline'),
+        ('__tower__', 'Postes d\'affût — IA', 'Corridors naturels où l\'orignal est forcé de passer'),
+        ('🧂', 'Salines — IA', 'Zones humides idéales pour installer une saline'),
       ],
     ),
     _PageData(
@@ -50,10 +50,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _PageData(
       emoji: '👥',
       title: 'Chasse en équipe',
-      subtitle: 'Reste connecté avec tes partenaires de chasse.',
+      subtitle: 'Reste connecté avec ton équipe en temps réel.',
       items: [
-        ('👥', 'Groupe de chasseurs', 'Positions GPS en temps réel + clavardage'),
-        ('📡', 'Partage traces & obs.', 'Envoie tes données à toute l\'équipe'),
+        ('👥', 'Positions GPS en direct', 'Vois où est chaque chasseur sur la carte'),
+        ('💬', 'Clavardage & photos', 'Échange messages et photos avec ton équipe'),
+        ('📡', 'Traces & observations', 'Partage automatique en temps réel'),
       ],
     ),
   ];
@@ -172,6 +173,11 @@ class _PageContent extends StatelessWidget {
   final _PageData data;
   const _PageContent({super.key, required this.data});
 
+  Widget _emojiWidget(String emoji, double size) {
+    if (emoji == '__tower__') return _TowerIcon(size: size);
+    return Text(emoji, style: TextStyle(fontSize: size));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -179,7 +185,7 @@ class _PageContent extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(data.emoji, style: const TextStyle(fontSize: 72)),
+          _emojiWidget(data.emoji, 72),
           const SizedBox(height: 24),
           Text(data.title,
               textAlign: TextAlign.center,
@@ -206,9 +212,7 @@ class _PageContent extends StatelessWidget {
                         border: Border.all(
                             color: const Color(0xFFFF6B35).withOpacity(0.3)),
                       ),
-                      child: Center(
-                          child: Text(item.$1,
-                              style: const TextStyle(fontSize: 24))),
+                      child: Center(child: _emojiWidget(item.$1, 24)),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -233,4 +237,66 @@ class _PageContent extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TowerIcon extends StatelessWidget {
+  final double size;
+  const _TowerIcon({this.size = 24});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _TowerPainter()),
+      );
+}
+
+class _TowerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (size.width * 0.07).clamp(1.5, 3.5)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final w = size.width;
+    final h = size.height;
+
+    // Cabane au sommet
+    final cabin = RRect.fromRectAndRadius(
+      Rect.fromLTWH(w * 0.22, h * 0.04, w * 0.56, h * 0.26),
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(cabin, p);
+
+    // Toit (triangle)
+    final roof = Path()
+      ..moveTo(w * 0.15, h * 0.04)
+      ..lineTo(w * 0.50, h * (-0.04).clamp(-h, 0))
+      ..lineTo(w * 0.85, h * 0.04);
+    canvas.drawPath(roof, p);
+
+    // Plateforme horizontale
+    canvas.drawLine(Offset(w * 0.06, h * 0.38), Offset(w * 0.94, h * 0.38), p);
+
+    // Jambe gauche
+    canvas.drawLine(Offset(w * 0.25, h * 0.38), Offset(w * 0.10, h * 0.97), p);
+    // Jambe droite
+    canvas.drawLine(Offset(w * 0.75, h * 0.38), Offset(w * 0.90, h * 0.97), p);
+
+    // Croix de renfort
+    canvas.drawLine(Offset(w * 0.25, h * 0.38), Offset(w * 0.90, h * 0.97), p);
+    canvas.drawLine(Offset(w * 0.75, h * 0.38), Offset(w * 0.10, h * 0.97), p);
+
+    // Échelle centrale
+    canvas.drawLine(Offset(w * 0.44, h * 0.38), Offset(w * 0.44, h * 0.97), p);
+    canvas.drawLine(Offset(w * 0.56, h * 0.38), Offset(w * 0.56, h * 0.97), p);
+    for (double y = 0.50; y < 0.95; y += 0.14) {
+      canvas.drawLine(Offset(w * 0.44, h * y), Offset(w * 0.56, h * y), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TowerPainter old) => false;
 }
