@@ -54,7 +54,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       items: [
         ('👥', 'Positions GPS en direct', 'Vois où est chaque chasseur sur la carte'),
         ('💬', 'Clavardage & photos', 'Échange messages et photos avec ton équipe'),
-        ('📡', 'Traces & observations', 'Partage automatique en temps réel'),
+        ('__pin__', 'Traces & observations', 'Partage automatique en temps réel'),
       ],
     ),
   ];
@@ -177,6 +177,7 @@ class _PageContent extends StatelessWidget {
     if (emoji == '__tower__') return _TowerIcon(size: size);
     if (emoji == '__cube__') return _CubeIcon(size: size);
     if (emoji == '__map__') return _MapIcon(size: size);
+    if (emoji == '__pin__') return _PinIcon(size: size);
     if (emoji == '__logo__') {
       return ColorFiltered(
         colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
@@ -425,4 +426,50 @@ class _MapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MapPainter old) => false;
+}
+
+class _PinIcon extends StatelessWidget {
+  final double size;
+  const _PinIcon({this.size = 24});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(painter: _PinPainter()),
+      );
+}
+
+class _PinPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final sw = (w * 0.07).clamp(1.5, 4.0);
+
+    // Tête de la punaise (cercle rempli)
+    final headR = w * 0.32;
+    final headC = Offset(w * 0.50, h * 0.36);
+    canvas.drawCircle(headC, headR,
+        Paint()..color = Colors.white..style = PaintingStyle.fill);
+    // Contour de la tête
+    canvas.drawCircle(headC, headR,
+        Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = sw);
+
+    // Pointe (triangle vers le bas)
+    final tip = Path()
+      ..moveTo(w * 0.28, h * 0.58)
+      ..lineTo(w * 0.72, h * 0.58)
+      ..lineTo(w * 0.50, h * 0.94)
+      ..close();
+    canvas.drawPath(tip,
+        Paint()..color = Colors.white..style = PaintingStyle.fill);
+
+    // Point central noir pour effet punaise
+    canvas.drawCircle(headC, w * 0.12,
+        Paint()..color = const Color(0xFFFF6B35)..style = PaintingStyle.fill);
+  }
+
+  @override
+  bool shouldRepaint(_PinPainter old) => false;
 }
