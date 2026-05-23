@@ -1794,6 +1794,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           _buildSalineMarkers(),
         if (_groupeActif && _tracesGroupe.isNotEmpty)
           _buildGroupeTracePolylines(),
+        if (_groupeActif && _tracesGroupe.isNotEmpty)
+          _buildGroupeTraceLabels(),
         if (_groupeActif && _obsGroupe.isNotEmpty)
           _buildGroupeObsMarkers(),
         if (_groupeActif && _membres.isNotEmpty) _buildMembreMarkers(),
@@ -2165,13 +2167,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
+  static const _traceColors = [
+    Color(0xFF4A90E2),
+    Color(0xFF7ED321),
+    Color(0xFFBD10E0),
+    Color(0xFF50E3C2),
+  ];
+
   PolylineLayer _buildGroupeTracePolylines() {
-    final colors = [
-      const Color(0xFF4A90E2),
-      const Color(0xFF7ED321),
-      const Color(0xFFBD10E0),
-      const Color(0xFF50E3C2),
-    ];
     return PolylineLayer(
       polylines: _tracesGroupe.asMap().entries.map((entry) {
         final i = entry.key;
@@ -2184,13 +2187,48 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         }).toList();
         return Polyline(
           points: pts,
-          color: colors[i % colors.length],
+          color: _traceColors[i % _traceColors.length],
           strokeWidth: 4,
           borderColor: Colors.black38,
           borderStrokeWidth: 1,
         );
       }).toList(),
     );
+  }
+
+  MarkerLayer _buildGroupeTraceLabels() {
+    final markers = <Marker>[];
+    for (final entry in _tracesGroupe.asMap().entries) {
+      final i = entry.key;
+      final trace = entry.value;
+      final nom = trace['nom'] as String;
+      final pts = trace['points'] as List;
+      if (pts.isEmpty) continue;
+      final last = pts.last;
+      final pos = LatLng(
+        (last['lat'] as num).toDouble(),
+        (last['lon'] as num).toDouble(),
+      );
+      markers.add(Marker(
+        point: pos,
+        width: 90, height: 28,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: _traceColors[i % _traceColors.length],
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white, width: 1),
+          ),
+          child: Text(nom,
+            style: const TextStyle(color: Colors.white, fontSize: 10,
+                fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ));
+    }
+    return MarkerLayer(markers: markers);
   }
 
   MarkerLayer _buildGroupeObsMarkers() {
@@ -2204,7 +2242,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         final nom = obs['nom'] as String;
         return Marker(
           point: pos,
-          width: 52, height: 52,
+          width: 80, height: 72,
           child: GestureDetector(
             onTap: () => showDialog(
               context: context,
@@ -2224,19 +2262,35 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     style: const TextStyle(color: Colors.white54, fontSize: 13)),
               ),
             ),
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF4A90E2), width: 2),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.5), blurRadius: 4)
-                ],
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF4A90E2), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.5), blurRadius: 4)
+                  ],
+                ),
+                child: Center(child: obsIcon(note)),
               ),
-              child: Center(child: obsIcon(note)),
-            ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF4A90E2), width: 1),
+                ),
+                child: Text(nom,
+                  style: const TextStyle(color: Colors.white, fontSize: 10,
+                      fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ]),
           ),
         );
       }).toList(),
