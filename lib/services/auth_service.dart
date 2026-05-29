@@ -9,6 +9,7 @@ class AuthService {
   static const _keyUid = 'auth_uid';
   static const _keyEmail = 'auth_email';
   static const _keyToken = 'auth_token';
+  static const _keyRefresh = 'auth_refresh_token';
 
   static String? _uid;
   static String? _email;
@@ -17,9 +18,42 @@ class AuthService {
   static String? get uid => _uid;
   static String? get email => _email;
 
+  static bool _isExpired(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return true;
+      final payload = json.decode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      ) as Map;
+      final exp = payload['exp'] as int?;
+      if (exp == null) return true;
+      return DateTime.now().millisecondsSinceEpoch ~/ 1000 > exp - 300;
+    } catch (_) {
+      return true;
+    }
+  }
+
   static Future<String?> getIdToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyToken);
+    final token = prefs.getString(_keyToken);
+    if (token != null && !_isExpired(token)) return token;
+    final refresh = prefs.getString(_keyRefresh);
+    if (refresh == null) return token;
+    try {
+      final resp = await http.post(
+        Uri.parse('https://securetoken.googleapis.com/v1/token?key=$_apiKey'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'grant_type=refresh_token&refresh_token=$refresh',
+      );
+      final data = json.decode(resp.body) as Map<String, dynamic>;
+      final newToken = data['id_token'] as String?;
+      final newRefresh = data['refresh_token'] as String?;
+      if (newToken != null) await prefs.setString(_keyToken, newToken);
+      if (newRefresh != null) await prefs.setString(_keyRefresh, newRefresh);
+      return newToken;
+    } catch (_) {
+      return token;
+    }
   }
 
   static Future<void> restoreSession() async {
@@ -101,9 +135,11 @@ class AuthService {
     _uid = data['localId'] as String?;
     _email = data['email'] as String?;
     final token = data['idToken'] as String?;
+    final refresh = data['refreshToken'] as String?;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyUid, _uid ?? '');
     await prefs.setString(_keyEmail, _email ?? '');
     if (token != null) await prefs.setString(_keyToken, token);
+    if (refresh != null) await prefs.setString(_keyRefresh, refresh);
   }
 }
