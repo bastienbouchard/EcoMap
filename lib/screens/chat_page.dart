@@ -80,7 +80,7 @@ class _ChatPageState extends State<ChatPage> {
         },
         body: bytes,
       );
-      if (resp.statusCode != 200) throw Exception('Upload échoué: ${resp.statusCode}');
+      if (resp.statusCode != 200) throw Exception('Upload échoué: ${resp.statusCode} — ${resp.body}');
       final url = (json.decode(resp.body) as Map)['url'] as String;
 
       await _db
