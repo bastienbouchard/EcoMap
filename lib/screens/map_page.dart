@@ -136,6 +136,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _tracesPartages = false;
   List<MembreGroupe> _membres = [];
   StreamSubscription<List<MembreGroupe>>? _groupeStream;
+  final Set<String> _chasseursMasques = {};
 
   // ── UI panels ──
   bool _showActionPanel = false;
@@ -1157,6 +1158,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 _tracesPartages ? 'Arrêter le partage tracés' : 'Partager mes tracés',
                 _tracesPartages ? 'Tes tracés sont visibles' : 'Tracés GPS du groupe',
                 () { Navigator.pop(context); _partagerTraces(); }),
+            if (_chasseursMasques.isNotEmpty)
+              _groupeTile(
+                Icons.visibility_rounded,
+                'Réafficher tous les chasseurs',
+                '${_chasseursMasques.length} chasseur(s) masqué(s)',
+                () {
+                  setState(() => _chasseursMasques.clear());
+                  Navigator.pop(context);
+                  _snack('Observations réaffichées');
+                }),
           ],
         ),
       ),
@@ -2233,7 +2244,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   MarkerLayer _buildGroupeObsMarkers() {
     return MarkerLayer(
-      markers: _obsGroupe.map((obs) {
+      markers: _obsGroupe.where((obs) => !_chasseursMasques.contains(obs['nom'])).map((obs) {
         final pos = LatLng(
           (obs['lat'] as num).toDouble(),
           (obs['lon'] as num).toDouble(),
@@ -2260,6 +2271,30 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 ]),
                 content: Text('Par $nom',
                     style: const TextStyle(color: Colors.white54, fontSize: 13)),
+              ),
+            ),
+            onLongPress: () => showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                backgroundColor: const Color(0xFF2D2D2D),
+                title: Text(nom,
+                    style: const TextStyle(color: Color(0xFF4A90E2), fontSize: 15)),
+                content: Text('Masquer toutes les observations de $nom?',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() => _chasseursMasques.add(nom));
+                      Navigator.pop(context);
+                      _snack('Observations de $nom masquées');
+                    },
+                    child: const Text('Masquer', style: TextStyle(color: Color(0xFFFF6B35))),
+                  ),
+                ],
               ),
             ),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
