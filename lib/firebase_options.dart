@@ -8,6 +8,8 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
       case TargetPlatform.macOS:
         return ios;
+      case TargetPlatform.android:
+        return android;
       default:
         return web;
     }
@@ -20,6 +22,14 @@ class DefaultFirebaseOptions {
     storageBucket: 'moosesense-a84cf.firebasestorage.app',
     messagingSenderId: '115558656456',
     appId: '1:115558656456:web:a5c5362023fc9f2ec038fd',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyBbObJJ1r-MMGNB-FJva_IougYRErUXSFY',
+    projectId: 'moosesense-a84cf',
+    storageBucket: 'moosesense-a84cf.firebasestorage.app',
+    messagingSenderId: '115558656456',
+    appId: '1:115558656456:android:ade1715638df0149c038fd',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
