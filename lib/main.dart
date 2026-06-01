@@ -14,7 +14,11 @@ import 'services/connectivity_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  } catch (e) {
+    debugPrint('Firebase init error: $e');
+  }
   await AuthService.restoreSession();
   try { await ConnectivityService.init(); } catch (_) {}
   if (!kIsWeb) try { await _initMBTiles(); } catch (_) {}
