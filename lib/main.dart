@@ -14,15 +14,11 @@ import 'services/connectivity_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  } catch (e) {
-    debugPrint('Firebase init error: $e');
-  }
-  await AuthService.restoreSession();
+  try { await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); } catch (_) {}
+  try { await AuthService.restoreSession(); } catch (_) {}
   try { await ConnectivityService.init(); } catch (_) {}
   if (!kIsWeb) try { await _initMBTiles(); } catch (_) {}
-  await _loadGeoJson();
+  try { await _loadGeoJson(); } catch (_) {}
   runApp(const EcoMapApp());
 }
 
