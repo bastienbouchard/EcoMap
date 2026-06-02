@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'onboarding_page.dart';
+import '../services/auth_service.dart';
+import 'login_page.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -38,7 +40,10 @@ class _AboutPageState extends State<AboutPage> {
     try {
       await AuthService.deleteAccount();
       if (!mounted) return;
-      Navigator.of(context).popUntil((r) => r.isFirst);
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (_) => false,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
