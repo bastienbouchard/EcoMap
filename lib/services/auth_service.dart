@@ -91,6 +91,21 @@ class AuthService {
     await prefs.remove(_keyToken);
   }
 
+  static Future<void> deleteAccount() async {
+    if (_uid == null) return;
+    final token = await getIdToken();
+    if (token == null) throw 'Non authentifié';
+    await FirebaseFirestore.instance.collection('users').doc(_uid).delete();
+    final resp = await http.post(
+      Uri.parse('$_baseUrl:delete?key=$_apiKey'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'idToken': token}),
+    );
+    final data = json.decode(resp.body) as Map<String, dynamic>;
+    if (data.containsKey('error')) throw data['error']['message'] as String;
+    await signOut();
+  }
+
   static Future<void> resetPassword(String email) async {
     await http.post(
       Uri.parse('$_baseUrl:sendOobCode?key=$_apiKey'),

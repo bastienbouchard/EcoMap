@@ -11,6 +11,43 @@ class AboutPage extends StatefulWidget {
 }
 
 class _AboutPageState extends State<AboutPage> {
+  Future<void> _supprimerCompte() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Supprimer le compte',
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: const Text(
+            'Cette action est irréversible. Ton compte et toutes tes données seront supprimés définitivement.',
+            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    try {
+      await AuthService.deleteAccount();
+      if (!mounted) return;
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Erreur : $e'),
+        backgroundColor: Colors.redAccent,
+      ));
+    }
+  }
+
   Future<void> _resetOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_done', false);
@@ -149,6 +186,27 @@ class _AboutPageState extends State<AboutPage> {
                   ]),
                 ),
                 const Icon(Icons.open_in_new, color: Colors.white38, size: 16),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          _card(children: [
+            _title('Compte'),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _supprimerCompte,
+              child: Row(children: [
+                const Icon(Icons.delete_forever, color: Colors.redAccent, size: 22),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Supprimer mon compte',
+                        style: TextStyle(color: Colors.redAccent, fontSize: 13,
+                            fontWeight: FontWeight.bold)),
+                    Text('Supprime définitivement ton compte et toutes tes données',
+                        style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  ]),
+                ),
               ]),
             ),
           ]),
