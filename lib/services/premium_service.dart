@@ -5,6 +5,13 @@ class PremiumService {
   static bool _isPremium = false;
   static bool get isPremium => _isPremium;
 
+  static Future<void> activerPremium() async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance.collection('users').doc(uid).update({'premium': true});
+    _isPremium = true;
+  }
+
   static Future<void> load() async {
     final uid = AuthService.uid;
     if (uid == null) { _isPremium = false; return; }

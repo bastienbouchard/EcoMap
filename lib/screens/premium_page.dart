@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_service.dart';
+import '../services/premium_service.dart';
 
 class PremiumPage extends StatefulWidget {
   const PremiumPage({super.key});
@@ -10,6 +13,8 @@ class PremiumPage extends StatefulWidget {
 
 class _PremiumPageState extends State<PremiumPage> {
   static const _stripeUrl = 'https://buy.stripe.com/bJe7sL81HcyfgQi1oX83C01';
+  static const _iapId = 'com.bastienbouchard.ecomap.pro';
+  bool _iapLoading = false;
 
   static const _freeFeatures = [
     (Icons.gps_fixed_rounded,       'GPS & localisation'),
@@ -217,17 +222,22 @@ class _PremiumPageState extends State<PremiumPage> {
                       borderRadius: BorderRadius.circular(12)),
                   elevation: 4,
                 ),
-                onPressed: _acheter,
-                child: const Text('Obtenir OrignalScan Pro — 39,99 \$',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                onPressed: _iapLoading ? null : _acheter,
+                child: _iapLoading
+                    ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Obtenir OrignalScan Pro — 39,99 \$',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
-            const Center(
+            Center(
               child: Text(
-                'Paiement sécurisé par Stripe.\nAucun renouvellement — accès permanent.',
+                Platform.isIOS
+                    ? 'Paiement via App Store.\nAucun renouvellement — accès permanent.'
+                    : 'Paiement sécurisé par Stripe.\nAucun renouvellement — accès permanent.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white38, fontSize: 11, height: 1.5),
+                style: const TextStyle(color: Colors.white38, fontSize: 11, height: 1.5),
               ),
             ),
           ],
@@ -248,11 +258,63 @@ class _PremiumPageState extends State<PremiumPage> {
   }
 
   Future<void> _acheter() async {
+    if (Platform.isIOS) {
+      await _acheterIAP();
+    } else {
+      await _acheterStripe();
+    }
+  }
+
+  Future<void> _acheterStripe() async {
     final uid = AuthService.uid;
     if (uid == null) return;
     final uri = Uri.parse('$_stripeUrl?client_reference_id=$uid');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
+  }
+
+  Future<void> _acheterIAP() async {
+    setState(() => _iapLoading = true);
+    try {
+      final available = await InAppPurchase.instance.isAvailable();
+      if (!available) {
+        if (mounted) _snackErreur('App Store non disponible');
+        return;
+      }
+      final response = await InAppPurchase.instance
+          .queryProductDetails({_iapId});
+      if (response.productDetails.isEmpty) {
+        if (mounted) _snackErreur('Produit introuvable');
+        return;
+      }
+      final product = response.productDetails.first;
+      final purchaseParam = PurchaseParam(productDetails: product);
+      await InAppPurchase.instance.buyNonConsumable(purchaseParam: purchaseParam);
+
+      // Écouter le résultat
+      InAppPurchase.instance.purchaseStream.listen((purchases) async {
+        for (final purchase in purchases) {
+          if (purchase.productID == _iapId &&
+              purchase.status == PurchaseStatus.purchased) {
+            await InAppPurchase.instance.completePurchase(purchase);
+            await PremiumService.activerPremium();
+            if (mounted) Navigator.pop(context);
+          } else if (purchase.status == PurchaseStatus.error) {
+            if (mounted) _snackErreur('Erreur lors de l\'achat');
+          }
+        }
+      });
+    } catch (e) {
+      if (mounted) _snackErreur('Erreur : $e');
+    } finally {
+      if (mounted) setState(() => _iapLoading = false);
+    }
+  }
+
+  void _snackErreur(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
+    );
   }
 }
