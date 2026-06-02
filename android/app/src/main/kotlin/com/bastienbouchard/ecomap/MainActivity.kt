@@ -1,4 +1,4 @@
-package com.example.ecomap
+package com.bastienbouchard.ecomap
 
 import io.flutter.embedding.android.FlutterActivity
 
