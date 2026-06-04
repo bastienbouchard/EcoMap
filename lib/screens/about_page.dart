@@ -106,7 +106,10 @@ class _AboutPageState extends State<AboutPage> {
               const Text('Habitat orignal — Québec',
                   style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)),
               const SizedBox(height: 4),
-              const Text('v1.0.1 (52)',
+              const Text('v1.0.1 (54)',
+                  style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
+              const SizedBox(height: 2),
+              const Text('© Développement BB',
                   style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
               const SizedBox(height: 10),
               GestureDetector(
@@ -201,6 +204,22 @@ class _AboutPageState extends State<AboutPage> {
           _card(children: [
             _title('Compte'),
             const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => launchUrl(
+                Uri.parse('https://orignalscan.com/mentions-legales.html'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: Row(children: [
+                const Icon(Icons.privacy_tip_outlined, color: Colors.white54, size: 20),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text('Politique de confidentialité',
+                      style: TextStyle(color: Colors.white70, fontSize: 13)),
+                ),
+                const Icon(Icons.open_in_new, color: Colors.white38, size: 14),
+              ]),
+            ),
+            const Divider(height: 20, color: Colors.white10),
             GestureDetector(
               onTap: _supprimerCompte,
               child: Row(children: [
