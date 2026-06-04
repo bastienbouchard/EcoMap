@@ -451,7 +451,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   // ─────────────────────────────────────────────────────────────────────────
   // Hotspots
   // ─────────────────────────────────────────────────────────────────────────
-  List<LatLng> _computeHotspots() {
+  List<LatLng> _computeHotspots({List<List<double>> infraPoints = const []}) {
     if (_rawHotspots.isEmpty) return [];
     List<HotspotInfo> candidates = [];
     try {
@@ -488,24 +488,35 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       final tooClose = result.any(
         (e) => const Distance().as(LengthUnit.Meter, e, info.position) < 200,
       );
-      if (!tooClose) {
-        result.add(info.position);
-        infos.add(info);
+      if (tooClose) continue;
+      if (infraPoints.isNotEmpty) {
+        final lat = info.position.latitude;
+        final lon = info.position.longitude;
+        final cosC = cos(lat * pi / 180);
+        final nearInfra = infraPoints.any((p) =>
+            sqrt(pow((p[0] - lat) * 111000, 2) +
+                 pow((p[1] - lon) * 111000 * cosC, 2)) < 100);
+        if (nearInfra) continue;
       }
+      result.add(info.position);
+      infos.add(info);
       if (result.length >= _maxResults()) break;
     }
     _hotspotInfos = infos;
     return result;
   }
 
-  void _toggleHotspots({bool forceRefresh = false}) {
+  Future<void> _toggleHotspots({bool forceRefresh = false}) async {
     if (!_requirePremium()) return;
     if (_showHotspots && !forceRefresh) {
       setState(() { _showHotspots = false; _hotspots = []; });
       return;
     }
     if (!_requireEcoMap()) return;
-    final spots = _computeHotspots();
+    final center = _mapController.camera.center;
+    final radiusM = _visibleRadiusM(minM: 2000);
+    final infraPoints = await _fetchOsmInfra(center, radiusM);
+    final spots = _computeHotspots(infraPoints: infraPoints);
     setState(() { _hotspots = spots; _showHotspots = true; });
     _snack(spots.isEmpty
         ? 'Aucun spot ici — navigue vers une zone forestière'
