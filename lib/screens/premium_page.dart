@@ -63,7 +63,11 @@ class _PremiumPageState extends State<PremiumPage> {
 
   Future<void> _initIAP() async {
     final available = await InAppPurchase.instance.isAvailable();
-    if (!available || !mounted) return;
+    if (!available) {
+      if (mounted) setState(() => _erreur = 'App Store non disponible');
+      return;
+    }
+    if (!mounted) return;
 
     _iapSub = InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
 
@@ -71,6 +75,9 @@ class _PremiumPageState extends State<PremiumPage> {
     if (!mounted) return;
     if (resp.productDetails.isNotEmpty) {
       setState(() => _product = resp.productDetails.first);
+    } else {
+      final detail = resp.error?.message ?? resp.notFoundIDs.join(', ');
+      setState(() => _erreur = 'Produit introuvable ($detail)');
     }
   }
 
@@ -101,7 +108,10 @@ class _PremiumPageState extends State<PremiumPage> {
   }
 
   Future<void> _acheterIOS() async {
-    if (_product == null) return;
+    if (_product == null) {
+      setState(() => _erreur = 'Produit non chargé — réessaie dans quelques secondes');
+      return;
+    }
     setState(() { _loading = true; _erreur = null; });
     await InAppPurchase.instance.buyNonConsumable(
       purchaseParam: PurchaseParam(productDetails: _product!),
