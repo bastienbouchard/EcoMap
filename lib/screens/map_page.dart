@@ -1618,9 +1618,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   // ─────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
-      body: Stack(
+      body: Padding(
+        padding: EdgeInsets.only(bottom: bottomPad),
+        child: Stack(
         children: [
           _buildMap(),
           _buildCrosshair(),
@@ -1640,6 +1643,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           _buildZoomControls(),
           if (_windDeg != null) _buildWindIndicator(),
         ],
+        ),
       ),
     );
   }
