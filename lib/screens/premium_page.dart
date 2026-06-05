@@ -14,7 +14,7 @@ class PremiumPage extends StatefulWidget {
 }
 
 class _PremiumPageState extends State<PremiumPage> {
-  static const _productId = 'orignalscan_pro_lifetime';
+  static const _productId = 'com.bastienbouchard.ecomap.pro';
   static const _stripeUrl = 'https://buy.stripe.com/bJe7sL81HcyfgQi1oX83C01';
 
   StreamSubscription<List<PurchaseDetails>>? _iapSub;
