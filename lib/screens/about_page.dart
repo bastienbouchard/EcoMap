@@ -106,7 +106,7 @@ class _AboutPageState extends State<AboutPage> {
               const Text('Habitat orignal — Québec',
                   style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)),
               const SizedBox(height: 4),
-              const Text('v1.0.1 (57)',
+              const Text('v1.0.1 (62)',
                   style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
               const SizedBox(height: 2),
               const Text('© Développement BB',
