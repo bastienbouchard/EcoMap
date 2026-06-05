@@ -246,7 +246,6 @@ class _PremiumPageState extends State<PremiumPage> {
             ),
             const SizedBox(height: 28),
 
-            // Prix
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -268,14 +267,8 @@ class _PremiumPageState extends State<PremiumPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-<<<<<<< HEAD
-                    const Text('39,99 \$',
-                        style: TextStyle(color: Color(0xFFFF6B35),
-                            fontSize: 26, fontWeight: FontWeight.bold)),
-=======
                     Text(_prixAffiche, style: const TextStyle(color: Color(0xFFFF6B35),
                         fontSize: 26, fontWeight: FontWeight.bold)),
->>>>>>> 83b586b (iOS IAP via StoreKit, Android via Stripe)
                     Text('CAD', style: TextStyle(
                         color: const Color(0xFFFF6B35).withOpacity(0.7), fontSize: 11)),
                   ],
@@ -291,7 +284,6 @@ class _PremiumPageState extends State<PremiumPage> {
                     textAlign: TextAlign.center),
               ),
 
-            // Bouton principal
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -302,17 +294,6 @@ class _PremiumPageState extends State<PremiumPage> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 4,
                 ),
-<<<<<<< HEAD
-                onPressed: _iapLoading ? null : _acheter,
-                child: _iapLoading
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Obtenir OrignalScan Pro — 39,99 \$',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 12),
-=======
                 onPressed: _loading ? null : (Platform.isIOS ? _acheterIOS : _acheterAndroid),
                 child: _loading
                     ? const SizedBox(width: 20, height: 20,
@@ -333,7 +314,6 @@ class _PremiumPageState extends State<PremiumPage> {
               ),
 
             const SizedBox(height: 4),
->>>>>>> 83b586b (iOS IAP via StoreKit, Android via Stripe)
             Center(
               child: Text(
                 Platform.isIOS
@@ -357,68 +337,4 @@ class _PremiumPageState extends State<PremiumPage> {
       Expanded(child: Divider(color: color.withOpacity(0.3), height: 1)),
     ]);
   }
-<<<<<<< HEAD
-
-  Future<void> _acheter() async {
-    if (Platform.isIOS) {
-      await _acheterIAP();
-    } else {
-      await _acheterStripe();
-    }
-  }
-
-  Future<void> _acheterStripe() async {
-    final uid = AuthService.uid;
-    if (uid == null) return;
-    final uri = Uri.parse('$_stripeUrl?client_reference_id=$uid');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  Future<void> _acheterIAP() async {
-    setState(() => _iapLoading = true);
-    try {
-      final available = await InAppPurchase.instance.isAvailable();
-      if (!available) {
-        if (mounted) _snackErreur('App Store non disponible');
-        return;
-      }
-      final response = await InAppPurchase.instance
-          .queryProductDetails({_iapId});
-      if (response.productDetails.isEmpty) {
-        if (mounted) _snackErreur('Produit introuvable');
-        return;
-      }
-      final product = response.productDetails.first;
-      final purchaseParam = PurchaseParam(productDetails: product);
-      await InAppPurchase.instance.buyNonConsumable(purchaseParam: purchaseParam);
-
-      // Écouter le résultat
-      InAppPurchase.instance.purchaseStream.listen((purchases) async {
-        for (final purchase in purchases) {
-          if (purchase.productID == _iapId &&
-              purchase.status == PurchaseStatus.purchased) {
-            await InAppPurchase.instance.completePurchase(purchase);
-            await PremiumService.activerPremium();
-            if (mounted) Navigator.pop(context);
-          } else if (purchase.status == PurchaseStatus.error) {
-            if (mounted) _snackErreur('Erreur lors de l\'achat');
-          }
-        }
-      });
-    } catch (e) {
-      if (mounted) _snackErreur('Erreur : $e');
-    } finally {
-      if (mounted) setState(() => _iapLoading = false);
-    }
-  }
-
-  void _snackErreur(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
-    );
-  }
-=======
->>>>>>> 83b586b (iOS IAP via StoreKit, Android via Stripe)
 }
