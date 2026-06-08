@@ -307,7 +307,7 @@ class _MeteoPageState extends State<MeteoPage> {
           const SizedBox(height: 12),
 
           _card(children: [
-            _sectionTitle('Réglementation'),
+            _sectionTitle('Réglementation au Québec'),
             const SizedBox(height: 8),
             const Text(
               'La chasse est permise de ½ heure avant le lever du soleil jusqu\'à ½ heure après le coucher du soleil.\n\nCes heures sont calculées pour votre position GPS actuelle.',
