@@ -1640,6 +1640,17 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             left: 16,
             child: ScaleBar(zoom: _mapZoom, lat: _mapLat),
           ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            left: 14,
+            child: Opacity(
+              opacity: 0.18,
+              child: ColorFiltered(
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                child: Image.asset('assets/logo.png', height: 38),
+              ),
+            ),
+          ),
           _buildZoomControls(),
           if (_windDeg != null) _buildWindIndicator(),
         ],
