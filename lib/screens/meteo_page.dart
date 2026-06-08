@@ -167,15 +167,6 @@ class _MeteoPageState extends State<MeteoPage> {
 
           const SizedBox(height: 12),
 
-          // ── PHASE LUNAIRE ──────────────────────────────────────
-          _card(children: [
-            _sectionTitle('Phase lunaire'),
-            const SizedBox(height: 12),
-            _moonCard(),
-          ]),
-
-          const SizedBox(height: 12),
-
           // ── PRÉVISIONS 3 JOURS ─────────────────────────────────
           _card(children: [
             _sectionTitle('Prévisions — 3 prochains jours'),
@@ -271,6 +262,15 @@ class _MeteoPageState extends State<MeteoPage> {
                   );
                 }).toList(),
               ),
+          ]),
+
+          const SizedBox(height: 12),
+
+          // ── PHASE LUNAIRE ──────────────────────────────────────
+          _card(children: [
+            _sectionTitle('Phase lunaire'),
+            const SizedBox(height: 12),
+            _moonCard(),
           ]),
 
           const SizedBox(height: 12),
