@@ -1653,6 +1653,23 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           ),
           _buildZoomControls(),
           if (_windDeg != null) _buildWindIndicator(),
+          Builder(builder: (context) {
+            final bannerVisible = (!_isOnline && _showOfflineBanner) ||
+                (_isOnline && _polygonsCache.isEmpty && _showDownloadTip);
+            return Positioned(
+              top: MediaQuery.of(context).padding.top + (bannerVisible ? 80 : 12),
+              left: 14,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: 0.18,
+                  child: ColorFiltered(
+                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                    child: Image.asset('assets/logo.png', height: 56),
+                  ),
+                ),
+              ),
+            );
+          }),
         ],
         ),
       ),
