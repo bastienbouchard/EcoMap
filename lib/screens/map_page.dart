@@ -2639,31 +2639,41 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     return Positioned(
       top: MediaQuery.of(context).padding.top + (bannerVisible ? 62 : 12),
       right: 16,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A).withOpacity(0.88),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white24),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Transform.rotate(
-              angle: (deg + 180) * pi / 180,
-              child: const Icon(Icons.navigation,
-                  color: Colors.white70, size: 15),
-            ),
-            const SizedBox(width: 6),
-            Text('${speed.round()} km/h',
-                style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500)),
-          ],
+      child: GestureDetector(
+        onTap: _isOnline ? () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => MeteoPage(
+            latitude: _currentPosition.latitude,
+            longitude: _currentPosition.longitude,
+            windDeg: _windDeg,
+            windSpeed: _windSpeed,
+          ),
+        )) : () => _snack('Météo non disponible hors ligne', error: true),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A).withOpacity(0.88),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white24),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Transform.rotate(
+                angle: (deg + 180) * pi / 180,
+                child: const Icon(Icons.navigation,
+                    color: Colors.white70, size: 15),
+              ),
+              const SizedBox(width: 6),
+              Text('${speed.round()} km/h',
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500)),
+            ],
+          ),
         ),
       ),
     );
