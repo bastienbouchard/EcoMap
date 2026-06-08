@@ -31,7 +31,7 @@ class _PremiumPageState extends State<PremiumPage> {
   ];
 
   static const _proFeatures = [
-    (Icons.local_fire_department,   '🔥 Points chauds orignal',
+    (Icons.local_fire_department,   '🔥 Zones actives orignal',
         'Algorithme IA qui détecte les meilleurs habitats dans la zone visible.'),
     (Icons.route,                   '🗺 Parcours optimisé — algorithme IA',
         'Itinéraire calculé selon le vent, le terrain et les hotspots.'),

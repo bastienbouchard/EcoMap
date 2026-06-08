@@ -241,7 +241,7 @@ class _AboutPageState extends State<AboutPage> {
           _card(children: [
             _title('Fonctions principales'),
             const SizedBox(height: 8),
-            _item('🔥 Points chauds', 'Détecte les meilleurs habitats orignal dans la zone visible.'),
+            _item('🔥 Zones actives', 'Détecte les meilleurs habitats orignal dans la zone visible.'),
             _item('🗺 Parcours optimisé', 'Itinéraire calculé selon le vent, le terrain et les hotspots.'),
             _item('🏕 Postes d\'affût', 'Corridors naturels où l\'orignal est forcé de passer — rayon 3 km.'),
             _item('🧂 Salines', 'Identifie les zones humides idéales pour installer une saline.'),

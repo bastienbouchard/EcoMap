@@ -1494,7 +1494,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
             const SizedBox(height: 14),
             for (final f in [
-              (const Icon(Icons.local_fire_department, color: Color(0xFFFF6B35), size: 18), 'Points chauds orignal'),
+              (const Icon(Icons.local_fire_department, color: Color(0xFFFF6B35), size: 18), 'Zones actives orignal'),
               (const Icon(Icons.route_rounded, color: Color(0xFF4CAF50), size: 18), 'Parcours optimisé — algorithme IA'),
               (SizedBox(width: 18, height: 18, child: CustomPaint(painter: HuntingTowerPainter(color: const Color(0xFF4CAF50)))), 'Postes d\'affût — algorithme IA'),
               (const SizedBox(width: 18, height: 18, child: CustomPaint(painter: SaltCubePainter())), 'Salines à orignal — algorithme IA'),

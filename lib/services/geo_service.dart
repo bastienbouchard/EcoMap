@@ -421,7 +421,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       // 2. Bonus vent : face au vent = max, perpendiculaire = 0
       final windBonus = ((60 - angleDelta.abs()) / 60 * 5).round().clamp(0, 5);
 
-      // 3. Bonus hotspot : attire fortement la route vers les points chauds
+      // 3. Bonus hotspot : attire fortement la route vers les zones actives
       int hotspotBonus = 0;
       if (hotspotRad != null) {
         final hotDelta = ((angle - hotspotRad) * 180 / pi + 360) % 360;

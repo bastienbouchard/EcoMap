@@ -26,7 +26,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       title: 'Détecte l\'habitat',
       subtitle: 'Algorithmes IA qui analysent le terrain pour toi.',
       items: [
-        ('🔥', 'Points chauds', 'Les meilleurs habitats orignal dans la zone visible'),
+        ('🔥', 'Zones actives', 'Les meilleurs habitats orignal dans la zone visible'),
         ('🗺', 'Parcours optimisé', 'Itinéraire calculé selon le vent et le terrain'),
       ],
     ),

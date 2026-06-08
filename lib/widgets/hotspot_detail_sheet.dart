@@ -81,7 +81,7 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
         children: [
           Row(children: [
             const Text('🔥 ', style: TextStyle(fontSize: 22)),
-            Expanded(child: Text('Point chaud',
+            Expanded(child: Text('Zone active',
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
             if (currentPosition != null)
               ElevatedButton.icon(

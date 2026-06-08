@@ -61,7 +61,7 @@ void showAideDialog(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AideItem('🔥 Spots', 'Affiche les 5 meilleurs habitats d\'orignal dans la zone visible.'),
-            const AideItem('🗺 Parcours', 'Génère un itinéraire optimisé selon le vent et les points chauds.'),
+            const AideItem('🗺 Parcours', 'Génère un itinéraire optimisé selon le vent et les zones actives.'),
             const AideItem('👥 Groupe', 'Partage ta position GPS avec les autres chasseurs du même code.'),
             const AideItem('⏺ Tracé', 'Enregistre ton déplacement GPS. Appuie sur Stop pour sauvegarder.'),
             const AideItem('! Obs.', 'Ajoute une observation terrain au centre de l\'écran.'),
