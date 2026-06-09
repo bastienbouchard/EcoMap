@@ -11,7 +11,7 @@ workflows:
           include: true
     environment:
       groups:
-        - Bb
+        - BB
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.bastienbouchard.ecomap
