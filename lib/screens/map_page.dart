@@ -140,6 +140,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   // ── UI panels ──
   bool _showActionPanel = false;
+  bool _showNavPanel = false;
 
   // ── Connectivité ──
   bool _isOnline = true;
@@ -1586,6 +1587,31 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _navBtn(IconData icon, String label, VoidCallback onTap,
+      {Color color = const Color(0xFFBDBDBD)}) {
+    return GestureDetector(
+      onTap: () {
+        setState(() { _showActionPanel = false; _showNavPanel = false; });
+        onTap();
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46, height: 46,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(23),
+              border: Border.all(color: color.withOpacity(0.45), width: 1.5),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 10)),
+        ],
+      ),
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Build
@@ -2953,127 +2979,117 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   // ── Panel droit — navigation ─────────────────────────────────────────────
-  void _openNavSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.only(top: 12, bottom: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
+  Widget _buildNavPanel() {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      right: _showNavPanel ? 0 : -70,
+      top: 0, bottom: 0,
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () =>
+                  setState(() => _showNavPanel = !_showNavPanel),
+              child: Container(
+                width: 28, height: 64,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+                  color: const Color(0xFF2D2D2D).withOpacity(0.92),
+                  borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(12)),
+                  border: Border(
+                    left: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                    top: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                    bottom: BorderSide(
+                        color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(-2, 0))
+                  ],
+                ),
+                child: Icon(
+                  _showNavPanel
+                      ? Icons.chevron_right
+                      : Icons.chevron_left,
+                  color: const Color(0xFFFF6B35),
+                  size: 16,
                 ),
               ),
-              _sheetItem(sheetCtx, Icons.wb_sunny_rounded, 'Météo',
-                  const Color(0xFF4FC3F7),
-                  _isOnline
-                      ? () => Navigator.push(context, MaterialPageRoute(
-                            builder: (_) => MeteoPage(
-                              latitude: _currentPosition.latitude,
-                              longitude: _currentPosition.longitude,
-                              windDeg: _windDeg,
-                              windSpeed: _windSpeed,
-                            ),
-                          ))
-                      : () => _snack('Météo non disponible hors ligne', error: true),
-                  enabled: _isOnline),
-              _sheetItem(sheetCtx, Icons.people, 'Groupe',
-                  _groupeActif ? const Color(0xFFFF6B35) : const Color(0xFFBDBDBD),
-                  _isOnline
-                      ? _sharePosition
-                      : () => _snack('Groupe non disponible hors ligne', error: true),
-                  enabled: _isOnline),
-              const Divider(color: Colors.white12, indent: 20, endIndent: 20, height: 24),
-              _sheetItem(sheetCtx, Icons.info_outline_rounded, 'À propos',
-                  const Color(0xFFBDBDBD),
-                  () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const AboutPage()))),
-              _sheetItem(sheetCtx, Icons.help_outline_rounded, 'Aide',
-                  const Color(0xFFBDBDBD),
-                  () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const AidePage()))),
-              _sheetItem(sheetCtx, Icons.logout_rounded, 'Quitter',
-                  Colors.redAccent,
-                  () async {
-                    await AuthService.signOut();
-                    if (mounted) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LoginPage()),
-                        (_) => false,
-                      );
-                    }
-                  }),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _sheetItem(BuildContext sheetCtx, IconData icon, String label,
-      Color color, VoidCallback onTap, {bool enabled = true}) {
-    final effectiveColor = color.withOpacity(enabled ? 1.0 : 0.4);
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          color: color.withOpacity(enabled ? 0.15 : 0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(enabled ? 0.35 : 0.15)),
-        ),
-        child: Icon(icon, color: effectiveColor, size: 20),
-      ),
-      title: Text(label,
-          style: TextStyle(color: Colors.white.withOpacity(enabled ? 1.0 : 0.4), fontSize: 15)),
-      trailing: Icon(Icons.chevron_right, color: Colors.white24, size: 18),
-      onTap: () {
-        Navigator.pop(sheetCtx);
-        onTap();
-      },
-    );
-  }
-
-  Widget _buildNavPanel() {
-    return Positioned(
-      right: 0,
-      top: 0,
-      bottom: 0,
-      child: Center(
-        child: GestureDetector(
-          onTap: _openNavSheet,
-          child: Container(
-            width: 28, height: 64,
-            decoration: BoxDecoration(
-              color: const Color(0xFF2D2D2D).withOpacity(0.92),
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-              border: Border(
-                left: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
-                top: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
-                bottom: BorderSide(color: const Color(0xFFFF6B35).withOpacity(0.4)),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 8,
-                  offset: const Offset(-2, 0),
-                )
-              ],
             ),
-            child: const Icon(Icons.menu, color: Color(0xFFFF6B35), size: 16),
-          ),
+            Container(
+              width: 70,
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.75),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1A1A1A),
+                border: Border(
+                  top: BorderSide(color: Colors.white12),
+                  bottom: BorderSide(color: Colors.white12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 12,
+                      offset: Offset(-4, 0))
+                ],
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                    vertical: 14, horizontal: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _navBtn(Icons.wb_sunny_rounded, 'Météo',
+                        _isOnline ? () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => MeteoPage(
+                            latitude: _currentPosition.latitude,
+                            longitude: _currentPosition.longitude,
+                            windDeg: _windDeg,
+                            windSpeed: _windSpeed,
+                          ),
+                        )) : () => _snack('Météo non disponible hors ligne', error: true),
+                        color: _isOnline ? const Color(0xFFBDBDBD) : Colors.white24),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.people, 'Groupe',
+                        _isOnline
+                            ? _sharePosition
+                            : () => _snack('Groupe non disponible hors ligne', error: true),
+                        color: _isOnline
+                            ? (_groupeActif ? const Color(0xFFFF6B35) : const Color(0xFFBDBDBD))
+                            : Colors.white24),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.info_outline_rounded, 'À propos',
+                        () => Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => const AboutPage(),
+                            ))),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.help_outline_rounded, 'Aide',
+                        () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const AidePage()))),
+                    const SizedBox(height: 10),
+                    _navBtn(Icons.logout_rounded, 'Quitter',
+                        () async {
+                      await AuthService.signOut();
+                      if (mounted) {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const LoginPage()),
+                          (_) => false,
+                        );
+                      }
+                    }, color: Colors.white38),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
