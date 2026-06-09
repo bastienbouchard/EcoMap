@@ -53,7 +53,7 @@ class MapDrawer extends StatelessWidget {
                       color: const Color(0xFFFF6B35),
                       onTap: () => Navigator.pop(context)),
                   _navItem(context, Icons.wb_sunny_rounded, 'Météo',
-                      color: const Color(0xFF87CEEB),
+                      color: const Color(0xFF4FC3F7),
                       onTap: () => _navigate(context, MeteoPage(
                         latitude: latitude,
                         longitude: longitude,
@@ -61,7 +61,7 @@ class MapDrawer extends StatelessWidget {
                         windSpeed: windSpeed,
                       ))),
                   _navItem(context, Icons.route_rounded, 'Générateur de parcours',
-                      color: const Color(0xFF5A8A1E),
+                      color: const Color(0xFF66BB6A),
                       onTap: () => _navigate(context, ParcoursPage(
                         distance: distanceParcours,
                         onDistanceChanged: onDistanceChanged,
@@ -70,7 +70,7 @@ class MapDrawer extends StatelessWidget {
                       ))),
                   const Divider(color: Color(0xFF2D2D2D), indent: 20, endIndent: 20),
                   _navItem(context, Icons.info_outline_rounded, 'À propos',
-                      color: const Color(0xFF9E9E9E),
+                      color: const Color(0xFFBDBDBD),
                       onTap: () => _navigate(context, const AboutPage())),
                 ],
               ),
