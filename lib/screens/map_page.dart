@@ -1588,7 +1588,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
-      {Color color = const Color(0xFFBDBDBD)}) {
+      {Color color = const Color(0xFFBDBDBD), Color? badgeColor}) {
     return GestureDetector(
       onTap: () {
         setState(() { _showActionPanel = false; _showNavPanel = false; });
@@ -1597,14 +1597,31 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 46, height: 46,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(23),
-              border: Border.all(color: color.withOpacity(0.45), width: 1.5),
-            ),
-            child: Icon(icon, color: color, size: 22),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(23),
+                  border: Border.all(color: color.withOpacity(0.45), width: 1.5),
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              if (badgeColor != null)
+                Positioned(
+                  top: 1, right: 1,
+                  child: Container(
+                    width: 12, height: 12,
+                    decoration: BoxDecoration(
+                      color: badgeColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF1A1A1A), width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 10)),
@@ -3062,7 +3079,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                             : () => _snack('Groupe non disponible hors ligne', error: true),
                         color: _isOnline
                             ? (_groupeActif ? const Color(0xFFFF6B35) : const Color(0xFFBDBDBD))
-                            : Colors.white24),
+                            : Colors.white24,
+                        badgeColor: _groupeActif
+                            ? (_membres.any((m) => m.nom != _monNom)
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFFFF6B35))
+                            : null),
                     const SizedBox(height: 10),
                     _navBtn(Icons.info_outline_rounded, 'À propos',
                         () => Navigator.push(context, MaterialPageRoute(
