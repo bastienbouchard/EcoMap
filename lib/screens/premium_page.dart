@@ -267,7 +267,7 @@ class _PremiumPageState extends State<PremiumPage> {
                 const Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Accès à vie', style: TextStyle(color: Colors.white,
+                    Text('Paiement unique', style: TextStyle(color: Colors.white,
                         fontSize: 16, fontWeight: FontWeight.bold)),
                     SizedBox(height: 4),
                     Text('Un seul paiement — toutes les saisons futures',

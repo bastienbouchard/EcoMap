@@ -1528,7 +1528,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 builder: (_) => const PremiumPage(),
               ));
             },
-            child: const Text('En savoir plus',
+            child: const Text('Déverrouiller Pro',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
