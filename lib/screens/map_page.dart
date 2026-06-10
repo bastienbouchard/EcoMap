@@ -1554,8 +1554,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFFB71C1C),
+        content: Row(
+          children: [
+            const Icon(Icons.location_off_rounded, color: Color(0xFFFF6B35), size: 18),
+            const SizedBox(width: 10),
+            Expanded(child: Text(msg, style: const TextStyle(color: Colors.white, fontSize: 13))),
+          ],
+        ),
+        backgroundColor: const Color(0xFF2D2D2D),
         action: SnackBarAction(
           label: 'Réglages',
           textColor: const Color(0xFFFF6B35),
@@ -1563,7 +1569,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         ),
         duration: const Duration(seconds: 6),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFFFF6B35), width: 1),
+        ),
       ),
     );
   }
