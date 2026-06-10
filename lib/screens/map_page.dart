@@ -243,7 +243,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         if (!serviceEnabled) {
           if (mounted) {
             setState(() => _loading = false);
-            _snack('Active la localisation dans les paramètres', error: true);
+            _snackAvecReglages('Active la localisation dans les réglages');
           }
           return;
         }
@@ -256,7 +256,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           permission == LocationPermission.denied) {
         if (mounted) {
           setState(() => _loading = false);
-          _snack('Permission de localisation refusée par le navigateur', error: true);
+          _snackAvecReglages('Permission de localisation refusée');
         }
         return;
       }
@@ -274,7 +274,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     } catch (_) {
       if (mounted) {
         setState(() => _loading = false);
-        _snack('GPS: autorise la localisation dans ton navigateur', error: true);
+        _snackAvecReglages('GPS non disponible — vérifie les réglages');
       }
     }
   }
@@ -1548,6 +1548,24 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       ),
     );
     Overlay.of(context).insert(_toastEntry!);
+  }
+
+  void _snackAvecReglages(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFFB71C1C),
+        action: SnackBarAction(
+          label: 'Réglages',
+          textColor: const Color(0xFFFF6B35),
+          onPressed: () => Geolocator.openAppSettings(),
+        ),
+        duration: const Duration(seconds: 6),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   Widget _inputField(TextEditingController ctrl, String label) {
