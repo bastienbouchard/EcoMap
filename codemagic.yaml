@@ -36,7 +36,7 @@ workflows:
             --release \
             --export-options-plist=/Users/builder/export_options.plist
       - name: Clean up keychain
-        script: keychain cleanup
+        script: keychain lock
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
