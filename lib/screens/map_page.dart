@@ -142,6 +142,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _showActionPanel = false;
   bool _showNavPanel = false;
 
+  // ── Infra cache pour refresh silencieux ──
+  List<List<double>> _pinchInfraCache = [];
+  List<List<double>> _salineInfraCache = [];
+  Timer? _pinchDebounce;
+  Timer? _salineDebounce;
+
   // ── Connectivité ──
   bool _isOnline = true;
   bool _showOfflineBanner = true;
@@ -182,6 +188,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _obsGroupeSub?.cancel();
     _tracesGroupeSub?.cancel();
     _hotspotDebounce?.cancel();
+    _pinchDebounce?.cancel();
+    _salineDebounce?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
@@ -605,12 +613,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   // 1 résultat max par cellule de 1000 pieds × 1000 pieds (≈305m)
-  int _maxResults() {
-    const cellSize = 600.0;
-    final r = _visibleRadiusM();
-    final count = (pi * r * r / (cellSize * cellSize)).round();
-    return count.clamp(2, 10);
-  }
+  int _maxResults() => 5;
 
   // ─────────────────────────────────────────────────────────────────────────
   // Affût (pinch points)
@@ -666,17 +669,18 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       final center = _mapController.camera.center;
       final radiusM = _visibleRadiusM(minM: 1500);
       final infraPoints = await _fetchOsmInfra(center, radiusM);
+      _pinchInfraCache = infraPoints;
       final result = await compute(findPinchPointsIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
         'radiusM': radiusM,
         'geoJson': geoJson,
-        'maxResults': _maxResults(),
+        'maxResults': 5,
         'infraPoints': infraPoints,
       });
       if (!mounted) return;
       setState(() {
-        _pinchPoints = result.take(_maxResults()).toList();
+        _pinchPoints = result.take(5).toList();
         _showPinchPoints = true;
         _loadingPinch = false;
       });
@@ -702,17 +706,18 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       final center = _mapController.camera.center;
       final radiusM = _visibleRadiusM(minM: 2000);
       final infraPoints = await _fetchOsmInfra(center, radiusM);
+      _salineInfraCache = infraPoints;
       final result = await compute(findSalinesIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
         'radiusM': radiusM,
         'geoJson': geoJson,
         'infraPoints': infraPoints,
-        'maxResults': _maxResults(),
+        'maxResults': 5,
       });
       if (!mounted) return;
       setState(() {
-        _salines = result.take(_maxResults()).toList();
+        _salines = result.take(5).toList();
         _showSalines = true;
         _loadingSalines = false;
       });
@@ -724,6 +729,42 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     } catch (_) {
       if (mounted) setState(() => _loadingSalines = false);
     }
+  }
+
+  Future<void> _refreshPinchPoints() async {
+    if (!_showPinchPoints) return;
+    try {
+      final center = _mapController.camera.center;
+      final radiusM = _visibleRadiusM(minM: 1500);
+      final result = await compute(findPinchPointsIsolate, {
+        'lat': center.latitude,
+        'lon': center.longitude,
+        'radiusM': radiusM,
+        'geoJson': geoJson,
+        'maxResults': 5,
+        'infraPoints': _pinchInfraCache,
+      });
+      if (!mounted || !_showPinchPoints) return;
+      setState(() => _pinchPoints = result.take(5).toList());
+    } catch (_) {}
+  }
+
+  Future<void> _refreshSalines() async {
+    if (!_showSalines) return;
+    try {
+      final center = _mapController.camera.center;
+      final radiusM = _visibleRadiusM(minM: 2000);
+      final result = await compute(findSalinesIsolate, {
+        'lat': center.latitude,
+        'lon': center.longitude,
+        'radiusM': radiusM,
+        'geoJson': geoJson,
+        'infraPoints': _salineInfraCache,
+        'maxResults': 5,
+      });
+      if (!mounted || !_showSalines) return;
+      setState(() => _salines = result.take(5).toList());
+    } catch (_) {}
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1724,6 +1765,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 Timer(const Duration(milliseconds: 600), () {
               if (mounted) setState(() => _hotspots = _computeHotspots());
             });
+          }
+          if (_showPinchPoints) {
+            _pinchDebounce?.cancel();
+            _pinchDebounce = Timer(const Duration(milliseconds: 800), _refreshPinchPoints);
+          }
+          if (_showSalines) {
+            _salineDebounce?.cancel();
+            _salineDebounce = Timer(const Duration(milliseconds: 800), _refreshSalines);
           }
           if (_showTerresPrivees) _fetchCadastre();
         },
