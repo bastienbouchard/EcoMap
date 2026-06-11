@@ -352,7 +352,7 @@ class _MeteoPageState extends State<MeteoPage> {
       tipColor = const Color(0xFF7DC95E); score = 5;
     } else if (age < 7.38) {
       emoji = '🌒'; name = 'Premier croissant';
-      tip = 'Bonne activité diurne — profitez du matin';
+      tip = 'Bonne activité en période de jour — profitez du matin';
       tipColor = const Color(0xFF7DC95E); score = 4;
     } else if (age < 11.08) {
       emoji = '🌓'; name = 'Premier quartier';
@@ -372,11 +372,11 @@ class _MeteoPageState extends State<MeteoPage> {
       tipColor = Colors.white54; score = 2;
     } else if (age < 25.84) {
       emoji = '🌗'; name = 'Dernier quartier';
-      tip = 'Bonne activité diurne — en amélioration';
+      tip = 'Bonne activité en période de jour — en amélioration';
       tipColor = const Color(0xFFFF6B35); score = 3;
     } else {
       emoji = '🌘'; name = 'Dernier croissant';
-      tip = 'Très bonne activité diurne — conditions favorables';
+      tip = 'Très bonne activité en période de jour — conditions favorables';
       tipColor = const Color(0xFF7DC95E); score = 4;
     }
 
