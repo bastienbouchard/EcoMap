@@ -412,6 +412,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   void _handleMapTap(LatLng point) {
+    if (_showActionPanel || _showNavPanel || _showLayerPanel) {
+      setState(() {
+        _showActionPanel = false;
+        _showNavPanel = false;
+        _showLayerPanel = false;
+      });
+      return;
+    }
     if (!_showTerresPrivees || _cadastreRings.isEmpty) return;
     for (int i = 0; i < _cadastreRings.length; i++) {
       if (_pointInPolygon(point, _cadastreRings[i])) {
