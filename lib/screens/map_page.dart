@@ -2268,29 +2268,54 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   MarkerLayer _buildMembreMarkers() {
     return MarkerLayer(
-      markers: _membres.map((m) => Marker(
-        point: m.position,
-        width: 80, height: 64,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.person_pin_circle,
-              color: Color(0xFF4A90E2), size: 32),
-          const SizedBox(height: 2),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.black87,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFF4A90E2), width: 1),
-            ),
-            child: Text(m.nom,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold)),
+      markers: _membres.asMap().entries.map((entry) {
+        final i = entry.key;
+        final m = entry.value;
+        final color = _traceColors[i % _traceColors.length];
+        final initiale = m.nom.isNotEmpty ? m.nom[0].toUpperCase() : '?';
+        return Marker(
+          point: m.position,
+          width: 70, height: 68,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(Icons.location_on, color: color, size: 48,
+                    shadows: const [
+                      Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2)),
+                    ]),
+                  Positioned(
+                    top: 5,
+                    child: Text(initiale,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.82),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: color, width: 1),
+                ),
+                child: Text(m.nom,
+                  style: const TextStyle(color: Colors.white, fontSize: 9,
+                      fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
           ),
-        ]),
-      )).toList(),
+        );
+      }).toList(),
     );
   }
 
