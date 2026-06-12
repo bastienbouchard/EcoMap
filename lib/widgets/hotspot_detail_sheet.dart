@@ -45,6 +45,51 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
   final depSur = (p['dep_sur'] ?? '').toString();
   final typeEco = (p['type_eco'] ?? '—').toString();
 
+  int sAge;
+  if (ageCode.isEmpty) {
+    sAge = 0;
+  } else if (ageCode == 'J' || ageCode == 'JIN' || ageCode == '10') {
+    sAge = 5;
+  } else if (ageCode == '20') {
+    sAge = 4;
+  } else if (ageCode == '30') {
+    sAge = 3;
+  } else if (ageCode == '40' || ageCode == '50') {
+    sAge = 2;
+  } else {
+    sAge = 1; // 60, 80, 100, VIN — forêt mature, donnée présente
+  }
+
+  int sDrai;
+  if (draiCode.isEmpty) {
+    sDrai = 0;
+  } else if (draiCode == '6') {
+    sDrai = 5; // marécageux / inondé
+  } else if (draiCode == '5') {
+    sDrai = 4; // tourbeux
+  } else if (draiCode == '4') {
+    sDrai = 3; // imparfaitement drainé
+  } else if (draiCode == '3') {
+    sDrai = 2; // modéré
+  } else {
+    sDrai = 1; // bien drainé / rapide / excessif
+  }
+
+  int sEau;
+  if (typeEco.toUpperCase().contains('RIV') || draiCode == '6') {
+    sEau = 5;
+  } else if (depSur.startsWith('4') || draiCode == '5') {
+    sEau = 4;
+  } else if (depSur.startsWith('3') || draiCode == '4') {
+    sEau = 3;
+  } else if (draiCode == '3') {
+    sEau = 2;
+  } else if (draiCode.isNotEmpty) {
+    sEau = 1; // donnée de drainage disponible
+  } else {
+    sEau = 0;
+  }
+
   int sCouv = couvCode == 'F' ? 4 : couvCode == 'M' ? 3 : couvCode == 'R' ? 2 : 0;
   int sEss = 0;
   final essU = ess.toUpperCase();
@@ -52,11 +97,7 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
   else if (essU.contains('AU') || essU.contains('SA')) sEss = 4;
   else if (essU.contains('BP')) sEss = 3;
   else if (essU.contains('EB')) sEss = 1;
-  int sAge = ageCode == 'J' || ageCode == 'JIN' ? 5 : (ageCode == '10' || ageCode == '20') ? 4 : ageCode == '30' ? 2 : 0;
   int sOri = origineCode == 'CP' ? 5 : origineCode == 'BR' ? 4 : origineCode == 'EP' ? 2 : 0;
-  int sDrai = (draiCode == '4' || draiCode == '5') ? 4 : draiCode == '6' ? 5 : 0;
-  int sEau = (depSur.startsWith('3') || depSur.startsWith('4') ||
-      typeEco.toUpperCase().contains('RIV') || draiCode == '6') ? 3 : 0;
 
   final bars = [
     ('Couverture', sCouv),
