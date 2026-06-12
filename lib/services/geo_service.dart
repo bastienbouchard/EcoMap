@@ -152,6 +152,26 @@ bool pointInPolygon(LatLng point, List<dynamic> ring) {
   return inside;
 }
 
+// Returns a point offset 35% from centroid towards the farthest ring vertex
+List<double> _offsetFromCentroid(List<dynamic> ring) {
+  double sumLat = 0, sumLon = 0;
+  for (final c in ring) {
+    sumLon += (c[0] as num).toDouble();
+    sumLat += (c[1] as num).toDouble();
+  }
+  final cLat = sumLat / ring.length;
+  final cLon = sumLon / ring.length;
+  double maxD = 0;
+  double fLat = cLat, fLon = cLon;
+  for (final c in ring) {
+    final vLon = (c[0] as num).toDouble();
+    final vLat = (c[1] as num).toDouble();
+    final d = (pow(vLat - cLat, 2) + pow(vLon - cLon, 2)).toDouble();
+    if (d > maxD) { maxD = d; fLat = vLat; fLon = vLon; }
+  }
+  return [cLat + (fLat - cLat) * 0.35, cLon + (fLon - cLon) * 0.35];
+}
+
 // Returns centroid if inside polygon, else ring vertex closest to centroid
 List<double> _safeInteriorPoint(List<dynamic> ring) {
   double sumLat = 0, sumLon = 0;
@@ -637,9 +657,9 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
             if (dM < bestD && dM < 2000) { bestD = dM; bestVtx = [vLat, vLon]; }
           }
         }
-        pos = bestVtx ?? _safeInteriorPoint(ring);
+        pos = bestVtx ?? _offsetFromCentroid(ring);
       } else {
-        pos = _safeInteriorPoint(ring);
+        pos = _offsetFromCentroid(ring);
       }
       final cLat = pos[0];
       final cLon = pos[1];
@@ -974,7 +994,24 @@ List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJson
       } else if (type == 'MultiPolygon') {
         ring = geom['coordinates'][0][0] as List;
       } else continue;
-      final pos = _safeInteriorPoint(ring);
+      // Place marker near water edge if possible, otherwise offset from centroid
+      List<double> pos;
+      if (waterCentroids.isNotEmpty) {
+        double bestD = double.infinity;
+        List<double>? bestVtx;
+        for (final c in ring) {
+          final vLon = (c[0] as num).toDouble();
+          final vLat = (c[1] as num).toDouble();
+          final cosV = cos(vLat * pi / 180);
+          for (final wc in waterCentroids) {
+            final dM = sqrt(pow((vLat - wc[0]) * 111000, 2) + pow((vLon - wc[1]) * 111000 * cosV, 2));
+            if (dM < bestD && dM < 1000) { bestD = dM; bestVtx = [vLat, vLon]; }
+          }
+        }
+        pos = bestVtx ?? _offsetFromCentroid(ring);
+      } else {
+        pos = _offsetFromCentroid(ring);
+      }
       final lat = pos[0];
       final lon = pos[1];
 
