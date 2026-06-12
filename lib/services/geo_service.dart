@@ -545,39 +545,59 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
     } catch (_) { return false; }
   }).toList();
 
-  // Collecte les centroids des cours d'eau et zones inondées/intermittentes (pas les plans d'eau)
-  final riverPoints = <List<double>>[];      // cours d'eau permanents
-  final intermittentPoints = <List<double>>[]; // zones inondées/intermittentes
+  // Collecte les bords (vertices) de tous les corps d'eau + centroids pour distances larges
+  final riverPoints = <List<double>>[];
+  final intermittentPoints = <List<double>>[];
+  final waterEdgePoints = <List<double>>[];
   for (final feat in localFeatures) {
     try {
       final props = feat['properties'] as Map;
       final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
       final typeCouv = (props['type_couv'] ?? '').toString().toUpperCase();
+      final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
       final isRiver = typeEco.contains('RIV');
       final isIntermittent = typeCouv == 'IN';
-      if (!isRiver && !isIntermittent) continue;
+      final isWater = typeEco.contains('EAU') || codeCouv == 'EE';
+      if (!isRiver && !isIntermittent && !isWater) continue;
       final geom = feat['geometry'] as Map;
       List<dynamic> ring;
       if (geom['type'] == 'Polygon') ring = geom['coordinates'][0] as List;
       else if (geom['type'] == 'MultiPolygon') ring = geom['coordinates'][0][0] as List;
       else continue;
+      // Échantillonne max 20 vertices pour vérification de proximité à 50 m
+      final step = max(1, ring.length ~/ 20);
+      for (int i = 0; i < ring.length; i += step) {
+        final c = ring[i];
+        waterEdgePoints.add([(c[1] as num).toDouble(), (c[0] as num).toDouble()]);
+      }
       double sumLat = 0, sumLon = 0;
       for (final c in ring) { sumLon += (c[0] as num).toDouble(); sumLat += (c[1] as num).toDouble(); }
       final pt = [sumLat / ring.length, sumLon / ring.length];
-      if (isIntermittent) { intermittentPoints.add(pt); } else { riverPoints.add(pt); }
+      if (isIntermittent) { intermittentPoints.add(pt); } else if (isRiver) { riverPoints.add(pt); }
     } catch (_) {}
   }
 
-  // Bonus cours d'eau : +8 si intermittent ≤ 600 m, +5 si rivière ≤ 800 m
+  // Bonus eau selon distance au bord le plus proche (cours d'eau ou plan d'eau)
   int waterBonus(double cLat, double cLon) {
     final cosC = cos(cLat * pi / 180);
+    double minEdge = double.infinity;
+    for (final w in waterEdgePoints) {
+      final d = sqrt(pow((w[0] - cLat) * 111000, 2) + pow((w[1] - cLon) * 111000 * cosC, 2));
+      if (d < minEdge) {
+        minEdge = d;
+        if (minEdge <= 1) break;
+      }
+    }
+    if (minEdge <= 50) return 15;
+    if (minEdge <= 150) return 10;
+    if (minEdge <= 400) return 7;
     for (final w in intermittentPoints) {
       final d = sqrt(pow((w[0] - cLat) * 111000, 2) + pow((w[1] - cLon) * 111000 * cosC, 2));
-      if (d <= 600) return 8;
+      if (d <= 600) return 5;
     }
     for (final w in riverPoints) {
       final d = sqrt(pow((w[0] - cLat) * 111000, 2) + pow((w[1] - cLon) * 111000 * cosC, 2));
-      if (d <= 800) return 5;
+      if (d <= 800) return 3;
     }
     return 0;
   }
