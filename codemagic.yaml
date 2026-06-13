@@ -20,10 +20,6 @@ workflows:
         script: flutter build appbundle --release
     artifacts:
       - build/app/outputs/bundle/release/*.aab
-    publishing:
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
 
   ios-release:
     name: iOS Release — TestFlight
