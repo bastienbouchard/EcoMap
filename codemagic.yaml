@@ -1,4 +1,30 @@
 workflows:
+  android-release:
+    name: Android Release — Play Store
+    max_build_duration: 60
+    instance_type: linux_x2
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: master
+          include: true
+    environment:
+      groups:
+        - BB
+      flutter: stable
+    scripts:
+      - name: Flutter packages
+        script: flutter packages pub get
+      - name: Build AAB
+        script: flutter build appbundle --release
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+
   ios-release:
     name: iOS Release — TestFlight
     max_build_duration: 60
