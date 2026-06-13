@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'onboarding_page.dart';
@@ -13,6 +14,15 @@ class AboutPage extends StatefulWidget {
 }
 
 class _AboutPageState extends State<AboutPage> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      setState(() => _version = 'v${info.version} (${info.buildNumber})');
+    });
+  }
   Future<void> _supprimerCompte() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -106,8 +116,8 @@ class _AboutPageState extends State<AboutPage> {
               const Text('Habitat orignal — Québec',
                   style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)),
               const SizedBox(height: 4),
-              const Text('v1.0.1 (62)',
-                  style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
+              Text(_version,
+                  style: const TextStyle(color: Color(0xFF666666), fontSize: 11)),
               const SizedBox(height: 2),
               const Text('© Développement BB',
                   style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
