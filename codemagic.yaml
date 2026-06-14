@@ -12,7 +12,7 @@ workflows:
     environment:
       groups:
         - BB
-        - BB_ANDROID
+        - BB_Android
       flutter: stable
     scripts:
       - name: Flutter packages
