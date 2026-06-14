@@ -2284,7 +2284,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 children: [
                   Icon(Icons.location_on, color: color, size: 48,
                     shadows: const [
-                      Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 2)),
+                      Shadow(color: Colors.black87, blurRadius: 16, offset: Offset(0, 4)),
+                      Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 2)),
                     ]),
                   Positioned(
                     top: 5,
@@ -2876,6 +2877,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   Widget _buildCrosshair() {
+    if (!_showActionPanel) return const SizedBox.shrink();
     return Positioned.fill(
       child: IgnorePointer(
         child: Center(

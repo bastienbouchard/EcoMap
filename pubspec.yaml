@@ -1,6 +1,6 @@
 name: ecomap
 description: A new Flutter project.
-version: 1.0.1+97
+version: 1.0.1+98
 
 environment:
   sdk: '>=3.2.6 <4.0.0'
