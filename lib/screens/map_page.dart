@@ -1722,6 +1722,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         child: Stack(
         children: [
           _buildMap(),
+          Positioned(
+            bottom: 80,
+            right: 12,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.13,
+                child: Image.asset('assets/logo.png', width: 110),
+              ),
+            ),
+          ),
           _buildCrosshair(),
           _buildStatusBarOverlay(),
           if (_showParcours) _buildParcoursBanner(),
