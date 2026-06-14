@@ -147,6 +147,7 @@ class _SplashScreenState extends State<SplashScreen>
                 opacity: _fade.value,
                 child: Transform.scale(
                   scale: _scale.value,
+                  alignment: const Alignment(-0.18, 0.28),
                   child: ColorFiltered(
                     colorFilter: const ColorFilter.matrix([
                       -1,  0,  0, 0, 255,
