@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' show pi, min, max, cos, sqrt, pow;
+import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -70,6 +71,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
+  bool _hasGpsPosition = false;
   bool _loading = false;
   double? _windDeg;
   double? _windSpeed;
@@ -218,7 +220,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       );
       if (mounted) {
         final gpsPos = LatLng(pos.latitude, pos.longitude);
-        setState(() => _currentPosition = gpsPos);
+        setState(() { _currentPosition = gpsPos; _hasGpsPosition = true; });
         _mapController.move(gpsPos, 13);
         await _fetchWind();
       }
@@ -233,6 +235,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         final p = LatLng(position.latitude, position.longitude);
         setState(() {
           _currentPosition = p;
+          _hasGpsPosition = true;
           if (_recording) _trackPoints.add(p);
           if (_showHotspots) _hotspots = _computeHotspots();
         });
@@ -2275,30 +2278,65 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         final initiale = m.nom.isNotEmpty ? m.nom[0].toUpperCase() : '?';
         return Marker(
           point: m.position,
-          width: 70, height: 68,
+          width: 70, height: 72,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(Icons.location_on, color: color, size: 48,
-                    shadows: const [
-                      Shadow(color: Colors.black87, blurRadius: 16, offset: Offset(0, 4)),
-                      Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 2)),
-                    ]),
-                  Positioned(
-                    top: 5,
-                    child: Text(initiale,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+              // Tête 3D
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.35, -0.4),
+                    radius: 0.75,
+                    colors: [
+                      Color.lerp(color, Colors.white, 0.50)!,
+                      color,
+                      Color.lerp(color, Colors.black, 0.35)!,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.55),
+                      blurRadius: 8,
+                      offset: const Offset(2, 5),
+                      spreadRadius: -2,
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    // Reflet spéculaire
+                    Positioned(
+                      top: 7, left: 9,
+                      child: Container(
+                        width: 11, height: 7,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.38),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    Center(
+                      child: Text(initiale,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          shadows: [Shadow(color: Colors.black38, blurRadius: 3)],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              // Queue
+              CustomPaint(
+                size: const Size(14, 10),
+                painter: _PinTailPainter(color),
+              ),
+              // Étiquette nom
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
@@ -2475,6 +2513,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   MarkerLayer _buildCurrentPositionMarker() {
+    if (!_hasGpsPosition) return const MarkerLayer(markers: []);
     return MarkerLayer(markers: [
       Marker(
         point: _currentPosition,
@@ -3355,6 +3394,29 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+class _PinTailPainter extends CustomPainter {
+  final Color color;
+  const _PinTailPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shadow = Paint()
+      ..color = Colors.black.withOpacity(0.30)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    final fill = Paint()..color = color..style = PaintingStyle.fill;
+    final path = ui.Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path.shift(const Offset(1, 2)), shadow);
+    canvas.drawPath(path, fill);
+  }
+
+  @override
+  bool shouldRepaint(_PinTailPainter old) => old.color != color;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
