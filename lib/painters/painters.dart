@@ -282,7 +282,8 @@ class TrackingPainter extends CustomPainter {
 }
 
 class SaltCubePainter extends CustomPainter {
-  const SaltCubePainter();
+  final Color color;
+  const SaltCubePainter({this.color = const Color(0xFFFF6B35)});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -305,16 +306,16 @@ class SaltCubePainter extends CustomPainter {
     final leftFace = Path()
       ..moveTo(left.dx, left.dy) ..lineTo(center.dx, center.dy)
       ..lineTo(bottom.dx, bottom.dy) ..lineTo(botL.dx, botL.dy) ..close();
-    canvas.drawPath(topFace,   Paint()..color = const Color(0xFFEF5350)..style = PaintingStyle.fill);
-    canvas.drawPath(rightFace, Paint()..color = const Color(0xFFC62828)..style = PaintingStyle.fill);
-    canvas.drawPath(leftFace,  Paint()..color = const Color(0xFF7F0000)..style = PaintingStyle.fill);
+    canvas.drawPath(topFace,   Paint()..color = color..style = PaintingStyle.fill);
+    canvas.drawPath(rightFace, Paint()..color = color.withOpacity(0.7)..style = PaintingStyle.fill);
+    canvas.drawPath(leftFace,  Paint()..color = color.withOpacity(0.45)..style = PaintingStyle.fill);
     final edge = Paint()..color = Colors.white.withOpacity(0.55)..strokeWidth = 1.2..style = PaintingStyle.stroke;
     canvas.drawPath(topFace, edge);
     canvas.drawPath(rightFace, edge);
     canvas.drawPath(leftFace, edge);
   }
 
-  @override bool shouldRepaint(_) => false;
+  @override bool shouldRepaint(SaltCubePainter old) => old.color != color;
 }
 
 class ShrubPainter extends CustomPainter {

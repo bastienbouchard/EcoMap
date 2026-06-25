@@ -252,20 +252,25 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _legendDot(const Color(0xFFFF6B35), 'Destination'),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.navigation_rounded, color: Color(0xFFFF6B35), size: 15),
+            const SizedBox(width: 6),
+            const Text('Destination',
+                style: TextStyle(color: Color(0xFFFF6B35), fontSize: 12, fontWeight: FontWeight.w600)),
+          ]),
           if (widget.windDeg != null)
-            _legendDot(const Color(0xFF4CAF50), 'Face au vent'),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              CustomPaint(
+                size: const Size(15, 15),
+                painter: _MiniWindZonePainter(const Color(0xFF4CAF50)),
+              ),
+              const SizedBox(width: 6),
+              const Text('Face au vent',
+                  style: TextStyle(color: Color(0xFF4CAF50), fontSize: 12, fontWeight: FontWeight.w600)),
+            ]),
         ],
       ),
     );
-  }
-
-  Widget _legendDot(Color color, String label) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-      const SizedBox(width: 6),
-      Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-    ]);
   }
 
   Widget _buildHeader(double progress) {
@@ -342,4 +347,23 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
       Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
     ]);
   }
+}
+
+class _MiniWindZonePainter extends CustomPainter {
+  final Color color;
+  const _MiniWindZonePainter(this.color);
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = size.width / 2;
+    final paint = Paint()..color = color.withOpacity(0.8)..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(cx, cy)
+      ..arcTo(Rect.fromCircle(center: Offset(cx, cy), radius: r),
+          -pi * 5 / 6, pi * 2 / 3, false)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+  @override bool shouldRepaint(_MiniWindZonePainter old) => old.color != color;
 }

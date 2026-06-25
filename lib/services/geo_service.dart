@@ -492,6 +492,23 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
     }
 
+    // Fallback: si aucune direction dans ±maxDelta n'est passable, cherche dans ±180°
+    if (bestLat == null) {
+      for (double ad = -180; ad <= 180; ad += 15) {
+        final angle = upwindRad + ad * pi / 180;
+        final sLat = (stepDist / 111000) * cos(angle);
+        final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
+        final cLat = curLat + sLat;
+        final cLon = curLon + sLon;
+        final eval = evalPoint(cLat, cLon);
+        if (!eval.blocked && !segmentCrossesWater(curLat, curLon, cLat, cLon)) {
+          bestLat = cLat; bestLon = cLon;
+          bestHabitat = eval.habitat; bestType = eval.type;
+          break;
+        }
+      }
+    }
+
     if (bestLat != null && bestLon != null) {
       final dist = const Distance().as(
           LengthUnit.Meter, LatLng(curLat, curLon), LatLng(bestLat, bestLon));

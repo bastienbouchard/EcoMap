@@ -5,7 +5,8 @@ import '../models/hotspot_info.dart';
 import '../screens/navigation_page.dart';
 
 void showHotspotDetail(BuildContext context, HotspotInfo info,
-    {LatLng? currentPosition, double? windDeg}) {
+    {LatLng? currentPosition, double? windDeg,
+    bool isPinned = false, VoidCallback? onTogglePin}) {
   final p = info.props;
   const couvLabels = {'F': 'Feuillu', 'M': 'Mixte', 'R': 'Résineux'};
   final couvCode = (p['type_couv'] ?? '').toString();
@@ -124,6 +125,15 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
             const Text('🔥 ', style: TextStyle(fontSize: 22)),
             Expanded(child: Text('Zone active',
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
+            if (onTogglePin != null)
+              IconButton(
+                onPressed: onTogglePin,
+                icon: Icon(isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                    color: const Color(0xFFFFD700), size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            const SizedBox(width: 8),
             if (currentPosition != null)
               ElevatedButton.icon(
                 onPressed: () {

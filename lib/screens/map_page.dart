@@ -94,6 +94,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   List<HotspotInfo> _rawHotspots = [];
   Timer? _hotspotDebounce;
 
+  // ── Carte écoforestière ──
+  bool _showPolygons = true;
+
   // ── Parcours ──
   bool _showParcours = false;
   bool _parcoursBlocked = false;
@@ -103,6 +106,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   List<LatLng> _parcours = [];
   double _distanceParcours = 2.0;
   double _parcoursScore = 0;
+
+  // ── Points épinglés ──
+  List<Map<String, dynamic>> _pinnedPoints = [];
 
   // ── Affût (pinch points) ──
   bool _showPinchPoints = false;
@@ -180,6 +186,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _loadObservations();
     _loadTracks();
     _loadGroupePrefs();
+    _loadPins();
     requestPersistentStorage();
   }
 
@@ -537,10 +544,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     final infraPoints = await _fetchOsmInfra(center, radiusM);
     final spots = _computeHotspots(infraPoints: infraPoints);
     setState(() { _hotspots = spots; _showHotspots = true; });
-    _snack(spots.isEmpty
-        ? 'Aucun spot ici — navigue vers une zone forestière'
-        : '${spots.length} point${spots.length > 1 ? 's' : ''} chaud${spots.length > 1 ? 's' : ''} dans cette zone',
-      error: spots.isEmpty);
+    _snack('Zoomer l\'entièreté de votre territoire à analyser');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -687,11 +691,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         _showPinchPoints = true;
         _loadingPinch = false;
       });
-      if (result.isEmpty) {
-        _snack('Aucun affût détecté dans la zone visible — zoom arrière ou déplace la carte', error: true);
-      } else {
-        _snack('${result.length} meilleur${result.length > 1 ? 's' : ''} emplacement${result.length > 1 ? 's' : ''} d\'affût dans cette zone');
-      }
+      _snack('Zoomer l\'entièreté de votre territoire à analyser');
     } catch (_) {
       if (mounted) setState(() => _loadingPinch = false);
     }
@@ -724,11 +724,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         _showSalines = true;
         _loadingSalines = false;
       });
-      if (result.isEmpty) {
-        _snack('Aucun site de saline trouvé — zoom arrière ou déplace la carte vers une zone plus humide', error: true);
-      } else {
-        _snack('${result.length} meilleur${result.length > 1 ? 's' : ''} emplacement${result.length > 1 ? 's' : ''} de saline dans cette zone');
-      }
+      _snack('Zoomer l\'entièreté de votre territoire à analyser');
     } catch (_) {
       if (mounted) setState(() => _loadingSalines = false);
     }
@@ -849,6 +845,37 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       } catch (_) {}
     }
     if (pending.isNotEmpty) await _persistObsCache(uid);
+  }
+
+  Future<void> _loadPins() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('pinned_points') ?? '[]';
+    try {
+      final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+      if (mounted) setState(() => _pinnedPoints = list);
+    } catch (_) {}
+  }
+
+  Future<void> _savePins() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('pinned_points', jsonEncode(_pinnedPoints));
+  }
+
+  bool _isPinned(LatLng pos) => _pinnedPoints.any((p) =>
+      (p['lat'] as double).toStringAsFixed(5) == pos.latitude.toStringAsFixed(5) &&
+      (p['lon'] as double).toStringAsFixed(5) == pos.longitude.toStringAsFixed(5));
+
+  void _togglePin(String type, LatLng pos) {
+    setState(() {
+      if (_isPinned(pos)) {
+        _pinnedPoints.removeWhere((p) =>
+            (p['lat'] as double).toStringAsFixed(5) == pos.latitude.toStringAsFixed(5) &&
+            (p['lon'] as double).toStringAsFixed(5) == pos.longitude.toStringAsFixed(5));
+      } else {
+        _pinnedPoints.add({'type': type, 'lat': pos.latitude, 'lon': pos.longitude});
+      }
+    });
+    _savePins();
   }
 
   Future<void> _loadObservations() async {
@@ -1846,10 +1873,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             }).toList(),
           ),
         ],
-        if (_polygonsCache.isNotEmpty && _mapZoom >= 11)
+        if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _showPolygons)
           PolygonLayer(
               polygons: _polygonsCache, simplificationTolerance: 0),
-        if (_polygonLabels.isNotEmpty && _mapZoom >= 14)
+        if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _showPolygons)
           MarkerLayer(
               markers: _polygonLabels
                   .map((l) => Marker(
@@ -1933,6 +1960,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             ),
           ]),
         if (_observations.isNotEmpty) _buildObservationMarkers(),
+        if (_pinnedPoints.isNotEmpty) _buildPinnedLayer(),
         if (_showHotspots && _hotspots.isNotEmpty) _buildHotspotMarkers(),
         if (_showPinchPoints && _pinchPoints.isNotEmpty)
           _buildPinchMarkers(),
@@ -2099,7 +2127,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             onTap: () {
               if (idx < _hotspotInfos.length) {
                 showHotspotDetail(context, _hotspotInfos[idx],
-                    currentPosition: _currentPosition, windDeg: _windDeg);
+                    currentPosition: _currentPosition, windDeg: _windDeg,
+                    isPinned: _isPinned(_hotspotInfos[idx].position),
+                    onTogglePin: () => setState(() => _togglePin('hotspot', _hotspotInfos[idx].position)));
               }
             },
             child: Column(
@@ -2175,23 +2205,34 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           child: GestureDetector(
             onTap: () => showDialog(
               context: context,
-              builder: (_) => AlertDialog(
+              builder: (_) => StatefulBuilder(builder: (ctx, setDlgState) => AlertDialog(
                 backgroundColor: const Color(0xFF2D2D2D),
                 title: Row(children: [
                   const Expanded(child: Text('Affût',
                       style: TextStyle(color: Colors.white, fontSize: 15))),
                   IconButton(
                     icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(ctx),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
                 ]),
                 content: _coordsWidget(pos),
                 actions: [
+                  TextButton.icon(
+                    onPressed: () {
+                      _togglePin('affut', pos);
+                      setDlgState(() {});
+                    },
+                    icon: Icon(
+                      _isPinned(pos) ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                      size: 16, color: const Color(0xFFFFD700)),
+                    label: Text(_isPinned(pos) ? 'Désépingler' : 'Épingler',
+                        style: const TextStyle(color: Color(0xFFFFD700))),
+                  ),
                   ElevatedButton.icon(
                     onPressed: () {
-                      Navigator.pop(context);
+                      Navigator.pop(ctx);
                       Navigator.push(context, MaterialPageRoute(
                         builder: (_) => NavigationPage(
                           parcours: [_currentPosition, pos],
@@ -2208,7 +2249,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     ),
                   ),
                 ],
-              ),
+              )),
             ),
             child: SizedBox(
               width: 48, height: 58,
@@ -2564,14 +2605,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           child: GestureDetector(
             onTap: () => showDialog(
               context: context,
-              builder: (_) => AlertDialog(
+              builder: (_) => StatefulBuilder(builder: (ctx, setDlgState) => AlertDialog(
                 backgroundColor: const Color(0xFF2D2D2D),
                 title: Row(children: [
                   const Expanded(child: Text('Site de saline',
                       style: TextStyle(color: Colors.white, fontSize: 15))),
                   IconButton(
                     icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(ctx),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -2579,20 +2620,26 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 content: Column(mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Score: $score/20',
-                        style: const TextStyle(
-                            color: Color(0xFFEF5350),
-                            fontSize: 13, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
                     const Text('Emplacement idéal identifié par l\'algorithme OrignalScan pour l\'installation d\'une saline.',
                         style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
                     const SizedBox(height: 12),
                     _coordsWidget(pos),
                   ]),
                 actions: [
+                  TextButton.icon(
+                    onPressed: () {
+                      _togglePin('saline', pos);
+                      setDlgState(() {});
+                    },
+                    icon: Icon(
+                      _isPinned(pos) ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                      size: 16, color: const Color(0xFFFFD700)),
+                    label: Text(_isPinned(pos) ? 'Désépingler' : 'Épingler',
+                        style: const TextStyle(color: Color(0xFFFFD700))),
+                  ),
                   ElevatedButton.icon(
                     onPressed: () {
-                      Navigator.pop(context);
+                      Navigator.pop(ctx);
                       Navigator.push(context, MaterialPageRoute(
                         builder: (_) => NavigationPage(
                           parcours: [_currentPosition, pos],
@@ -2608,7 +2655,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     ),
                   ),
                 ],
-              ),
+              )),
             ),
             child: SizedBox(
               width: 44, height: 54,
@@ -2645,6 +2692,92 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         );
       }).toList();
       }(),
+    );
+  }
+
+  MarkerLayer _buildPinnedLayer() {
+    return MarkerLayer(
+      markers: _pinnedPoints.map((p) {
+        final pos = LatLng(p['lat'] as double, p['lon'] as double);
+        final type = p['type'] as String? ?? 'hotspot';
+        final color = type == 'saline'
+            ? const Color(0xFF66BB6A)
+            : type == 'affut'
+                ? const Color(0xFF4CAF50)
+                : const Color(0xFFFF6B35);
+        return Marker(
+          point: pos,
+          width: 36, height: 44,
+          child: GestureDetector(
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                backgroundColor: const Color(0xFF2D2D2D),
+                title: Row(children: [
+                  const Icon(Icons.push_pin_rounded, color: Color(0xFFFFD700), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Point épinglé',
+                      style: const TextStyle(color: Colors.white, fontSize: 15))),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ]),
+                content: Column(mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _coordsWidget(pos),
+                  ]),
+                actions: [
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _togglePin(type, pos);
+                    },
+                    icon: const Icon(Icons.push_pin_outlined, size: 16, color: Color(0xFFFFD700)),
+                    label: const Text('Désépingler', style: TextStyle(color: Color(0xFFFFD700))),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => NavigationPage(
+                          parcours: [_currentPosition, pos],
+                          score: 0, windDeg: _windDeg,
+                        ),
+                      ));
+                    },
+                    icon: const Icon(Icons.navigation, size: 16),
+                    label: const Text('Naviguer'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF6B35),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 30, height: 30,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFFFD700), width: 2),
+                  boxShadow: [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.4), blurRadius: 6)],
+                ),
+                child: const Icon(Icons.push_pin_rounded, color: Color(0xFFFFD700), size: 16),
+              ),
+              CustomPaint(
+                size: const Size(8, 10),
+                painter: _PinTailPainter(const Color(0xFFFFD700)),
+              ),
+            ]),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -2763,6 +2896,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 ]),
               ),
             ),
+            if (_polygonsCache.isNotEmpty)
+              _layerToggle('Carte éco visible', Icons.forest_rounded,
+                  _showPolygons, () {
+                    setState(() {
+                      _showPolygons = !_showPolygons;
+                      _showLayerPanel = false;
+                    });
+                  }),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
                   if (!_showTerresPrivees && !_requirePremium()) return;
@@ -3071,21 +3212,21 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     mapActionBtn(
                       icon: Icons.cabin,
                       label: 'Affût',
-                      color: const Color(0xFF4CAF50),
+                      color: const Color(0xFFFF6B35),
                       active: _showPinchPoints,
                       loading: _loadingPinch,
                       onTap: _togglePinchPoints,
                       customIcon: const SizedBox(
                         width: 22, height: 22,
                         child: CustomPaint(
-                            painter: HuntingTowerPainter()),
+                            painter: HuntingTowerPainter(color: Color(0xFFFF6B35))),
                       ),
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
                       icon: Icons.view_in_ar,
                       label: 'Saline',
-                      color: const Color(0xFFC62828),
+                      color: const Color(0xFFFF6B35),
                       active: _showSalines,
                       loading: _loadingSalines,
                       onTap: _toggleSalines,
@@ -3098,7 +3239,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     mapActionBtn(
                       icon: Icons.route_rounded,
                       label: 'Parcours',
-                      color: const Color(0xFF4CAF50),
+                      color: const Color(0xFFFF6B35),
                       active: _showParcours,
                       loading: _loadingParcours,
                       onTap: _showParcours
@@ -3109,12 +3250,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     mapActionBtn(
                       icon: Icons.fiber_manual_record,
                       label: 'Suivi',
-                      color: Colors.red,
+                      color: const Color(0xFFFF6B35),
                       active: _recording,
                       onTap: _toggleRecording,
                       customIcon: Icon(
                         _recording ? Icons.stop_rounded : Icons.fiber_manual_record,
-                        color: Colors.red,
+                        color: const Color(0xFFFF6B35),
                         size: 22,
                       ),
                     ),
