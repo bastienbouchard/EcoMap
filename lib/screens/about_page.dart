@@ -113,15 +113,17 @@ class _AboutPageState extends State<AboutPage> {
               const Text('OrignalScan',
                   style: TextStyle(color: Colors.white, fontSize: 26,
                       fontWeight: FontWeight.bold)),
-              const Text('Habitat orignal — Québec',
-                  style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13)),
               const SizedBox(height: 4),
               Text(_version,
                   style: const TextStyle(color: Color(0xFF666666), fontSize: 11)),
               const SizedBox(height: 2),
               const Text('© Développement BB',
                   style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
+              const Text('Contactez-nous',
+                  style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12,
+                      fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+              const SizedBox(height: 8),
               GestureDetector(
                 onTap: () => launchUrl(
                   Uri.parse('https://www.orignalscan.com'),
@@ -138,6 +140,27 @@ class _AboutPageState extends State<AboutPage> {
                     SizedBox(width: 6),
                     Text('orignalscan.com',
                         style: TextStyle(color: Color(0xFFFF6B35), fontSize: 13,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => launchUrl(
+                  Uri.parse('https://www.facebook.com/profile.php?id=61588826944605'),
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFF1877F2).withOpacity(0.5)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.facebook, color: Color(0xFF1877F2), size: 16),
+                    SizedBox(width: 6),
+                    Text('Facebook OrignalScan',
+                        style: TextStyle(color: Color(0xFF1877F2), fontSize: 13,
                             fontWeight: FontWeight.w600)),
                   ]),
                 ),
@@ -161,7 +184,7 @@ class _AboutPageState extends State<AboutPage> {
             ]),
           ),
           _card(children: [
-            _title('Méthodologie de l\'habitat'),
+            _title('Méthodologie'),
             const SizedBox(height: 8),
             const Text(
               'Les algorithmes sont basés sur les principes de l\'écologie de l\'orignal documentés par le MRNF et les universités québécoises (UQAR, UQAM) :\n\n'

@@ -349,7 +349,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   Future<void> _fetchCadastre() async {
-    if (!_showTerresPrivees || _mapZoom < 10) return;
+    if (!_showTerresPrivees || _mapZoom < 14.1) return;
     try {
       final b = _mapController.camera.visibleBounds;
       final url = Uri.parse(
@@ -1787,7 +1787,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             _salineDebounce?.cancel();
             _salineDebounce = Timer(const Duration(milliseconds: 800), _refreshSalines);
           }
-          if (_showTerresPrivees) _fetchCadastre();
+          if (_showTerresPrivees) {
+            if (_mapZoom < 14.1 && _cadastreRings.isNotEmpty) {
+              setState(() { _cadastreRings = []; _cadastreNoLots = []; });
+            } else {
+              _fetchCadastre();
+            }
+          }
         },
       ),
       children: [
