@@ -109,13 +109,16 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
     ('Cours d\'eau', sEau),
   ];
 
+  bool localPinned = isPinned;
+
   showModalBottomSheet(
     context: context,
     backgroundColor: const Color(0xFF1A1A1A),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) => Padding(
+    builder: (_) => StatefulBuilder(
+      builder: (ctx, setSheetState) => Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -126,14 +129,17 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
             Expanded(child: Text('Zone active',
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
             if (onTogglePin != null)
-              IconButton(
-                onPressed: onTogglePin,
-                icon: Icon(isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-                    color: const Color(0xFFFFD700), size: 20),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              TextButton.icon(
+                onPressed: () {
+                  onTogglePin?.call();
+                  setSheetState(() { localPinned = !localPinned; });
+                },
+                icon: Icon(localPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                    color: const Color(0xFFFFD700), size: 16),
+                label: Text(localPinned ? 'Désépingler' : 'Épingler',
+                    style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
+                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
               ),
-            const SizedBox(width: 8),
             if (currentPosition != null)
               ElevatedButton.icon(
                 onPressed: () {
@@ -200,7 +206,7 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
           ),
         ],
       ),
-    ),
+    )),
   );
 }
 

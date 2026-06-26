@@ -1754,7 +1754,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             right: 12,
             child: IgnorePointer(
               child: Opacity(
-                opacity: 0.13,
+                opacity: 0.22,
                 child: Image.asset('assets/logo.png', width: 110),
               ),
             ),
@@ -1815,9 +1815,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             _salineDebounce = Timer(const Duration(milliseconds: 800), _refreshSalines);
           }
           if (_showTerresPrivees) {
-            if (_mapZoom < 14.1 && _cadastreRings.isNotEmpty) {
+            if (newZoom < 14.1 && _cadastreRings.isNotEmpty) {
               setState(() { _cadastreRings = []; _cadastreNoLots = []; });
-            } else {
+            } else if (newZoom >= 14.1) {
               _fetchCadastre();
             }
           }
@@ -2763,12 +2763,19 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               Container(
                 width: 30, height: 30,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: const Color(0xFFFFD700).withOpacity(0.15),
                   shape: BoxShape.circle,
                   border: Border.all(color: const Color(0xFFFFD700), width: 2),
                   boxShadow: [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.4), blurRadius: 6)],
                 ),
-                child: const Icon(Icons.push_pin_rounded, color: Color(0xFFFFD700), size: 16),
+                child: Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: type == 'affut'
+                      ? CustomPaint(painter: HuntingTowerPainter(color: const Color(0xFFFFD700)))
+                      : type == 'saline'
+                          ? CustomPaint(painter: SaltCubePainter(color: const Color(0xFFFFD700)))
+                          : const Icon(Icons.local_fire_department_rounded, color: Color(0xFFFFD700), size: 16),
+                ),
               ),
               CustomPaint(
                 size: const Size(8, 10),
