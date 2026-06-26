@@ -1,0 +1,137 @@
+name: iOS Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 'latest'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Auto-increment build number
+        run: |
+          PUBSPEC="pubspec.yaml"
+          CURRENT=$(grep '^version:' "$PUBSPEC" | sed 's/.*+//')
+          NEW=$((CURRENT + 1))
+          sed -i '' "s/+$CURRENT/+$NEW/" "$PUBSPEC"
+          echo "NEW_BUILD=$NEW" >> $GITHUB_ENV
+          echo "Build: $CURRENT → $NEW"
+
+      - name: Flutter dependencies
+        run: flutter pub get
+
+      - name: CocoaPods
+        run: cd ios && pod install --repo-update
+
+      - name: Import certificate & provisioning profile
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/cert.p12
+          PP_PATH=$RUNNER_TEMP/pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          KEYCHAIN_PASSWORD=ecomap-gh-build
+
+          echo -n "$CERTIFICATE_BASE64"  | base64 --decode -o $CERT_PATH
+          echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERT_PATH -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          PP_UUID=$(security cms -D -i $PP_PATH | plutil -extract UUID raw -)
+          echo "PP_UUID=$PP_UUID" >> $GITHUB_ENV
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
+          echo "Provisioning profile UUID: $PP_UUID"
+
+      - name: Build IPA
+        env:
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          CLEAN_TEAM_ID=$(echo "$TEAM_ID" | tr -d '[:space:]')
+
+          # Génère ExportOptions.plist avec les vraies valeurs
+          cat > $RUNNER_TEMP/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>$CLEAN_TEAM_ID</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.bastienbouchard.ecomap</key>
+                  <string>$PP_UUID</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/Runner.xcarchive \
+            DEVELOPMENT_TEAM="$CLEAN_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE="$PP_UUID" \
+            archive
+
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Runner.xcarchive \
+            -exportPath $RUNNER_TEMP/ipa \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: EcoMap-build-${{ env.NEW_BUILD }}
+          path: ${{ runner.temp }}/ipa/*.ipa
+          retention-days: 30
+
+      - name: Commit incremented build number
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "ci: bump build number to $NEW_BUILD [skip ci]"
+          git push
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_B64: ${{ secrets.ASC_KEY_B64 }}
+        run: |
+          pipx install codemagic-cli-tools --quiet
+          export APP_STORE_CONNECT_PUBLISHER_PRIVATE_KEY=$(echo "$ASC_KEY_B64" | base64 --decode)
+          app-store-connect publish \
+            --path $(find $RUNNER_TEMP/ipa -name "*.ipa") \
+            --key-id VMAK4KG562 \
+            --issuer-id f0a366b2-b2dd-400a-921a-b5f04cb2e3af \
+            --private-key @env:APP_STORE_CONNECT_PUBLISHER_PRIVATE_KEY
