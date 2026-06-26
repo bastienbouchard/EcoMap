@@ -97,14 +97,15 @@ jobs:
           </plist>
           EOF
 
+          # Injecte le profil dans pbxproj (Runner seulement, pas gRPC/Pods)
+          sed -i '' "s/DEVELOPMENT_TEAM = $CLEAN_TEAM_ID;/DEVELOPMENT_TEAM = $CLEAN_TEAM_ID;\n\t\t\t\tCODE_SIGN_STYLE = Manual;\n\t\t\t\tPROVISIONING_PROFILE = \"$PP_UUID\";/" ios/Runner.xcodeproj/project.pbxproj
+
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Runner.xcarchive \
             DEVELOPMENT_TEAM="$CLEAN_TEAM_ID" \
-            CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE="$PP_UUID" \
             archive
 
           xcodebuild -exportArchive \
