@@ -400,7 +400,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           debugPrint('Cadastre ring parse error: $e');
         }
       }
-      if (mounted) {
+      if (mounted && _showTerresPrivees && _mapZoom >= 14.1) {
         setState(() {
           _cadastreRings = rings;
           _cadastreNoLots = noLots;
@@ -1754,8 +1754,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             right: 12,
             child: IgnorePointer(
               child: Opacity(
-                opacity: 0.22,
-                child: Image.asset('assets/logo.png', width: 110),
+                opacity: 0.28,
+                child: ColorFiltered(
+                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  child: Image.asset('assets/logo.png', width: 110),
+                ),
               ),
             ),
           ),
@@ -2769,12 +2772,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   boxShadow: [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.4), blurRadius: 6)],
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(5),
+                  padding: const EdgeInsets.all(4),
                   child: type == 'affut'
-                      ? CustomPaint(painter: HuntingTowerPainter(color: const Color(0xFFFFD700)))
+                      ? CustomPaint(painter: HuntingTowerPainter(color: const Color(0xFFAAAAAA)))
                       : type == 'saline'
-                          ? CustomPaint(painter: SaltCubePainter(color: const Color(0xFFFFD700)))
-                          : const Icon(Icons.local_fire_department_rounded, color: Color(0xFFFFD700), size: 16),
+                          ? CustomPaint(painter: SaltCubePainter(color: const Color(0xFFAAAAAA)))
+                          : const Icon(Icons.local_fire_department_rounded, color: Color(0xFFAAAAAA), size: 14),
                 ),
               ),
               CustomPaint(
