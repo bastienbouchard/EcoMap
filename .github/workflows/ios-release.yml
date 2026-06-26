@@ -65,6 +65,9 @@ jobs:
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
           echo "Provisioning profile UUID: $PP_UUID"
 
+      - name: Flutter build (génère les artifacts)
+        run: flutter build ios --release --no-codesign
+
       - name: Build IPA
         env:
           TEAM_ID: ${{ secrets.TEAM_ID }}
