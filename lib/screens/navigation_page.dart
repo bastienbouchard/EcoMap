@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -358,7 +359,7 @@ class _MiniWindZonePainter extends CustomPainter {
     final cy = size.height / 2;
     final r = size.width / 2;
     final paint = Paint()..color = color.withOpacity(0.8)..style = PaintingStyle.fill;
-    final path = Path()
+    final path = ui.Path()
       ..moveTo(cx, cy)
       ..arcTo(Rect.fromCircle(center: Offset(cx, cy), radius: r),
           -pi * 5 / 6, pi * 2 / 3, false)
