@@ -84,6 +84,54 @@ class GroupeService {
             .toList());
   }
 
+  // Publie un point épinglé dans le groupe
+  static Future<void> publierEpingle({
+    required String groupeId,
+    required String nom,
+    required String type,
+    required double lat,
+    required double lon,
+  }) async {
+    final id = '${groupeId}_${nom}_${lat.toStringAsFixed(5)}_${lon.toStringAsFixed(5)}';
+    await _db.collection('groupes').doc(groupeId).collection('epingles').doc(id).set({
+      'nom': nom,
+      'type': type,
+      'lat': lat,
+      'lon': lon,
+      'ts': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Supprime un point épinglé du groupe
+  static Future<void> supprimerEpingle({
+    required String groupeId,
+    required String nom,
+    required double lat,
+    required double lon,
+  }) async {
+    final id = '${groupeId}_${nom}_${lat.toStringAsFixed(5)}_${lon.toStringAsFixed(5)}';
+    await _db.collection('groupes').doc(groupeId).collection('epingles').doc(id).delete();
+  }
+
+  // Écoute les épingles partagées par les autres membres
+  static Stream<List<Map<String, dynamic>>> ecouterEpingles(
+      String groupeId, String monNom) {
+    return _db
+        .collection('groupes')
+        .doc(groupeId)
+        .collection('epingles')
+        .snapshots()
+        .map((snap) => snap.docs
+            .where((d) => d['nom'] != monNom)
+            .map((d) => {
+                  'nom': d['nom'] as String,
+                  'type': d['type'] as String,
+                  'lat': (d['lat'] as num).toDouble(),
+                  'lon': (d['lon'] as num).toDouble(),
+                })
+            .toList());
+  }
+
   // Supprime la position quand on quitte
   static Future<void> quitter(String groupeId, String nom) async {
     await _db.collection(_collection).doc('${groupeId}_$nom').delete();
