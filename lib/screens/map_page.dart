@@ -1750,15 +1750,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         children: [
           _buildMap(),
           Positioned(
-            bottom: 80,
-            right: 12,
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 10,
             child: IgnorePointer(
               child: Opacity(
-                opacity: 0.28,
-                child: ColorFiltered(
-                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                  child: Image.asset('assets/logo.png', width: 110),
-                ),
+                opacity: 0.45,
+                child: Image.asset('assets/logo.png', width: 140),
               ),
             ),
           ),
@@ -2764,25 +2761,28 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             ),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Container(
-                width: 30, height: 30,
+                width: 32, height: 32,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFD700).withOpacity(0.15),
+                  color: const Color(0xFFFF6B35),
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFFFD700), width: 2),
-                  boxShadow: [BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.4), blurRadius: 6)],
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 4, offset: const Offset(0, 2))],
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: type == 'affut'
-                      ? CustomPaint(painter: HuntingTowerPainter(color: const Color(0xFFAAAAAA)))
-                      : type == 'saline'
-                          ? CustomPaint(painter: SaltCubePainter(color: const Color(0xFFAAAAAA)))
-                          : const Icon(Icons.local_fire_department_rounded, color: Color(0xFFAAAAAA), size: 14),
+                child: Center(
+                  child: Container(
+                    width: 18, height: 18,
+                    decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+                    padding: const EdgeInsets.all(3),
+                    child: type == 'affut'
+                        ? CustomPaint(painter: HuntingTowerPainter(color: const Color(0xFFAAAAAA)))
+                        : type == 'saline'
+                            ? CustomPaint(painter: SaltCubePainter(color: const Color(0xFFAAAAAA)))
+                            : const Icon(Icons.local_fire_department_rounded, color: Color(0xFFAAAAAA), size: 10),
+                  ),
                 ),
               ),
               CustomPaint(
-                size: const Size(8, 10),
-                painter: _PinTailPainter(const Color(0xFFFFD700)),
+                size: const Size(10, 12),
+                painter: _PinTailPainter(const Color(0xFFFF6B35)),
               ),
             ]),
           ),
