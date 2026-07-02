@@ -1,0 +1,83 @@
+name: Android Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Auto-increment build number
+        run: |
+          PUBSPEC="pubspec.yaml"
+          CURRENT=$(grep '^version:' "$PUBSPEC" | sed 's/.*+//')
+          NEW=$((CURRENT + 1))
+          sed -i "s/+$CURRENT/+$NEW/" "$PUBSPEC"
+          echo "NEW_BUILD=$NEW" >> $GITHUB_ENV
+          echo "Build: $CURRENT → $NEW"
+
+      - name: Flutter dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > /tmp/orignalscan.jks
+
+      - name: Create key.properties
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "storeFile=/tmp/orignalscan.jks" > android/app/key.properties
+          echo "storePassword=$ANDROID_KEYSTORE_PASSWORD" >> android/app/key.properties
+          echo "keyAlias=$ANDROID_KEY_ALIAS" >> android/app/key.properties
+          echo "keyPassword=$ANDROID_KEY_PASSWORD" >> android/app/key.properties
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Build AAB
+        run: flutter build appbundle --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: OrignalScan-${{ env.NEW_BUILD }}.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: OrignalScan-${{ env.NEW_BUILD }}.aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Commit incremented build number
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "ci: bump build number to $NEW_BUILD [skip ci]"
+          git push
