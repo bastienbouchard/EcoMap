@@ -2245,16 +2245,21 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 ]),
                 content: _coordsWidget(pos),
                 actions: [
-                  TextButton.icon(
+                  ElevatedButton.icon(
                     onPressed: () {
                       _togglePin('affut', pos);
                       setDlgState(() {});
                     },
                     icon: Icon(
                       _isPinned(pos) ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-                      size: 16, color: const Color(0xFFFFD700)),
-                    label: Text(_isPinned(pos) ? 'Désépingler' : 'Épingler',
-                        style: const TextStyle(color: Color(0xFFFFD700))),
+                      size: 16),
+                    label: Text(_isPinned(pos) ? 'Désépingler' : 'Épingler'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF6B35),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      textStyle: const TextStyle(fontSize: 13),
+                    ),
                   ),
                   ElevatedButton.icon(
                     onPressed: () {
@@ -2652,16 +2657,21 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     _coordsWidget(pos),
                   ]),
                 actions: [
-                  TextButton.icon(
+                  ElevatedButton.icon(
                     onPressed: () {
                       _togglePin('saline', pos);
                       setDlgState(() {});
                     },
                     icon: Icon(
                       _isPinned(pos) ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-                      size: 16, color: const Color(0xFFFFD700)),
-                    label: Text(_isPinned(pos) ? 'Désépingler' : 'Épingler',
-                        style: const TextStyle(color: Color(0xFFFFD700))),
+                      size: 16),
+                    label: Text(_isPinned(pos) ? 'Désépingler' : 'Épingler'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF6B35),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      textStyle: const TextStyle(fontSize: 13),
+                    ),
                   ),
                   ElevatedButton.icon(
                     onPressed: () {
