@@ -86,6 +86,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   List<String> _cadastreNoLots = [];
   int? _selectedCadastreLot;
   bool _downloadingLotTerritoire = false;
+  Set<String> _downloadedLotNoms = {};
 
   // ── Hotspots ──
   bool _showHotspots = false;
@@ -329,6 +330,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _reloadTerritoire() async {
     final list = await TerritoireService.listTerritoires();
+    if (mounted) setState(() => _downloadedLotNoms = list.map((t) => t['id'] as String).toSet());
     if (!mounted) return;
     if (list.isEmpty) {
       geoJson = {'type': 'FeatureCollection', 'features': []};
@@ -2876,11 +2878,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: _downloadingLotTerritoire ? null : _downloadLotTerritoire,
+              onPressed: _downloadingLotTerritoire ? null : (_downloadedLotNoms.contains('Lot $noLot')
+                  ? () => setState(() => _selectedCadastreLot = null)
+                  : _downloadLotTerritoire),
               child: _downloadingLotTerritoire
                   ? const SizedBox(width: 14, height: 14,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Carte éco', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  : Text(
+                      _downloadedLotNoms.contains('Lot $noLot') ? 'Retour sur la carte' : 'Carte éco',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
             ),
           ),
           const SizedBox(width: 4),

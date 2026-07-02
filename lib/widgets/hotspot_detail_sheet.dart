@@ -129,16 +129,19 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
             Expanded(child: Text('Zone active',
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
             if (onTogglePin != null)
-              TextButton.icon(
+              ElevatedButton.icon(
                 onPressed: () {
                   onTogglePin?.call();
                   setSheetState(() { localPinned = !localPinned; });
                 },
-                icon: Icon(localPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-                    color: const Color(0xFFFFD700), size: 16),
-                label: Text(localPinned ? 'Désépingler' : 'Épingler',
-                    style: const TextStyle(color: Color(0xFFFFD700), fontSize: 12)),
-                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+                icon: Icon(localPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined, size: 16),
+                label: Text(localPinned ? 'Désépingler' : 'Épingler'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  textStyle: const TextStyle(fontSize: 13),
+                ),
               ),
             if (currentPosition != null)
               ElevatedButton.icon(
