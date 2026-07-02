@@ -18,6 +18,7 @@ class TerritoireDownloadPage extends StatefulWidget {
 class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   final MapController _mapController = MapController();
   bool _downloading = false;
+  bool _downloaded = false;
   String _status = '';
   List<Map<String, dynamic>> _territoires = [];
   _SelectionMode _mode = _SelectionMode.screen;
@@ -124,7 +125,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
           ),
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
         ));
-        setState(() { _drawnLatLng = []; _drawPoints = []; });
+        setState(() { _drawnLatLng = []; _drawPoints = []; _downloaded = true; });
       }
     } catch (e) {
       if (mounted) {
@@ -302,25 +303,36 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                               Text(_status, style: const TextStyle(color: Colors.white)),
                             ]))
                         : Row(mainAxisSize: MainAxisSize.min, children: [
-                            ElevatedButton.icon(
-                              onPressed: (_mode == _SelectionMode.draw && _drawnLatLng.length < 3)
-                                  ? null
-                                  : () => _download(
-                                        polygon: _mode == _SelectionMode.draw
-                                            ? _drawnLatLng
-                                            : null,
-                                      ),
-                              icon: const Icon(Icons.download),
-                              label: Text(_mode == _SelectionMode.draw
-                                  ? 'Télécharger la zone dessinée'
-                                  : 'Télécharger cette zone'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFF6B35),
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor: Colors.white24,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              ),
-                            ),
+                            _downloaded
+                                ? ElevatedButton.icon(
+                                    onPressed: () => Navigator.pop(context),
+                                    icon: const Icon(Icons.map_rounded),
+                                    label: const Text('Retour sur la carte'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2D5016),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                    ),
+                                  )
+                                : ElevatedButton.icon(
+                                    onPressed: (_mode == _SelectionMode.draw && _drawnLatLng.length < 3)
+                                        ? null
+                                        : () => _download(
+                                              polygon: _mode == _SelectionMode.draw
+                                                  ? _drawnLatLng
+                                                  : null,
+                                            ),
+                                    icon: const Icon(Icons.download),
+                                    label: Text(_mode == _SelectionMode.draw
+                                        ? 'Télécharger la zone dessinée'
+                                        : 'Télécharger cette zone'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFF6B35),
+                                      foregroundColor: Colors.white,
+                                      disabledBackgroundColor: Colors.white24,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                    ),
+                                  ),
                             if (_mode == _SelectionMode.draw && _drawnLatLng.isNotEmpty) ...[
                               const SizedBox(width: 8),
                               IconButton(
