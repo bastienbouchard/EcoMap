@@ -278,7 +278,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+            padding: EdgeInsets.fromLTRB(12, 8, 12, 16 + MediaQuery.of(context).viewPadding.bottom),
             decoration: const BoxDecoration(
               color: Color(0xFF2D2D2D),
               border: Border(top: BorderSide(color: Colors.white12)),

@@ -153,7 +153,7 @@ class _PremiumPageState extends State<PremiumPage> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 40 + MediaQuery.of(context).viewPadding.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -73,6 +73,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
   bool _hasGpsPosition = false;
   bool _loading = false;
+  bool _followingLocation = true; // false dès que l'utilisateur pan manuellement
   double? _windDeg;
   double? _windSpeed;
   StreamSubscription<Position>? _positionStream;
@@ -232,7 +233,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       if (mounted) {
         final gpsPos = LatLng(pos.latitude, pos.longitude);
         setState(() { _currentPosition = gpsPos; _hasGpsPosition = true; });
-        _mapController.move(gpsPos, 13);
+        if (_followingLocation) _mapController.move(gpsPos, 13);
         await _fetchWind();
       }
 
@@ -289,6 +290,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         setState(() {
           _currentPosition = LatLng(pos.latitude, pos.longitude);
           _loading = false;
+          _followingLocation = true;
         });
         _mapController.move(_currentPosition, 13);
         await _fetchWind();
@@ -1068,8 +1070,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 28 + MediaQuery.of(ctx).viewPadding.bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1194,8 +1196,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       backgroundColor: const Color(0xFF2D2D2D),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 32 + MediaQuery.of(ctx).viewPadding.bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1409,7 +1411,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheet) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 32 + MediaQuery.of(ctx).viewPadding.bottom),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1817,8 +1819,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         minZoom: 5,
         maxZoom: 19,
         onTap: (_, point) => _handleMapTap(point),
-        onPositionChanged: (pos, _) {
+        onPositionChanged: (pos, hasGesture) {
           if (!mounted) return;
+          if (hasGesture) _followingLocation = false;
           final newZoom = pos.zoom;
           final newLat = pos.center.latitude;
           if ((newZoom - _mapZoom).abs() > 0.1 ||

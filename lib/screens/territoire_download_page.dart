@@ -247,11 +247,13 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
                 // Cadre zone visible
                 if (_mode == _SelectionMode.screen)
-                  Center(
-                    child: Container(
-                      margin: const EdgeInsets.all(40),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFFF6B35), width: 2),
+                  IgnorePointer(
+                    child: Center(
+                      child: Container(
+                        margin: const EdgeInsets.all(40),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFFF6B35), width: 2),
+                        ),
                       ),
                     ),
                   ),
