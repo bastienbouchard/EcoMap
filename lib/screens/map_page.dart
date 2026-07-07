@@ -74,6 +74,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _hasGpsPosition = false;
   bool _loading = false;
   bool _followingLocation = true; // false dès que l'utilisateur pan manuellement
+
+  // ── Chat non lu ──
+  int _unreadMessages = 0;
+  StreamSubscription? _chatSub;
+  Timestamp? _lastSeenMsgTs;
   double? _windDeg;
   double? _windSpeed;
   StreamSubscription<Position>? _positionStream;
@@ -197,6 +202,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _positionStream?.cancel();
+    _chatSub?.cancel();
     _groupeStream?.cancel();
     _obsGroupeSub?.cancel();
     _tracesGroupeSub?.cancel();
@@ -1234,13 +1240,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             _groupeTile(Icons.chat_bubble_rounded, 'Clavardage du groupe',
                 'Messages entre chasseurs', () {
               Navigator.pop(context);
+              _markChatSeen(_groupeId!);
               Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => ChatPage(
                         groupeId: _groupeId!, monNom: _monNom!),
                   ));
-            }),
+            }, badge: _unreadMessages),
             _groupeTile(
                 _partagePosition ? Icons.location_off_rounded : Icons.location_on_rounded,
                 _partagePosition ? 'Arrêter le partage GPS' : 'Partager ma position',
@@ -1317,10 +1324,49 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _groupePinsSub = GroupeService.ecouterEpingles(groupeId, nom).listen((pins) {
       if (mounted) setState(() => _groupePins = pins);
     });
+    _loadLastSeenTs(groupeId);
+    _startChatStream(groupeId);
     _snack('Groupe "$groupeId" rejoint');
   }
 
+  void _startChatStream(String groupeId) {
+    _chatSub?.cancel();
+    _chatSub = FirebaseFirestore.instance
+        .collection('groupes')
+        .doc(groupeId)
+        .collection('messages')
+        .orderBy('ts', descending: false)
+        .limitToLast(50)
+        .snapshots()
+        .listen((snap) {
+      if (!mounted) return;
+      int count = 0;
+      for (final doc in snap.docs) {
+        final ts = doc['ts'] as Timestamp?;
+        final nom = doc['nom'] as String?;
+        if (ts == null || nom == _monNom) continue;
+        final seen = _lastSeenMsgTs;
+        if (seen == null || ts.millisecondsSinceEpoch > seen.millisecondsSinceEpoch) count++;
+      }
+      setState(() => _unreadMessages = count);
+    });
+  }
+
+  Future<void> _loadLastSeenTs(String groupeId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final ms = prefs.getInt('chat_seen_$groupeId');
+    if (ms != null && mounted) setState(() => _lastSeenMsgTs = Timestamp.fromMillisecondsSinceEpoch(ms));
+  }
+
+  Future<void> _markChatSeen(String groupeId) async {
+    final now = Timestamp.now();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('chat_seen_$groupeId', now.millisecondsSinceEpoch);
+    if (mounted) setState(() { _unreadMessages = 0; _lastSeenMsgTs = now; });
+  }
+
   void _quitterGroupe() {
+    _chatSub?.cancel();
     _groupeStream?.cancel();
     _obsGroupeSub?.cancel();
     _tracesGroupeSub?.cancel();
@@ -1697,7 +1743,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   Widget _groupeTile(IconData icon, String titre, String sous,
-      VoidCallback onTap) {
+      VoidCallback onTap, {int badge = 0}) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Container(
@@ -1712,8 +1758,17 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           style: const TextStyle(color: Colors.white, fontSize: 14)),
       subtitle: Text(sous,
           style: const TextStyle(color: Colors.white38, fontSize: 11)),
-      trailing: const Icon(Icons.chevron_right,
-          color: Colors.white24, size: 18),
+      trailing: badge > 0
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text('$badge',
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+            )
+          : const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
       onTap: onTap,
     );
   }
@@ -3469,9 +3524,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                             ? (_groupeActif ? const Color(0xFFFF6B35) : const Color(0xFFBDBDBD))
                             : Colors.white24,
                         badgeColor: _groupeActif
-                            ? (_membres.any((m) => m.nom != _monNom)
-                                ? const Color(0xFF4CAF50)
-                                : const Color(0xFFFF6B35))
+                            ? (_unreadMessages > 0
+                                ? Colors.red
+                                : (_membres.any((m) => m.nom != _monNom)
+                                    ? const Color(0xFF4CAF50)
+                                    : const Color(0xFFFF6B35)))
                             : null),
                     const SizedBox(height: 10),
                     _navBtn(Icons.info_outline_rounded, 'À propos',
