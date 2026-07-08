@@ -79,6 +79,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   int _unreadMessages = 0;
   StreamSubscription? _chatSub;
   Timestamp? _lastSeenMsgTs;
+  bool _chatInitialized = false;
   double? _windDeg;
   double? _windSpeed;
   StreamSubscription<Position>? _positionStream;
@@ -1331,6 +1332,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   void _startChatStream(String groupeId) {
     _chatSub?.cancel();
+    _chatInitialized = false;
     _chatSub = FirebaseFirestore.instance
         .collection('groupes')
         .doc(groupeId)
@@ -1341,13 +1343,24 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         .listen((snap) {
       if (!mounted) return;
       int count = 0;
+      Map<String, dynamic>? latestNew;
       for (final doc in snap.docs) {
         final ts = doc['ts'] as Timestamp?;
         final nom = doc['nom'] as String?;
         if (ts == null || nom == _monNom) continue;
         final seen = _lastSeenMsgTs;
-        if (seen == null || ts.millisecondsSinceEpoch > seen.millisecondsSinceEpoch) count++;
+        if (seen == null || ts.millisecondsSinceEpoch > seen.millisecondsSinceEpoch) {
+          count++;
+          latestNew = doc.data() as Map<String, dynamic>;
+        }
       }
+      if (_chatInitialized && count > _unreadMessages && latestNew != null) {
+        _showChatBanner(
+          latestNew['nom'] as String? ?? '',
+          latestNew['texte'] as String? ?? '',
+        );
+      }
+      _chatInitialized = true;
       setState(() => _unreadMessages = count);
     });
   }
@@ -1687,6 +1700,60 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     return false;
   }
 
+  void _showChatBanner(String nom, String texte) {
+    if (!mounted) return;
+    _toastEntry?.remove();
+    _toastEntry = OverlayEntry(
+      builder: (_) => Positioned(
+        top: MediaQuery.of(context).padding.top + 12,
+        left: 16, right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: GestureDetector(
+            onTap: () {
+              _toastEntry?.remove();
+              _toastEntry = null;
+              if (_groupeId == null || _monNom == null) return;
+              _markChatSeen(_groupeId!);
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ChatPage(groupeId: _groupeId!, monNom: _monNom!),
+              ));
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2D2D2D),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.6)),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+              ),
+              child: Row(children: [
+                const Icon(Icons.chat_bubble_rounded, color: Color(0xFFFF6B35), size: 18),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(nom, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                    if (texte.isNotEmpty)
+                      Text(texte, style: const TextStyle(color: Colors.white60, fontSize: 12),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                )),
+                const Icon(Icons.chevron_right, color: Colors.white38, size: 18),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_toastEntry!);
+    Future.delayed(const Duration(seconds: 5), () {
+      _toastEntry?.remove();
+      _toastEntry = null;
+    });
+  }
+
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
     _toastEntry?.remove();
@@ -1774,7 +1841,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   Widget _navBtn(IconData icon, String label, VoidCallback onTap,
-      {Color color = const Color(0xFFBDBDBD), Color? badgeColor}) {
+      {Color color = const Color(0xFFBDBDBD), Color? badgeColor, int badgeCount = 0}) {
     return GestureDetector(
       onTap: () {
         setState(() { _showActionPanel = false; _showNavPanel = false; });
@@ -1797,8 +1864,22 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               ),
               if (badgeColor != null)
                 Positioned(
-                  top: 1, right: 1,
-                  child: Container(
+                  top: badgeCount > 0 ? -5 : 1,
+                  right: badgeCount > 0 ? -5 : 1,
+                  child: badgeCount > 0
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: badgeColor,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF1A1A1A), width: 1.5),
+                        ),
+                        child: Text(
+                          badgeCount > 9 ? '9+' : '$badgeCount',
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      )
+                    : Container(
                     width: 12, height: 12,
                     decoration: BoxDecoration(
                       color: badgeColor,
@@ -3529,7 +3610,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                 : (_membres.any((m) => m.nom != _monNom)
                                     ? const Color(0xFF4CAF50)
                                     : const Color(0xFFFF6B35)))
-                            : null),
+                            : null,
+                        badgeCount: _unreadMessages),
                     const SizedBox(height: 10),
                     _navBtn(Icons.info_outline_rounded, 'À propos',
                         () => Navigator.push(context, MaterialPageRoute(
