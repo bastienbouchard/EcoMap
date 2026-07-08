@@ -96,7 +96,9 @@ class _AboutPageState extends State<AboutPage> {
           ),
         ],
       ),
-      body: ListView(
+      body: SafeArea(
+        top: false,
+        child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Center(
@@ -284,6 +286,7 @@ class _AboutPageState extends State<AboutPage> {
             _item('📡 Partage traces', 'Envoie tes tracés GPS et observations à ton groupe.'),
           ]),
         ],
+        ),
       ),
     );
   }
