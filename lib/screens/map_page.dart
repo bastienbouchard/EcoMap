@@ -352,10 +352,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       if (data != null) allFeatures.addAll(data['features'] as List);
     }
     geoJson = {'type': 'FeatureCollection', 'features': allFeatures};
-    final polys = await compute(buildPolygonsIsolate, geoJson);
-    final labels = await compute(buildPolygonLabelsIsolate, geoJson);
-    final rawHS = await compute(buildHotspotsDataIsolate, geoJson);
+    final all = await compute(buildAllGeoDataIsolate, geoJson);
     if (!mounted) return;
+    final polys = all['polys'] as List<Polygon>;
+    final labels = (all['labels'] as List).cast<Map<String, dynamic>>();
+    final rawHS = (all['hotspots'] as List).cast<Map<String, dynamic>>();
     final parsedHS = rawHS.map((e) => HotspotInfo(
       position: LatLng(e['la'] as double, e['lo'] as double),
       score: e['s'] as int,

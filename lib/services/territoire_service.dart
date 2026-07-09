@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show Directory, File;
+import 'dart:io' show Directory, File, GZipCodec;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -62,6 +62,11 @@ class TerritoireService {
         .toList();
   }
 
+  static int estimateTileCount(
+      double minLat, double minLon, double maxLat, double maxLon) {
+    return _tilesForBbox(minLat, minLon, maxLat, maxLon).length;
+  }
+
   static Future<Map<String, dynamic>?> loadTerritoire(String id) async {
     if (kIsWeb) {
       final raw = await webDbGet(_dbStore, id);
@@ -71,7 +76,14 @@ class TerritoireService {
     final path = await _territoirePath(id);
     final file = File(path);
     if (!file.existsSync()) return null;
-    return json.decode(await file.readAsString());
+    final bytes = await file.readAsBytes();
+    String jsonStr;
+    try {
+      jsonStr = utf8.decode(GZipCodec().decode(bytes));
+    } catch (_) {
+      jsonStr = utf8.decode(bytes); // fallback : ancien fichier non compressé
+    }
+    return json.decode(jsonStr) as Map<String, dynamic>;
   }
 
   static Future<void> downloadTerritoire({
@@ -156,7 +168,8 @@ class TerritoireService {
       final path = await _territoirePath(nom);
       final file = File(path);
       await file.parent.create(recursive: true);
-      await file.writeAsString(json.encode(geojson));
+      final compressed = GZipCodec().encode(utf8.encode(json.encode(geojson)));
+      await file.writeAsBytes(compressed);
     }
     onStatus?.call('Terminé !');
   }

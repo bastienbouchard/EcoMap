@@ -75,6 +75,35 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       minLon = bounds.west;  maxLon = bounds.east;
     }
 
+    final tileCount = TerritoireService.estimateTileCount(minLat, minLon, maxLat, maxLon);
+    if (tileCount > 4) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Text('Zone très grande', style: TextStyle(color: Colors.white)),
+          content: Text(
+            'Cette zone couvre $tileCount secteurs.\n\n'
+            'Un téléchargement aussi grand peut causer des ralentissements '
+            'ou un plantage selon la mémoire disponible sur ton appareil.\n\n'
+            'Recommandation : zoom sur un secteur précis de chasse.',
+            style: const TextStyle(color: Colors.white70, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Réduire la zone', style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Continuer quand même', style: TextStyle(color: Color(0xFFFF6B35))),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
+
     final nomCtrl = TextEditingController(
       text: 'Zone ${DateTime.now().day}-${DateTime.now().month}_'
             '${DateTime.now().hour}h${DateTime.now().minute.toString().padLeft(2, '0')}',

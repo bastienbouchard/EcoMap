@@ -1055,3 +1055,12 @@ List<Map<String, dynamic>> buildHotspotsDataIsolate(Map<String, dynamic> geoJson
   }
   return result;
 }
+
+// Combine les 3 isolates en un seul appel pour réduire le pic mémoire (1 copie au lieu de 3)
+Map<String, dynamic> buildAllGeoDataIsolate(Map<String, dynamic> geoJsonData) {
+  return {
+    'polys': buildPolygonsIsolate(geoJsonData),
+    'labels': buildPolygonLabelsIsolate(geoJsonData),
+    'hotspots': buildHotspotsDataIsolate(geoJsonData),
+  };
+}
