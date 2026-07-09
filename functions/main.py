@@ -1,21 +1,50 @@
 import json
 import math
 import os
+import smtplib
 import tempfile
 import zipfile
+from email.mime.text import MIMEText
 
 import firebase_admin
-import geopandas as gpd
 import requests
 import stripe
 from firebase_admin import firestore as admin_firestore
-from firebase_functions import https_fn
+from firebase_functions import firestore_fn, https_fn
 from firebase_functions.options import set_global_options, MemoryOption, CorsOptions
-from shapely.geometry import box
 
 set_global_options(max_instances=5)
 
 firebase_admin.initialize_app()
+
+
+@firestore_fn.on_document_created(document='users/{userId}', region='northamerica-northeast1')
+def notify_new_user(event: firestore_fn.Event[firestore_fn.DocumentSnapshot]) -> None:
+    data = event.data.to_dict() if event.data else {}
+    email = data.get('email', 'inconnu')
+    uid = event.params.get('userId', '?')
+
+    gmail_pass = os.environ.get('GMAIL_APP_PASSWORD', '')
+    if not gmail_pass:
+        print('GMAIL_APP_PASSWORD non configuré — notification ignorée')
+        return
+
+    body = (
+        f"Nouvel utilisateur OrignalScan 🦌\n\n"
+        f"Email   : {email}\n"
+        f"UID     : {uid}\n"
+    )
+    msg = MIMEText(body)
+    msg['Subject'] = f'🦌 Nouvel utilisateur : {email}'
+    msg['From'] = 'bastienbouchard@gmail.com'
+    msg['To'] = 'developpementbb@gmail.com'
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login('bastienbouchard@gmail.com', gmail_pass)
+            server.send_message(msg)
+    except Exception as e:
+        print(f'Erreur envoi email: {e}')
 
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
@@ -27,6 +56,7 @@ FEUILLETS_INDEX_URL = (
 
 
 def _load_index():
+    import geopandas as gpd
     global _FEUILLETS_INDEX
     if _FEUILLETS_INDEX is None:
         resp = requests.get(FEUILLETS_INDEX_URL, timeout=30)
@@ -43,6 +73,7 @@ def _find_feuillets(bbox):
 
 
 def _download_and_clip(lien_gpkg, bbox):
+    import geopandas as gpd
     with tempfile.TemporaryDirectory() as tmp:
         zip_path = os.path.join(tmp, "feuillet.zip")
         resp = requests.get(lien_gpkg, stream=True, verify=False, timeout=300)
@@ -86,6 +117,7 @@ def get_ecoforestier(req: https_fn.Request) -> https_fn.Response:
             mimetype="application/json",
         )
 
+    from shapely.geometry import box
     bbox = box(min_lon, min_lat, max_lon, max_lat)
     feuillets = _find_feuillets(bbox)
 
@@ -111,6 +143,7 @@ def get_ecoforestier(req: https_fn.Request) -> https_fn.Response:
             mimetype="application/json",
         )
 
+    import geopandas as gpd
     result = gpd.pd.concat(gdfs) if len(gdfs) > 1 else gdfs[0]
     return https_fn.Response(result.to_json(), mimetype="application/json")
 
