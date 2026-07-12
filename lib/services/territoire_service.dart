@@ -95,6 +95,7 @@ class TerritoireService {
     void Function(String)? onStatus,
   }) async {
     final tiles = _tilesForBbox(minLat, minLon, maxLat, maxLon);
+    const maxPolygons = 80000;
     final allFeatures = <dynamic>[];
     int done = 0;
     final errors = <String>[];
@@ -127,7 +128,6 @@ class TerritoireService {
             final coords = geom['type'] == 'Polygon'
                 ? (geom['coordinates'] as List)[0] as List
                 : ((geom['coordinates'] as List)[0] as List)[0] as List;
-            // Inclut si au moins une coordonnée est dans le bbox (gère les polygones à cheval sur 2 tuiles)
             bool inBbox = false;
             for (final c in coords) {
               final cLon = (c[0] as num).toDouble();
@@ -139,11 +139,17 @@ class TerritoireService {
               }
             }
             if (inBbox) allFeatures.add(feat);
-          } catch (_) {
-            // ignore les features avec géométrie invalide
-          }
+          } catch (_) {}
+        }
+
+        if (allFeatures.length > maxPolygons) {
+          throw Exception(
+            'Zone trop grande — ${allFeatures.length} polygones dépassent la limite de $maxPolygons.\n\n'
+            'Zoome sur un secteur de chasse précis (2–3 tuiles max) et réessaie.',
+          );
         }
       } catch (e) {
+        if (e is Exception && e.toString().contains('trop grande')) rethrow;
         errors.add('$tile: $e');
       }
       done++;

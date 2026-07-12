@@ -103,7 +103,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Timer? _hotspotDebounce;
 
   // ── Carte écoforestière ──
-  bool _showPolygons = true;
+  double _ecoOpacity = 0.7;
 
   // ── Parcours ──
   bool _showParcours = false;
@@ -2006,7 +2006,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         ),
         if (_showTerresPrivees && _cadastreRings.isNotEmpty) ...[
           // Halo blanc en dessous pour contraste sur carte éco
-          if (_opacity > 0)
+          if (_ecoOpacity > 0)
             PolygonLayer(
               simplificationTolerance: 0,
               polygons: _cadastreRings.asMap().entries.map((e) {
@@ -2023,7 +2023,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             simplificationTolerance: 0,
             polygons: _cadastreRings.asMap().entries.map((e) {
               final selected = e.key == _selectedCadastreLot;
-              final onEco = _opacity > 0;
+              final onEco = _ecoOpacity > 0;
               return Polygon(
                 points: e.value,
                 color: selected
@@ -2039,11 +2039,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             }).toList(),
           ),
         ],
-        if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _showPolygons)
-          PolygonLayer(
-              polygons: _polygonsCache, simplificationTolerance: 0),
-        if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _showPolygons)
-          MarkerLayer(
+        if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _ecoOpacity > 0)
+          Opacity(
+            opacity: _ecoOpacity,
+            child: PolygonLayer(
+                polygons: _polygonsCache, simplificationTolerance: 0),
+          ),
+        if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0)
+          Opacity(
+            opacity: _ecoOpacity,
+            child: MarkerLayer(
               markers: _polygonLabels
                   .map((l) => Marker(
                         point: LatLng(
@@ -2064,6 +2069,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                         ),
                       ))
                   .toList()),
+          ),
         if (_showParcours && _parcours.isNotEmpty)
           PolylineLayer(polylines: [
             Polyline(
@@ -3114,14 +3120,45 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 ]),
               ),
             ),
-            if (_polygonsCache.isNotEmpty)
-              _layerToggle('Carte éco visible', Icons.forest_rounded,
-                  _showPolygons, () {
-                    setState(() {
-                      _showPolygons = !_showPolygons;
-                      _showLayerPanel = false;
-                    });
-                  }),
+            if (_polygonsCache.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+                child: Row(children: [
+                  Icon(Icons.forest_rounded,
+                      color: _ecoOpacity > 0
+                          ? const Color(0xFFFF6B35)
+                          : Colors.white38,
+                      size: 16),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Opacité carte éco',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  ),
+                  Text('${(_ecoOpacity * 100).round()}%',
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 12,
+                          fontFeatures: [ui.FontFeature.tabularFigures()])),
+                ]),
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: const Color(0xFFFF6B35),
+                  thumbColor: const Color(0xFFFF6B35),
+                  inactiveTrackColor: Colors.white24,
+                  trackHeight: 2,
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  overlayShape:
+                      const RoundSliderOverlayShape(overlayRadius: 14),
+                ),
+                child: Slider(
+                  value: _ecoOpacity,
+                  min: 0.0,
+                  max: 1.0,
+                  onChanged: (v) => setState(() => _ecoOpacity = v),
+                ),
+              ),
+            ],
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
                   if (!_showTerresPrivees && !_requirePremium()) return;
