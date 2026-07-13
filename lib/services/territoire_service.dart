@@ -128,17 +128,19 @@ class TerritoireService {
             final coords = geom['type'] == 'Polygon'
                 ? (geom['coordinates'] as List)[0] as List
                 : ((geom['coordinates'] as List)[0] as List)[0] as List;
-            bool inBbox = false;
+            double pMinLat = 90, pMaxLat = -90, pMinLon = 180, pMaxLon = -180;
             for (final c in coords) {
               final cLon = (c[0] as num).toDouble();
               final cLat = (c[1] as num).toDouble();
-              if (cLat >= minLat && cLat <= maxLat &&
-                  cLon >= minLon && cLon <= maxLon) {
-                inBbox = true;
-                break;
-              }
+              if (cLat < pMinLat) pMinLat = cLat;
+              if (cLat > pMaxLat) pMaxLat = cLat;
+              if (cLon < pMinLon) pMinLon = cLon;
+              if (cLon > pMaxLon) pMaxLon = cLon;
             }
-            if (inBbox) allFeatures.add(feat);
+            if (pMaxLat >= minLat && pMinLat <= maxLat &&
+                pMaxLon >= minLon && pMinLon <= maxLon) {
+              allFeatures.add(feat);
+            }
           } catch (_) {}
         }
 
