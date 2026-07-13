@@ -114,8 +114,8 @@ Color polygonColor(Map props) {
   // Si type_couv absent, le dériver depuis gr_ess (données 2026+)
   if (couv.isEmpty && grEss.isNotEmpty) couv = _couvFromGrEss(grEss);
 
-  // Si aucun type de couvert connu ET score nul → transparent
-  if (couv.isEmpty && score < 1) return Colors.transparent;
+  // Si aucun type de couvert connu ET score nul → forêt neutre (attributs manquants)
+  if (couv.isEmpty && score < 1) return const Color(0xFF5A8A1E).withOpacity(0.22);
 
   // Opacité proportionnelle au score — minimum 0.25 pour ne pas disparaître
   final opacity = score >= 1
