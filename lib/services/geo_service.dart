@@ -85,22 +85,37 @@ int scoreOrignal(Map props) {
   return score.clamp(0, 999);
 }
 
+String _couvFromGrEss(String grEss) {
+  const decidus = ['PE', 'BP', 'BJ', 'AU', 'SA', 'ERR', 'ERS', 'ERB', 'HEG', 'PB', 'PT'];
+  const conifes = ['EP', 'EN', 'EPB', 'EPN', 'SAB', 'MEL', 'PIR', 'PIG', 'PIB', 'THO'];
+  final hasD = decidus.any((e) => grEss.contains(e));
+  final hasC = conifes.any((e) => grEss.contains(e));
+  if (hasD && hasC) return 'M';
+  if (hasD) return 'F';
+  if (hasC) return 'R';
+  return '';
+}
+
 Color polygonColor(Map props) {
   final score = scoreOrignal(props);
-  final couv    = (props['type_couv'] ?? '').toString().toUpperCase();
-  final origine = (props['origine']   ?? '').toString().toUpperCase();
-  final age     = (props['cl_age']    ?? '').toString().toUpperCase();
-  final drai    = (props['cl_drai']   ?? '').toString();
-  final depSur  = (props['dep_sur']   ?? '').toString();
-  final typeEco = (props['type_eco']  ?? '').toString().toUpperCase();
+  var couv    = (props['type_couv'] ?? '').toString().toUpperCase();
+  final grEss  = (props['gr_ess']   ?? '').toString().toUpperCase();
+  final origine = (props['origine']  ?? '').toString().toUpperCase();
+  final age     = (props['cl_age']   ?? '').toString().toUpperCase();
+  final drai    = (props['cl_drai']  ?? '').toString();
+  final depSur  = (props['dep_sur']  ?? '').toString();
+  final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
 
   // Toujours cacher les zones vraiment non-forestières ou pénalisées
   final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
   if (typeEco.contains('EAU') || codeCouv == 'EE') return Colors.transparent;
   if (typeEco.contains('URB') || typeEco.contains('AGR')) return Colors.transparent;
 
-  // Si aucun type de couvert connu ET score nul → transparent
-  if (couv.isEmpty && score < 1) return Colors.transparent;
+  // Si type_couv absent, le dériver depuis gr_ess (données 2026+)
+  if (couv.isEmpty && grEss.isNotEmpty) couv = _couvFromGrEss(grEss);
+
+  // Si aucun type de couvert connu ET score nul → forêt neutre (attributs manquants)
+  if (couv.isEmpty && score < 1) return const Color(0xFF5A8A1E).withOpacity(0.22);
 
   // Opacité proportionnelle au score — minimum 0.25 pour ne pas disparaître
   final opacity = score >= 1
@@ -108,7 +123,6 @@ Color polygonColor(Map props) {
       : 0.25;
 
   // Coupe récente / jeune régénération → blanc
-  // Seulement les JEUNES peuplements — pas les vieilles coupes régénérées (age 40+)
   if (age == 'J' || age == 'JIN' || age == '10' || age == '20') {
     return Colors.white.withOpacity(opacity);
   }

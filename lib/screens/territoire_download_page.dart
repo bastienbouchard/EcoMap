@@ -129,18 +129,22 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
     if (nom == null || nom.isEmpty) return;
     setState(() { _downloading = true; _status = ''; });
+    String? _lastStatus;
 
     try {
       await TerritoireService.downloadTerritoire(
         nom: nom,
         minLat: minLat, minLon: minLon,
         maxLat: maxLat, maxLon: maxLon,
-        onStatus: (s) => setState(() => _status = s),
+        onStatus: (s) { _lastStatus = s; setState(() => _status = s); },
       );
       await _loadTerritoires();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$nom téléchargé !', style: const TextStyle(color: Colors.white, fontSize: 13)),
+          content: Text(
+            '$nom téléchargé !\n${_lastStatus ?? ""}',
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+          ),
           backgroundColor: const Color(0xFF1C1C1C),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -148,6 +152,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
             side: BorderSide(color: const Color(0xFF4CAF50).withOpacity(0.5)),
           ),
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+          duration: const Duration(seconds: 8),
         ));
         setState(() { _drawnLatLng = []; _drawPoints = []; _downloaded = true; });
       }

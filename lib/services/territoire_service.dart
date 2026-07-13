@@ -86,6 +86,24 @@ class TerritoireService {
     return json.decode(jsonStr) as Map<String, dynamic>;
   }
 
+  static bool _bboxIntersects(
+    List coords,
+    double minLat, double minLon, double maxLat, double maxLon,
+  ) {
+    double fMinLat = double.infinity, fMaxLat = double.negativeInfinity;
+    double fMinLon = double.infinity, fMaxLon = double.negativeInfinity;
+    for (final c in coords) {
+      final cLon = (c[0] as num).toDouble();
+      final cLat = (c[1] as num).toDouble();
+      if (cLat < fMinLat) fMinLat = cLat;
+      if (cLat > fMaxLat) fMaxLat = cLat;
+      if (cLon < fMinLon) fMinLon = cLon;
+      if (cLon > fMaxLon) fMaxLon = cLon;
+    }
+    return fMaxLat >= minLat && fMinLat <= maxLat &&
+           fMaxLon >= minLon && fMinLon <= maxLon;
+  }
+
   static Future<void> downloadTerritoire({
     required String nom,
     required double minLat,
@@ -99,50 +117,62 @@ class TerritoireService {
     final allFeatures = <dynamic>[];
     int done = 0;
     final errors = <String>[];
+    int tilesOk = 0, tiles404 = 0, tilesErr = 0, totalParsed = 0;
 
     for (final tile in tiles) {
-      onStatus?.call('Secteur ${done + 1} sur ${tiles.length} — téléchargement...');
+      onStatus?.call('Secteur ${done + 1}/${tiles.length} — téléchargement...');
       try {
         final url = Uri.parse('$_cdnBase/$tile');
         final resp = await http.get(url).timeout(const Duration(seconds: 30));
-        if (resp.statusCode == 404) { done++; continue; }
+        if (resp.statusCode == 404) { tiles404++; done++; continue; }
         if (resp.statusCode != 200) {
+          tilesErr++;
           errors.add('$tile: HTTP ${resp.statusCode}');
           done++;
           continue;
         }
 
         String jsonStr;
+        bool usedFallback = false;
         try {
           jsonStr = await decompressGzip(resp.bodyBytes);
         } catch (_) {
           jsonStr = resp.body;
+          usedFallback = true;
         }
 
         final data = json.decode(jsonStr) as Map<String, dynamic>;
         final features = data['features'] as List? ?? [];
+        totalParsed += features.length;
+        int inBbox = 0;
 
         for (final feat in features) {
           try {
-            final geom = feat['geometry'] as Map;
-            final coords = geom['type'] == 'Polygon'
-                ? (geom['coordinates'] as List)[0] as List
-                : ((geom['coordinates'] as List)[0] as List)[0] as List;
-            double pMinLat = 90, pMaxLat = -90, pMinLon = 180, pMaxLon = -180;
-            for (final c in coords) {
-              final cLon = (c[0] as num).toDouble();
-              final cLat = (c[1] as num).toDouble();
-              if (cLat < pMinLat) pMinLat = cLat;
-              if (cLat > pMaxLat) pMaxLat = cLat;
-              if (cLon < pMinLon) pMinLon = cLon;
-              if (cLon > pMaxLon) pMaxLon = cLon;
+            final geom = feat['geometry'];
+            if (geom == null) continue;
+            final geomMap = geom as Map;
+            final type = geomMap['type'] as String?;
+            if (type == null) continue;
+            List rings;
+            if (type == 'Polygon') {
+              rings = [(geomMap['coordinates'] as List)[0] as List];
+            } else if (type == 'MultiPolygon') {
+              rings = (geomMap['coordinates'] as List)
+                  .map((p) => (p as List)[0] as List)
+                  .toList();
+            } else {
+              continue;
             }
-            if (pMaxLat >= minLat && pMinLat <= maxLat &&
-                pMaxLon >= minLon && pMinLon <= maxLon) {
-              allFeatures.add(feat);
-            }
+            bool ok = rings.any((r) => _bboxIntersects(r, minLat, minLon, maxLat, maxLon));
+            if (ok) { allFeatures.add(feat); inBbox++; }
           } catch (_) {}
         }
+
+        tilesOk++;
+        onStatus?.call(
+          'Tuile ${done + 1}/${tiles.length}: ${features.length} polygones'
+          ' → $inBbox sélectionnés${usedFallback ? " (fallback)" : ""}',
+        );
 
         if (allFeatures.length > maxPolygons) {
           throw Exception(
@@ -152,6 +182,7 @@ class TerritoireService {
         }
       } catch (e) {
         if (e is Exception && e.toString().contains('trop grande')) rethrow;
+        tilesErr++;
         errors.add('$tile: $e');
       }
       done++;
@@ -160,6 +191,8 @@ class TerritoireService {
     if (allFeatures.isEmpty) {
       throw Exception(
         'Aucune donnée écoforestière dans ce secteur.\n'
+        'Tuiles: $tilesOk OK, $tiles404 absentes, $tilesErr erreurs. '
+        'Polygones parsés: $totalParsed, dans la zone: 0.\n'
         'Essaie de dézoomer ou de te déplacer vers une zone plus forestière.',
       );
     }
@@ -179,7 +212,11 @@ class TerritoireService {
       final compressed = GZipCodec().encode(utf8.encode(json.encode(geojson)));
       await file.writeAsBytes(compressed);
     }
-    onStatus?.call('Terminé !');
+    onStatus?.call(
+      'Terminé — ${allFeatures.length} polygones, '
+      '$tilesOk tuiles, $tiles404 absentes'
+      '${tilesErr > 0 ? ", $tilesErr erreurs" : ""}',
+    );
   }
 
   static Future<void> deleteTerritoire(String id) async {
