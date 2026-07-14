@@ -130,7 +130,7 @@ class TerritoireService {
     void Function(String)? onStatus,
   }) async {
     final tiles = _tilesForBbox(minLat, minLon, maxLat, maxLon);
-    const maxPolygons = 80000;
+    const maxPolygons = 30000;
     final allFeatures = <dynamic>[];
     int done = 0;
     final errors = <String>[];
@@ -193,8 +193,8 @@ class TerritoireService {
 
         if (allFeatures.length > maxPolygons) {
           throw Exception(
-            'Zone trop grande — ${allFeatures.length} polygones dépassent la limite de $maxPolygons.\n\n'
-            'Zoome sur un secteur de chasse précis (2–3 tuiles max) et réessaie.',
+            'Zone trop grande — ${allFeatures.length} peuplements dans la sélection.\n\n'
+            'Sélectionne une zone plus petite (1–2 tuiles). Astuce : zoom sur ton secteur de chasse précis avant de dessiner la zone.',
           );
         }
       } catch (e) {
