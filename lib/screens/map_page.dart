@@ -346,11 +346,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       setState(() { _polygonsCache = []; _polygonLabels = []; });
       return;
     }
-    final allFeatures = <dynamic>[];
-    for (final t in list) {
-      final data = await TerritoireService.loadTerritoire(t['id'] as String);
-      if (data != null) allFeatures.addAll(data['features'] as List);
+    // Charger seulement la carte active (ou la première si aucune active)
+    var activeId = await TerritoireService.getActiveTerritoire();
+    final ids = list.map((t) => t['id'] as String).toSet();
+    if (activeId == null || !ids.contains(activeId)) {
+      activeId = list.first['id'] as String;
+      await TerritoireService.setActiveTerritoire(activeId);
     }
+    final allFeatures = <dynamic>[];
+    final data = await TerritoireService.loadTerritoire(activeId);
+    if (data != null) allFeatures.addAll(data['features'] as List);
     geoJson = {'type': 'FeatureCollection', 'features': allFeatures};
     final all = await compute(buildAllGeoDataIsolate, geoJson);
     if (!mounted) return;

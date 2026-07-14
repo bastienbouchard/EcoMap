@@ -21,6 +21,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   bool _downloaded = false;
   String _status = '';
   List<Map<String, dynamic>> _territoires = [];
+  String? _activeId;
   _SelectionMode _mode = _SelectionMode.screen;
 
   // dessin
@@ -36,7 +37,13 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
   Future<void> _loadTerritoires() async {
     final list = await TerritoireService.listTerritoires();
-    if (mounted) setState(() => _territoires = list);
+    final activeId = await TerritoireService.getActiveTerritoire();
+    if (mounted) setState(() { _territoires = list; _activeId = activeId; });
+  }
+
+  Future<void> _activate(String id) async {
+    await TerritoireService.setActiveTerritoire(id);
+    setState(() => _activeId = id);
   }
 
   // Convertit un Offset écran en LatLng (projection Mercator manuelle)
@@ -99,20 +106,20 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       return;
     }
 
-    final nomCtrl = TextEditingController(
-      text: 'Zone ${DateTime.now().day}-${DateTime.now().month}_'
-            '${DateTime.now().hour}h${DateTime.now().minute.toString().padLeft(2, '0')}',
-    );
+    final nomCtrl = TextEditingController();
 
     final nom = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF2A2A2A),
-        title: const Text('Nom du territoire', style: TextStyle(color: Colors.white)),
+        title: const Text('Nom de la carte', style: TextStyle(color: Colors.white)),
         content: TextField(
           controller: nomCtrl,
+          autofocus: true,
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
+            hintText: 'ex: ZEC Magasinipi, Pourvoirie Lafond…',
+            hintStyle: TextStyle(color: Colors.white38),
             enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
             focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
           ),
@@ -120,7 +127,10 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
           TextButton(
-            onPressed: () => Navigator.pop(context, nomCtrl.text.trim()),
+            onPressed: () {
+              final v = nomCtrl.text.trim();
+              if (v.isNotEmpty) Navigator.pop(context, v);
+            },
             child: const Text('Télécharger', style: TextStyle(color: Color(0xFFFF6B35))),
           ),
         ],
@@ -138,6 +148,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         maxLat: maxLat, maxLon: maxLon,
         onStatus: (s) { _lastStatus = s; setState(() => _status = s); },
       );
+      await TerritoireService.setActiveTerritoire(nom);
       await _loadTerritoires();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -398,11 +409,25 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                       itemCount: _territoires.length,
                       itemBuilder: (_, i) {
                         final t = _territoires[i];
+                        final isActive = t['id'] == _activeId;
                         return ListTile(
-                          leading: const Icon(Icons.map, color: Color(0xFFFF6B35)),
-                          title: Text(t['id'], style: const TextStyle(color: Colors.white)),
-                          subtitle: Text('${t['taille_mb']} MB',
-                              style: const TextStyle(color: Colors.white54)),
+                          onTap: () => _activate(t['id'] as String),
+                          leading: Icon(
+                            isActive ? Icons.check_circle : Icons.map_outlined,
+                            color: isActive ? const Color(0xFF4CAF50) : const Color(0xFFFF6B35),
+                          ),
+                          title: Text(t['id'],
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                              )),
+                          subtitle: Text(
+                            '${t['taille_mb']} MB${isActive ? ' · Active' : ''}',
+                            style: TextStyle(
+                              color: isActive ? const Color(0xFF4CAF50) : Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                             onPressed: () => _delete(t['id'] as String),

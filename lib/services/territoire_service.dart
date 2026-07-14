@@ -3,8 +3,11 @@ import 'dart:io' show Directory, File, GZipCodec;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'gzip_helper.dart';
 import 'web_db.dart';
+
+const _kActiveTerritoire = 'active_territoire';
 
 const _cdnBase = 'https://pub-5c51ef289e6943dbb647c2a2d1baa3bf.r2.dev';
 const _dbStore = 'territoires';
@@ -13,6 +16,20 @@ class TerritoireService {
   static Future<String> _territoirePath(String id) async {
     final dir = await getApplicationDocumentsDirectory();
     return '${dir.path}/territoires/$id.geojson';
+  }
+
+  static Future<String?> getActiveTerritoire() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kActiveTerritoire);
+  }
+
+  static Future<void> setActiveTerritoire(String? id) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (id == null) {
+      await prefs.remove(_kActiveTerritoire);
+    } else {
+      await prefs.setString(_kActiveTerritoire, id);
+    }
   }
 
   static String _tileName(double lat, double lon) {
