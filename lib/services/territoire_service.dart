@@ -130,7 +130,7 @@ class TerritoireService {
     void Function(String)? onStatus,
   }) async {
     final tiles = _tilesForBbox(minLat, minLon, maxLat, maxLon);
-    const maxPolygons = 30000;
+    const maxPolygons = 20000;
     final allFeatures = <dynamic>[];
     int done = 0;
     final errors = <String>[];
