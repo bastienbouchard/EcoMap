@@ -1951,9 +1951,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         ),
         if (_showTerresPrivees && _mapZoom >= 12.0)
           TileLayer(
-            tileProvider: ArcGISExportTileProvider(layer: 'cadastre'),
+            tileProvider: ArcGISExportTileProvider(
+              mapServerUrl: 'https://geo.environnement.gouv.qc.ca/donnees/rest'
+                  '/services/Reference/Cadastre_allege/MapServer',
+            ),
+            opacity: 0.7,
             minNativeZoom: 12,
-            maxNativeZoom: 18,
+            maxNativeZoom: 17,
           ),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _ecoOpacity > 0)
           Opacity(

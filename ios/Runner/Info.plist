@@ -53,5 +53,22 @@
 	<string>EcoMap utilise votre position pour la cartographie environnementale.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>OrignalScan utilise le magnétomètre pour la boussole de navigation.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>geo.environnement.gouv.qc.ca</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.2</string>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>
