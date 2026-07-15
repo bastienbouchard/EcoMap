@@ -328,7 +328,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
                 // Bouton télécharger
                 Positioned(
-                  bottom: 16, left: 0, right: 0,
+                  bottom: 16 + MediaQuery.of(ctx).viewPadding.bottom, left: 0, right: 0,
                   child: Center(
                     child: _downloading
                         ? Container(
