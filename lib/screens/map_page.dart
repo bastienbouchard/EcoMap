@@ -1950,14 +1950,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           ),
         ),
         if (_showTerresPrivees && _mapZoom >= 12.0)
-          TileLayer(
-            tileProvider: ArcGISExportTileProvider(
-              mapServerUrl: 'https://geo.environnement.gouv.qc.ca/donnees/rest'
-                  '/services/Reference/Cadastre_allege/MapServer',
-            ),
+          Opacity(
             opacity: 0.7,
-            minNativeZoom: 12,
-            maxNativeZoom: 17,
+            child: TileLayer(
+              tileProvider: ArcGISExportTileProvider(
+                mapServerUrl: 'https://geo.environnement.gouv.qc.ca/donnees/rest'
+                    '/services/Reference/Cadastre_allege/MapServer',
+              ),
+              minNativeZoom: 12,
+              maxNativeZoom: 17,
+            ),
           ),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _ecoOpacity > 0)
           Opacity(

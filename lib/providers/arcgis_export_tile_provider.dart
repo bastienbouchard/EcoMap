@@ -8,7 +8,7 @@ class ArcGISExportTileProvider extends TileProvider {
   final String mapServerUrl;
   final String layers;
 
-  const ArcGISExportTileProvider({
+  ArcGISExportTileProvider({
     required this.mapServerUrl,
     this.layers = 'show:0',
   });
