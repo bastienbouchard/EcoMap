@@ -376,60 +376,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   Future<void> _fetchCadastre() async {
-    if (!_showTerresPrivees || _mapZoom < 14.1) return;
-    try {
-      final b = _mapController.camera.visibleBounds;
-      final url = Uri.parse(
-        'https://northamerica-northeast1-moosesense-a84cf.cloudfunctions.net/get_cadastre'
-        '?min_lat=${b.southWest.latitude}'
-        '&min_lon=${b.southWest.longitude}'
-        '&max_lat=${b.northEast.latitude}'
-        '&max_lon=${b.northEast.longitude}',
-      );
-      final resp = await http.get(url);
-      if (!mounted) return;
-      if (resp.statusCode != 200) {
-        debugPrint('Cadastre HTTP ${resp.statusCode}: ${resp.body}');
-        return;
-      }
-      final data = json.decode(resp.body) as Map<String, dynamic>;
-      final features = data['features'] as List? ?? [];
-      debugPrint('Cadastre: ${features.length} lots reçus');
-      final rings = <List<LatLng>>[];
-      final noLots = <String>[];
-      for (final f in features) {
-        try {
-          final props = f['properties'] as Map<String, dynamic>? ?? {};
-          final noLot = props['NO_LOT']?.toString() ?? '';
-          final geom = f['geometry'] as Map<String, dynamic>;
-          final type = geom['type'] as String;
-          final rawCoords = geom['coordinates'] as List;
-          final outerRings = type == 'MultiPolygon'
-              ? rawCoords.expand<dynamic>((r) => r as List)
-              : rawCoords;
-          for (final ring in outerRings) {
-            final pts = (ring as List)
-                .map((p) => LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()))
-                .toList();
-            if (pts.length >= 3) {
-              rings.add(pts);
-              noLots.add(noLot);
-            }
-          }
-        } catch (e) {
-          debugPrint('Cadastre ring parse error: $e');
-        }
-      }
-      if (mounted && _showTerresPrivees && _mapZoom >= 14.1) {
-        setState(() {
-          _cadastreRings = rings;
-          _cadastreNoLots = noLots;
-          _selectedCadastreLot = null;
-        });
-      }
-    } catch (e) {
-      debugPrint('Cadastre error: $e');
-    }
+    // get_cadastre Cloud Function deleted — cadastre now served as raster tiles via tile_proxy
   }
 
   bool _pointInPolygon(LatLng pt, List<LatLng> poly) {
@@ -1985,13 +1932,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             _salineDebounce?.cancel();
             _salineDebounce = Timer(const Duration(milliseconds: 800), _refreshSalines);
           }
-          if (_showTerresPrivees) {
-            if (newZoom < 14.1 && _cadastreRings.isNotEmpty) {
-              setState(() { _cadastreRings = []; _cadastreNoLots = []; });
-            } else if (newZoom >= 14.1) {
-              _fetchCadastre();
-            }
-          }
         },
       ),
       children: [
@@ -2009,41 +1949,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
-        if (_showTerresPrivees && _cadastreRings.isNotEmpty) ...[
-          // Halo blanc en dessous pour contraste sur carte éco
-          if (_ecoOpacity > 0)
-            PolygonLayer(
-              simplificationTolerance: 0,
-              polygons: _cadastreRings.asMap().entries.map((e) {
-                final selected = e.key == _selectedCadastreLot;
-                return Polygon(
-                  points: e.value,
-                  color: Colors.transparent,
-                  borderColor: Colors.white.withOpacity(0.85),
-                  borderStrokeWidth: selected ? 5.0 : 3.0,
-                );
-              }).toList(),
-            ),
-          PolygonLayer(
-            simplificationTolerance: 0,
-            polygons: _cadastreRings.asMap().entries.map((e) {
-              final selected = e.key == _selectedCadastreLot;
-              final onEco = _ecoOpacity > 0;
-              return Polygon(
-                points: e.value,
-                color: selected
-                    ? (onEco
-                        ? Colors.black.withOpacity(0.12)
-                        : const Color(0xFFFF6B35).withOpacity(0.25))
-                    : Colors.transparent,
-                borderColor: onEco ? Colors.black : const Color(0xFFFF6B35),
-                borderStrokeWidth: onEco
-                    ? (selected ? 2.5 : 1.8)
-                    : (selected ? 2.5 : 1.2),
-              );
-            }).toList(),
+        if (_showTerresPrivees && _mapZoom >= 12.0)
+          TileLayer(
+            tileProvider: ArcGISExportTileProvider(layer: 'cadastre'),
+            minNativeZoom: 12,
+            maxNativeZoom: 18,
           ),
-        ],
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _ecoOpacity > 0)
           Opacity(
             opacity: _ecoOpacity,
