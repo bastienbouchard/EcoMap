@@ -406,6 +406,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                   ),
                   Expanded(
                     child: ListView.builder(
+                      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom),
                       itemCount: _territoires.length,
                       itemBuilder: (_, i) {
                         final t = _territoires[i];
