@@ -98,13 +98,34 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
   else if (essU.contains('AU') || essU.contains('SA')) sEss = 4;
   else if (essU.contains('BP')) sEss = 3;
   else if (essU.contains('EB')) sEss = 1;
-  int sOri = origineCode == 'CP' ? 5 : origineCode == 'BR' ? 4 : origineCode == 'EP' ? 2 : 0;
+  // Origine du peuplement (stand origin)
+  int sOri = origineCode == 'BR' ? 5
+      : origineCode == 'CP' ? 4
+      : origineCode == 'EP' ? 3
+      : origineCode == 'CH' ? 2
+      : origineCode.isNotEmpty ? 1 : 0;
+
+  // Perturbation partielle (champ perturb) — coupes partielles, EPC, etc.
+  final perturbCode = (p['perturb'] ?? '').toString().toUpperCase();
+  int sPerturb = 0;
+  if (perturbCode.startsWith('EPC') || perturbCode.startsWith('DEG') || perturbCode.startsWith('NET')) {
+    sPerturb = 5; // éclaircie précom / dégagement → jeune repousse, alimentation orignal
+  } else if (perturbCode.startsWith('CPRS') || perturbCode.startsWith('CPR') || perturbCode.startsWith('CPS') || perturbCode.startsWith('CPC')) {
+    sPerturb = 4; // coupe avec protection régénération
+  } else if (perturbCode.startsWith('CP') || perturbCode.startsWith('CHP') || perturbCode.startsWith('CAM')) {
+    sPerturb = 3; // autres coupes partielles
+  } else if (perturbCode.startsWith('CJ') || perturbCode.startsWith('ECL') || perturbCode.startsWith('EC')) {
+    sPerturb = 2; // jardinage / éclaircie commerciale
+  } else if (perturbCode.isNotEmpty) {
+    sPerturb = 1;
+  }
 
   final bars = [
     ('Couverture', sCouv),
     ('Peuplement', sEss),
     ('Âge', sAge),
-    ('Perturbation', sOri),
+    ('Origine', sOri),
+    ('Perturbation', sPerturb),
     ('Drainage', sDrai),
     ('Cours d\'eau', sEau),
   ];
@@ -170,7 +191,8 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
             _chip('Couverture: $couv'),
             _chip('Peuplement: $ess'),
             _chip('Âge: $age'),
-            _chip('Perturbation: $origine'),
+            _chip('Origine: $origine'),
+            if (perturbCode.isNotEmpty) _chip('Perturbation: $perturbCode'),
             _chip('Drainage: $drai'),
             _chip('${info.position.latitude.toStringAsFixed(4)}° N'),
             _chip('${info.position.longitude.abs().toStringAsFixed(4)}° O'),
@@ -186,7 +208,7 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
                 barRods: [BarChartRodData(
                   toY: e.value.$2.toDouble(),
                   color: e.value.$2 >= 4 ? const Color(0xFF2D5016) : e.value.$2 >= 2 ? const Color(0xFFFF6B35) : const Color(0xFF555555),
-                  width: 26,
+                  width: 22,
                   borderRadius: BorderRadius.circular(4),
                 )],
               )).toList(),
