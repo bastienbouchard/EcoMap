@@ -44,7 +44,7 @@ Widget _glossRow(String code, String desc) => Padding(
 void showAideDialog(BuildContext context) {
   showDialog(
     context: context,
-    builder: (_) => AlertDialog(
+    builder: (ctx) => AlertDialog(
       backgroundColor: const Color(0xFF2D2D2D),
       title: Row(children: [
         const Expanded(child: Text('Aide', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold))),
@@ -56,6 +56,7 @@ void showAideDialog(BuildContext context) {
         ),
       ]),
       content: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewPadding.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
