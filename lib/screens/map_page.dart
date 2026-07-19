@@ -1652,57 +1652,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     if (PremiumService.isPremium) return true;
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
-        title: const Text('Fonctionnalité Premium',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Cette fonctionnalité est disponible avec OrignalScan Pro.',
-                style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
-            const SizedBox(height: 14),
-            for (final f in [
-              (const Icon(Icons.local_fire_department, color: Color(0xFFFF6B35), size: 18), 'Zones actives orignal'),
-              (const Icon(Icons.route_rounded, color: Color(0xFF4CAF50), size: 18), 'Parcours optimisé — algorithme IA'),
-              (SizedBox(width: 18, height: 18, child: CustomPaint(painter: HuntingTowerPainter(color: const Color(0xFF4CAF50)))), 'Postes d\'affût — algorithme IA'),
-              (const SizedBox(width: 18, height: 18, child: CustomPaint(painter: SaltCubePainter())), 'Salines à orignal — algorithme IA'),
-              (const Icon(Icons.fence_rounded, color: Color(0xFFFF6B35), size: 18), 'Terres privées — cadastre des lots'),
-              (const Icon(Icons.forest_rounded, color: Color(0xFFFF6B35), size: 18), 'Carte écoforestière MRNF'),
-              (const Icon(Icons.people, color: Color(0xFFFF6B35), size: 18), 'Groupe de chasseurs'),
-            ])
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(children: [
-                  f.$1,
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(f.$2,
-                      style: const TextStyle(color: Colors.white70, fontSize: 13))),
-                ]),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Pas maintenant',
-                style: TextStyle(color: Colors.white38)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6B35)),
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => const PremiumPage(),
-              ));
-            },
-            child: const Text('Déverrouiller Pro',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      builder: (_) => const PremiumPopup(),
     );
     return false;
   }

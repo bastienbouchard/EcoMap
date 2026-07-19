@@ -7,6 +7,253 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import '../services/premium_service.dart';
 
+// ─── Popup compact (utilisé depuis _requirePremium) ──────────────────────────
+
+class PremiumPopup extends StatefulWidget {
+  const PremiumPopup({super.key});
+  @override
+  State<PremiumPopup> createState() => _PremiumPopupState();
+}
+
+class _PremiumPopupState extends State<PremiumPopup> {
+  static const _productId = 'com.bastienbouchard.ecomap.pro';
+  static const _stripeUrl = 'https://buy.stripe.com/bJe7sL81HcyfgQi1oX83C01';
+
+  StreamSubscription<List<PurchaseDetails>>? _iapSub;
+  ProductDetails? _product;
+  bool _loading = false;
+  String? _erreur;
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isIOS) _initIAP();
+  }
+
+  @override
+  void dispose() {
+    _iapSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initIAP() async {
+    final available = await InAppPurchase.instance.isAvailable();
+    if (!available || !mounted) return;
+    _iapSub = InAppPurchase.instance.purchaseStream.listen(_onPurchaseUpdate);
+    final resp = await InAppPurchase.instance.queryProductDetails({_productId});
+    if (!mounted) return;
+    if (resp.productDetails.isNotEmpty) {
+      setState(() => _product = resp.productDetails.first);
+    } else {
+      setState(() => _erreur = 'Produit introuvable');
+    }
+  }
+
+  Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchases) async {
+    for (final p in purchases) {
+      if (p.productID != _productId) continue;
+      if (p.status == PurchaseStatus.purchased || p.status == PurchaseStatus.restored) {
+        await _activerPremium();
+        await InAppPurchase.instance.completePurchase(p);
+      } else if (p.status == PurchaseStatus.error) {
+        if (mounted) setState(() { _loading = false; _erreur = p.error?.message; });
+      } else if (p.status == PurchaseStatus.pending) {
+        if (mounted) setState(() => _loading = true);
+      }
+    }
+  }
+
+  Future<void> _activerPremium() async {
+    final uid = AuthService.uid;
+    if (uid != null) {
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({'premium': true});
+      await PremiumService.load();
+    }
+    if (mounted) {
+      setState(() => _loading = false);
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _acheter() async {
+    if (Platform.isIOS) {
+      if (_product == null) {
+        setState(() => _erreur = 'Chargement en cours — réessaie dans quelques secondes');
+        return;
+      }
+      setState(() { _loading = true; _erreur = null; });
+      await InAppPurchase.instance.buyNonConsumable(
+        purchaseParam: PurchaseParam(productDetails: _product!),
+      );
+    } else {
+      final uid = AuthService.uid;
+      if (uid == null) return;
+      final uri = Uri.parse('$_stripeUrl?client_reference_id=$uid');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+
+  String get _prix => Platform.isIOS && _product != null ? _product!.price : '39,99 \$';
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF4CAF50);
+    const blue = Color(0xFF42A5F5);
+    const orange = Color(0xFFFF6B35);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(18),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF181818),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white10),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 24)],
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ──
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('OrigianlScan Pro',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 3),
+                const Text('Accédez à des fonctionnalités avancées.',
+                    style: TextStyle(color: Colors.white54, fontSize: 12)),
+              ])),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFD45A00), Color(0xFFFF8C42)],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [BoxShadow(color: orange.withOpacity(0.4), blurRadius: 8)],
+                ),
+                child: Column(children: [
+                  const Text('Passez à Pro pour', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500)),
+                  Text(_prix, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 14),
+
+            // ── Section ALGORITHMES ──
+            _section(
+              color: green,
+              icon: Icons.psychology_rounded,
+              label: 'ALGORITHMES',
+              items: const [
+                (Icons.local_fire_department, orange, 'Zones actives originales'),
+                (Icons.route_rounded, green, 'Parcours optimisé'),
+                (Icons.cabin, green, 'Postes d\'affût'),
+                (Icons.water_drop, orange, 'Salines originales'),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // ── Section INFORMATIONS & GROUPES ──
+            _section(
+              color: blue,
+              icon: Icons.info_outline_rounded,
+              label: 'INFORMATIONS & GROUPES',
+              items: const [
+                (Icons.fence_rounded, orange, 'Terres privées — cadastre des lots'),
+                (Icons.forest_rounded, orange, 'Carte écoforestière MRNF'),
+                (Icons.people, orange, 'Groupe de chasseurs'),
+              ],
+            ),
+
+            if (_erreur != null) ...[
+              const SizedBox(height: 8),
+              Text(_erreur!, style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                  textAlign: TextAlign.center),
+            ],
+            const SizedBox(height: 14),
+
+            // ── Boutons ──
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white54,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Pas maintenant', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 4,
+                  ),
+                  onPressed: _loading ? null : _acheter,
+                  child: _loading
+                      ? const SizedBox(width: 16, height: 16,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Passer à OrigianlScan Pro',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _section({
+    required Color color,
+    required IconData icon,
+    required String label,
+    required List<(IconData, Color, String)> items,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.6)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(color: color, fontSize: 11,
+              fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+        ]),
+        const SizedBox(height: 8),
+        ...items.map((item) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(children: [
+            Icon(item.$1, color: item.$2, size: 17),
+            const SizedBox(width: 10),
+            Text(item.$3, style: const TextStyle(color: Colors.white, fontSize: 13)),
+          ]),
+        )),
+      ]),
+    );
+  }
+}
+
+// ─── Page complète (garde pour compatibilité) ─────────────────────────────────
+
 class PremiumPage extends StatefulWidget {
   const PremiumPage({super.key});
   @override
