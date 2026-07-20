@@ -15,8 +15,9 @@ class PremiumPopup extends StatefulWidget {
 }
 
 class _PremiumPopupState extends State<PremiumPopup> {
-  static const _productId = 'com.bastienbouchard.ecomap.pro';
-  static const _stripeUrl = 'https://buy.stripe.com/bJe7sL81HcyfgQi1oX83C01';
+  static String get _productId => Platform.isIOS
+      ? 'com.bastienbouchard.ecomap.pro'
+      : 'orignalscan_premium_lifetime';
 
   StreamSubscription<List<PurchaseDetails>>? _iapSub;
   ProductDetails? _product;
@@ -26,7 +27,7 @@ class _PremiumPopupState extends State<PremiumPopup> {
   @override
   void initState() {
     super.initState();
-    if (Platform.isIOS) _initIAP();
+    _initIAP();
   }
 
   @override
@@ -75,26 +76,22 @@ class _PremiumPopupState extends State<PremiumPopup> {
   }
 
   Future<void> _acheter() async {
-    if (Platform.isIOS) {
-      if (_product == null) {
-        setState(() => _erreur = 'Chargement en cours — réessaie dans quelques secondes');
-        return;
-      }
-      setState(() { _loading = true; _erreur = null; });
-      await InAppPurchase.instance.buyNonConsumable(
-        purchaseParam: PurchaseParam(productDetails: _product!),
-      );
-    } else {
-      final uid = AuthService.uid;
-      if (uid == null) return;
-      final uri = Uri.parse('$_stripeUrl?client_reference_id=$uid');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
+    if (_product == null) {
+      setState(() => _erreur = 'Chargement en cours — réessaie dans quelques secondes');
+      return;
     }
+    setState(() { _loading = true; _erreur = null; });
+    await InAppPurchase.instance.buyNonConsumable(
+      purchaseParam: PurchaseParam(productDetails: _product!),
+    );
   }
 
-  String get _prix => Platform.isIOS && _product != null ? _product!.price : '39,99 \$';
+  Future<void> _restaurer() async {
+    setState(() { _loading = true; _erreur = null; });
+    await InAppPurchase.instance.restorePurchases();
+  }
+
+  String get _prix => _product != null ? _product!.price : '39,99 \$';
 
   @override
   Widget build(BuildContext context) {
@@ -198,13 +195,18 @@ class _PremiumPopupState extends State<PremiumPopup> {
               ),
             ),
             const SizedBox(height: 4),
-            Center(
-              child: TextButton(
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Pas maintenant',
                     style: TextStyle(color: Colors.white38, fontSize: 13)),
               ),
-            ),
+              TextButton(
+                onPressed: _loading ? null : _restaurer,
+                child: const Text('Restaurer',
+                    style: TextStyle(color: Colors.white24, fontSize: 11)),
+              ),
+            ]),
           ],
         ),
       ),
