@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import '../services/premium_service.dart';
@@ -254,8 +253,9 @@ class PremiumPage extends StatefulWidget {
 }
 
 class _PremiumPageState extends State<PremiumPage> {
-  static const _productId = 'com.bastienbouchard.ecomap.pro';
-  static const _stripeUrl = 'https://buy.stripe.com/bJe7sL81HcyfgQi1oX83C01';
+  static String get _productId => Platform.isIOS
+      ? 'com.bastienbouchard.ecomap.pro'
+      : 'orignalscan_premium_lifetime';
 
   StreamSubscription<List<PurchaseDetails>>? _iapSub;
   ProductDetails? _product;
@@ -292,7 +292,7 @@ class _PremiumPageState extends State<PremiumPage> {
   @override
   void initState() {
     super.initState();
-    if (Platform.isIOS) _initIAP();
+    _initIAP();
   }
 
   @override
@@ -347,7 +347,7 @@ class _PremiumPageState extends State<PremiumPage> {
     }
   }
 
-  Future<void> _acheterIOS() async {
+  Future<void> _acheter() async {
     if (_product == null) {
       setState(() => _erreur = 'Produit non chargé — réessaie dans quelques secondes');
       return;
@@ -358,22 +358,13 @@ class _PremiumPageState extends State<PremiumPage> {
     );
   }
 
-  Future<void> _restaurerIOS() async {
+  Future<void> _restaurer() async {
     setState(() { _loading = true; _erreur = null; });
     await InAppPurchase.instance.restorePurchases();
   }
 
-  Future<void> _acheterAndroid() async {
-    final uid = AuthService.uid;
-    if (uid == null) return;
-    final uri = Uri.parse('$_stripeUrl?client_reference_id=$uid');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
   String get _prixAffiche {
-    if (Platform.isIOS && _product != null) return _product!.price;
+    if (_product != null) return _product!.price;
     return '39,99 \$';
   }
 
@@ -544,7 +535,7 @@ class _PremiumPageState extends State<PremiumPage> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 4,
                 ),
-                onPressed: _loading ? null : (Platform.isIOS ? _acheterIOS : _acheterAndroid),
+                onPressed: _loading ? null : _acheter,
                 child: _loading
                     ? const SizedBox(width: 20, height: 20,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -554,21 +545,20 @@ class _PremiumPageState extends State<PremiumPage> {
             ),
             const SizedBox(height: 10),
 
-            if (Platform.isIOS)
-              Center(
-                child: TextButton(
-                  onPressed: _loading ? null : _restaurerIOS,
-                  child: const Text('Restaurer mes achats',
-                      style: TextStyle(color: Colors.white38, fontSize: 12)),
-                ),
+            Center(
+              child: TextButton(
+                onPressed: _loading ? null : _restaurer,
+                child: const Text('Restaurer mes achats',
+                    style: TextStyle(color: Colors.white38, fontSize: 12)),
               ),
+            ),
 
             const SizedBox(height: 4),
             Center(
               child: Text(
                 Platform.isIOS
                     ? 'Paiement via App Store.\nAucun renouvellement — accès permanent.'
-                    : 'Paiement sécurisé par Stripe.\nAucun renouvellement — accès permanent.',
+                    : 'Paiement via Google Play.\nAucun renouvellement — accès permanent.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white38, fontSize: 11, height: 1.5),
               ),
