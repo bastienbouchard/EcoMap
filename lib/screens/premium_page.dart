@@ -156,8 +156,8 @@ class _PremiumPopupState extends State<PremiumPopup> {
                       const Text('Achat unique — pas d\'abonnement',
                           style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 2),
-                      Text(_prix == '39,99 \$' ? '39,99 \$ CAD' : _prix,
-                          style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 24,
+                      const Text('39,99 \$ CAD',
+                          style: TextStyle(color: Color(0xFFFF6B35), fontSize: 24,
                               fontWeight: FontWeight.w900)),
                     ]),
                   ),
@@ -185,54 +185,47 @@ class _PremiumPopupState extends State<PremiumPopup> {
                         textAlign: TextAlign.center),
                   ],
                   const SizedBox(height: 16),
-                  Row(children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white70,
-                          side: const BorderSide(color: Colors.white24),
-                          padding: const EdgeInsets.symmetric(vertical: 13),
+                  SizedBox(
+                    width: double.infinity,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFB34000), Color(0xFFFF6B35), Color(0xFFFF8C42)],
+                        ),
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [BoxShadow(color: orange.withOpacity(0.5), blurRadius: 12)],
+                      ),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                         ),
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Pas maintenant',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        onPressed: _loading ? null : _acheter,
+                        child: _loading
+                            ? const SizedBox(width: 16, height: 16,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('Passer à OrignalScan Pro',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFB34000), Color(0xFFFF6B35), Color(0xFFFF8C42)],
-                          ),
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [BoxShadow(color: orange.withOpacity(0.5), blurRadius: 12)],
-                        ),
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                          ),
-                          onPressed: _loading ? null : _acheter,
-                          child: _loading
-                              ? const SizedBox(width: 16, height: 16,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Text('Passer à OriginalScan Pro',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
+                  ),
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      child: const Text('Pas maintenant',
+                          style: TextStyle(color: Colors.white24, fontSize: 11)),
+                    ),
+                    const Text(' · ', style: TextStyle(color: Colors.white12, fontSize: 11)),
+                    TextButton(
+                      onPressed: _loading ? null : _restaurer,
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      child: const Text('Restaurer',
+                          style: TextStyle(color: Colors.white24, fontSize: 11)),
                     ),
                   ]),
-                  const SizedBox(height: 4),
-                  TextButton(
-                    onPressed: _loading ? null : _restaurer,
-                    child: const Text('Restaurer mes achats',
-                        style: TextStyle(color: Colors.white24, fontSize: 11)),
-                  ),
                 ],
               ),
             ),
