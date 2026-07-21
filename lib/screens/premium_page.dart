@@ -91,7 +91,7 @@ class _PremiumPopupState extends State<PremiumPopup> {
     await InAppPurchase.instance.restorePurchases();
   }
 
-  String get _prix => _product != null ? _product!.price : '39,99 \$';
+  String get _prix => _product != null ? _product!.price : '39,99 $ CAD';
 
   @override
   Widget build(BuildContext context) {
@@ -399,7 +399,7 @@ class _PremiumPageState extends State<PremiumPage> {
 
   String get _prixAffiche {
     if (_product != null) return _product!.price;
-    return '39,99 \$';
+    return '39,99 $ CAD';
   }
 
   @override
