@@ -95,150 +95,182 @@ class _PremiumPopupState extends State<PremiumPopup> {
 
   @override
   Widget build(BuildContext context) {
-    const green = Color(0xFF4CAF50);
-    const blue = Color(0xFF42A5F5);
     const orange = Color(0xFFFF6B35);
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(18),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF181818),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white10),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 24)],
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header ──
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('OrigianlScan Pro',
-                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 3),
-                const Text('Accédez à des fonctionnalités avancées.',
-                    style: TextStyle(color: Colors.white54, fontSize: 12)),
-              ])),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: orange.withOpacity(0.35), width: 1.2),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF1A0A00), Color(0xFF0D0D0D), Color(0xFF0D0D0D), Color(0xFF1A0A00)],
+              stops: [0.0, 0.25, 0.75, 1.0],
+            ),
+          ),
+          child: Stack(children: [
+            Positioned(
+              bottom: 0, left: 0, right: 0, height: 130,
+              child: Container(
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFD45A00), Color(0xFFFF8C42)],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  gradient: RadialGradient(
+                    center: Alignment.bottomCenter, radius: 1.2,
+                    colors: [orange.withOpacity(0.22), Colors.transparent],
                   ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [BoxShadow(color: orange.withOpacity(0.4), blurRadius: 8)],
                 ),
-                child: Column(children: [
-                  const Text('Passez à Pro pour', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500)),
-                  Text(_prix, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                ]),
-              ),
-            ]),
-            const SizedBox(height: 14),
-
-            // ── Section ALGORITHMES ──
-            _section(
-              color: green,
-              icon: Icons.psychology_rounded,
-              label: 'ALGORITHMES',
-              items: const [
-                (Icons.local_fire_department, orange, 'Zones actives originales'),
-                (Icons.route_rounded, green, 'Parcours optimisé'),
-                (Icons.cabin, green, 'Postes d\'affût'),
-                (Icons.water_drop, orange, 'Salines originales'),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // ── Section INFORMATIONS & GROUPES ──
-            _section(
-              color: blue,
-              icon: Icons.info_outline_rounded,
-              label: 'INFORMATIONS & GROUPES',
-              items: const [
-                (Icons.fence_rounded, orange, 'Terres privées — cadastre des lots'),
-                (Icons.forest_rounded, orange, 'Carte écoforestière MRNF'),
-                (Icons.people, orange, 'Groupe de chasseurs'),
-              ],
-            ),
-
-            if (_erreur != null) ...[
-              const SizedBox(height: 8),
-              Text(_erreur!, style: const TextStyle(color: Colors.redAccent, fontSize: 11),
-                  textAlign: TextAlign.center),
-            ],
-            const SizedBox(height: 14),
-
-            // ── Boutons ──
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: orange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 4,
-                ),
-                onPressed: _loading ? null : _acheter,
-                child: _loading
-                    ? const SizedBox(width: 16, height: 16,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Passer à OrigianlScan Pro',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               ),
             ),
-            const SizedBox(height: 4),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Pas maintenant',
-                    style: TextStyle(color: Colors.white38, fontSize: 13)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                      children: [
+                        TextSpan(text: 'OriginalScan ', style: TextStyle(color: Colors.white)),
+                        TextSpan(text: 'Pro', style: TextStyle(color: Color(0xFFFF6B35))),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text('Accédez à l\'expérience complète, sans limites.',
+                      style: TextStyle(color: Colors.white60, fontSize: 13),
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black38,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: orange.withOpacity(0.3)),
+                    ),
+                    child: Column(children: [
+                      const Text('Achat unique — pas d\'abonnement',
+                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 2),
+                      Text(_prix == '39,99 \$' ? '39,99 \$ CAD' : _prix,
+                          style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 24,
+                              fontWeight: FontWeight.w900)),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                  _section('ALGORITHMES', Icons.settings_rounded, const [
+                    (Icons.local_fire_department, Color(0xFFFF6B35), 'Zones actives'),
+                    (Icons.adjust_rounded, Color(0xFF42A5F5), 'Parcours optimisés'),
+                    (Icons.radar_rounded, Color(0xFFEF5350), 'Postes d\'affût avancés'),
+                    (Icons.view_in_ar_rounded, Color(0xFF42A5F5), 'Salines détaillées'),
+                  ]),
+                  const SizedBox(height: 10),
+                  _section('INFORMATIONS & GROUPES', Icons.square_rounded, const [
+                    (Icons.home_rounded, Color(0xFFFF6B35), 'Terres privées — cadastre complet'),
+                    (Icons.forest_rounded, Color(0xFF4CAF50), 'Carte écoforestière MRNF'),
+                    (Icons.people, Color(0xFFFF6B35), 'Groupe de chasseurs'),
+                  ]),
+                  const SizedBox(height: 10),
+                  Text('Profitez de toutes les fonctionnalités Premium, pour toujours.',
+                      style: TextStyle(color: Colors.white.withOpacity(0.5),
+                          fontSize: 11, fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center),
+                  if (_erreur != null) ...[
+                    const SizedBox(height: 6),
+                    Text(_erreur!, style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                        textAlign: TextAlign.center),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                          side: const BorderSide(color: Colors.white24),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Pas maintenant',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFB34000), Color(0xFFFF6B35), Color(0xFFFF8C42)],
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [BoxShadow(color: orange.withOpacity(0.5), blurRadius: 12)],
+                        ),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          ),
+                          onPressed: _loading ? null : _acheter,
+                          child: _loading
+                              ? const SizedBox(width: 16, height: 16,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Text('Passer à OriginalScan Pro',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: _loading ? null : _restaurer,
+                    child: const Text('Restaurer mes achats',
+                        style: TextStyle(color: Colors.white24, fontSize: 11)),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: _loading ? null : _restaurer,
-                child: const Text('Restaurer',
-                    style: TextStyle(color: Colors.white24, fontSize: 11)),
-              ),
-            ]),
-          ],
+            ),
+          ]),
         ),
       ),
     );
   }
 
-  Widget _section({
-    required Color color,
-    required IconData icon,
-    required String label,
-    required List<(IconData, Color, String)> items,
-  }) {
+  Widget _section(String label, IconData icon, List<(IconData, Color, String)> items) {
+    const orange = Color(0xFFFF6B35);
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.6)),
+        border: Border.all(color: orange.withOpacity(0.5)),
+        color: Colors.black26,
       ),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(icon, color: color, size: 16),
+          const Expanded(child: Divider(color: Color(0xFFFF6B35), thickness: 0.5)),
+          const SizedBox(width: 8),
+          Icon(icon, color: orange, size: 15),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(color: color, fontSize: 11,
-              fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          Text(label, style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 11,
+              fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+          const SizedBox(width: 8),
+          const Expanded(child: Divider(color: Color(0xFFFF6B35), thickness: 0.5)),
         ]),
         const SizedBox(height: 8),
         ...items.map((item) => Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Row(children: [
-            Icon(item.$1, color: item.$2, size: 17),
+            Icon(item.$1, color: item.$2, size: 18),
             const SizedBox(width: 10),
-            Text(item.$3, style: const TextStyle(color: Colors.white, fontSize: 13)),
+            Text(item.$3, style: const TextStyle(color: Colors.white, fontSize: 13,
+                fontWeight: FontWeight.w500)),
           ]),
         )),
       ]),
