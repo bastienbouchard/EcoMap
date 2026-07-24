@@ -462,3 +462,117 @@ class ShrubPainter extends CustomPainter {
   }
   @override bool shouldRepaint(_) => false;
 }
+
+class MoosePainter extends CustomPainter {
+  const MoosePainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final p = Paint()..color = const Color(0xFF6D4C1E)..style = PaintingStyle.fill;
+    final dark = Paint()..color = const Color(0xFF4A3010)..style = PaintingStyle.fill;
+
+    // Jambes — dessinées en premier (derrière le corps)
+    final legW = w * .08;
+    for (final x in [w*.26, w*.36, w*.62, w*.72]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(x, h*.55, legW, h*.42), const Radius.circular(4)),
+        dark,
+      );
+    }
+
+    // Corps principal
+    canvas.drawOval(Rect.fromCenter(center: Offset(w*.52, h*.50), width: w*.72, height: h*.30), p);
+
+    // Bosse d'épaule (front-top, trait distinctif orignal)
+    canvas.drawOval(Rect.fromCenter(center: Offset(w*.28, h*.40), width: w*.30, height: h*.24), p);
+
+    // Encolure
+    final neck = Path()
+      ..moveTo(w*.18, h*.42)
+      ..cubicTo(w*.14, h*.30, w*.14, h*.22, w*.16, h*.17)
+      ..lineTo(w*.27, h*.15)
+      ..cubicTo(w*.30, h*.24, w*.30, h*.36, w*.28, h*.44)
+      ..close();
+    canvas.drawPath(neck, p);
+
+    // Tête
+    canvas.drawOval(Rect.fromCenter(center: Offset(w*.13, h*.18), width: w*.22, height: h*.16), p);
+
+    // Muffle (nez penduleux — trait le plus distinctif)
+    canvas.drawOval(Rect.fromCenter(center: Offset(w*.07, h*.28), width: w*.15, height: h*.20), p);
+
+    // Bois — deux poutres + quelques andouillers
+    final antlerP = Paint()
+      ..color = const Color(0xFF9C7A2A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * .055
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final antler = Path()
+      ..moveTo(w*.20, h*.10)         // base gauche
+      ..lineTo(w*.18, h*.01)         // poutre principale
+      ..moveTo(w*.19, h*.05)
+      ..lineTo(w*.10, h*.03)         // andouiller brow
+      ..moveTo(w*.18, h*.01)
+      ..lineTo(w*.26, h*.00)         // andouiller top-droit
+      ..moveTo(w*.26, h*.14)         // base droite (symétrique)
+      ..lineTo(w*.30, h*.04)
+      ..moveTo(w*.30, h*.08)
+      ..lineTo(w*.38, h*.05)
+      ..moveTo(w*.30, h*.04)
+      ..lineTo(w*.34, h*.00);
+    canvas.drawPath(antler, antlerP);
+  }
+  @override bool shouldRepaint(_) => false;
+}
+
+class TruckPainter extends CustomPainter {
+  const TruckPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final bodyP  = Paint()..color = const Color(0xFF546E7A)..style = PaintingStyle.fill;
+    final darkP  = Paint()..color = const Color(0xFF37474F)..style = PaintingStyle.fill;
+    final wheelP = Paint()..color = const Color(0xFF263238)..style = PaintingStyle.fill;
+    final rimP   = Paint()..color = const Color(0xFF90A4AE)..style = PaintingStyle.fill;
+
+    // Carrosserie (vue de côté, face gauche = avant)
+    final truck = Path()
+      ..moveTo(w*.04, h*.76)
+      ..lineTo(w*.04, h*.50)
+      ..cubicTo(w*.04, h*.44, w*.10, h*.42, w*.16, h*.42)
+      ..lineTo(w*.34, h*.42)
+      ..lineTo(w*.40, h*.26)
+      ..lineTo(w*.60, h*.22)
+      ..lineTo(w*.72, h*.22)
+      ..lineTo(w*.74, h*.36)
+      ..lineTo(w*.96, h*.36)
+      ..lineTo(w*.96, h*.58)
+      ..lineTo(w*.96, h*.76)
+      ..close();
+    canvas.drawPath(truck, bodyP);
+
+    // Fenêtres
+    final win = Path()
+      ..moveTo(w*.41, h*.28)
+      ..lineTo(w*.44, h*.24)
+      ..lineTo(w*.60, h*.24)
+      ..lineTo(w*.71, h*.24)
+      ..lineTo(w*.72, h*.36)
+      ..lineTo(w*.58, h*.36)
+      ..lineTo(w*.56, h*.28)
+      ..close();
+    canvas.drawPath(win, darkP);
+
+    // Ligne de caisse (séparation cabine / lit)
+    canvas.drawLine(Offset(w*.74, h*.36), Offset(w*.74, h*.76),
+        Paint()..color = const Color(0xFF263238)..strokeWidth = w*.03..style = PaintingStyle.stroke);
+
+    // Roues
+    canvas.drawCircle(Offset(w*.22, h*.76), w*.14, wheelP);
+    canvas.drawCircle(Offset(w*.22, h*.76), w*.07, rimP);
+    canvas.drawCircle(Offset(w*.80, h*.76), w*.14, wheelP);
+    canvas.drawCircle(Offset(w*.80, h*.76), w*.07, rimP);
+  }
+  @override bool shouldRepaint(_) => false;
+}
