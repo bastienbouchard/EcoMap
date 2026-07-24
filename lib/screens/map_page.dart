@@ -2257,16 +2257,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         final pos = obs['pos'] as LatLng;
         final note = obs['note'] as String;
         final isNew = idx == _newObsIdx;
-        Widget markerBall = SizedBox(
+        Widget markerBall = Container(
           width: 44, height: 44,
-          child: Center(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.45), blurRadius: 6, spreadRadius: 1)],
-              ),
-              child: obsIcon(note, size: 36),
-            ),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFFFF6B35), width: 2),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 4)],
           ),
+          child: Center(child: obsIcon(note, size: 30)),
         );
         if (isNew) {
           markerBall = TweenAnimationBuilder<double>(
