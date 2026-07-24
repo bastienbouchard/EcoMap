@@ -168,22 +168,35 @@ class MooseTrackPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final p = Paint()..color = const Color(0xFFD4A76A)..style = PaintingStyle.fill;
     final w = size.width; final h = size.height;
-    // Orteil gauche — forme allongée effilée en bas
+
+    // Sabot gauche — large et arrondi en haut, effilé vers le bas
     final left = Path()
-      ..moveTo(w * .50, h * .08)
-      ..cubicTo(w * .30, h * .08, w * .12, h * .28, w * .14, h * .62)
-      ..cubicTo(w * .15, h * .80, w * .28, h * .96, w * .38, h * .96)
-      ..cubicTo(w * .48, h * .96, w * .50, h * .76, w * .50, h * .58)
+      ..moveTo(w * .42, h * .06)
+      ..cubicTo(w * .38, h * .01, w * .20, h * .00, w * .08, h * .11)
+      ..cubicTo(w * .01, h * .20, w * .02, h * .42, w * .07, h * .58)
+      ..cubicTo(w * .13, h * .74, w * .24, h * .80, w * .31, h * .79)
+      ..cubicTo(w * .39, h * .79, w * .44, h * .68, w * .44, h * .54)
+      ..cubicTo(w * .44, h * .35, w * .44, h * .13, w * .42, h * .06)
       ..close();
-    // Orteil droit
+
+    // Sabot droit — miroir
     final right = Path()
-      ..moveTo(w * .50, h * .08)
-      ..cubicTo(w * .70, h * .08, w * .88, h * .28, w * .86, h * .62)
-      ..cubicTo(w * .85, h * .80, w * .72, h * .96, w * .62, h * .96)
-      ..cubicTo(w * .52, h * .96, w * .50, h * .76, w * .50, h * .58)
+      ..moveTo(w * .58, h * .06)
+      ..cubicTo(w * .62, h * .01, w * .80, h * .00, w * .92, h * .11)
+      ..cubicTo(w * .99, h * .20, w * .98, h * .42, w * .93, h * .58)
+      ..cubicTo(w * .87, h * .74, w * .76, h * .80, w * .69, h * .79)
+      ..cubicTo(w * .61, h * .79, w * .56, h * .68, w * .56, h * .54)
+      ..cubicTo(w * .56, h * .35, w * .56, h * .13, w * .58, h * .06)
       ..close();
+
     canvas.drawPath(left, p);
     canvas.drawPath(right, p);
+
+    // Ergots (dew claws) — deux petits triangles arrondis sous les sabots
+    final dewR = Rect.fromCenter(center: Offset(w * .19, h * .90), width: w * .18, height: h * .12);
+    final dewL = Rect.fromCenter(center: Offset(w * .81, h * .90), width: w * .18, height: h * .12);
+    canvas.drawOval(dewR, p);
+    canvas.drawOval(dewL, p);
   }
   @override bool shouldRepaint(_) => false;
 }
