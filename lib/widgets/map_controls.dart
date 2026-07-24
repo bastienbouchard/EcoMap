@@ -73,6 +73,7 @@ Widget obsIcon(String note, {double size = 26}) {
   if (note.contains('Traces')) return cp(const MooseTrackPainter());
   if (note.contains('Souille')) return cp(const MudHolePainter());
   if (note.contains('Cache')) return cp(const HuntingTowerPainter());
+  if (note.contains('Broutage')) return cp(const BranchPainter());
   final emoji = note.split(' ').first;
   return Text(emoji, style: TextStyle(fontSize: size * 0.76, height: 1));
 }

@@ -365,6 +365,74 @@ class SaltCubePainter extends CustomPainter {
   @override bool shouldRepaint(SaltCubePainter old) => old.color != color;
 }
 
+class BranchPainter extends CustomPainter {
+  const BranchPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width; final h = size.height;
+    final branchPaint = Paint()
+      ..color = const Color(0xFF8B5E30)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // Branche principale — bas-gauche vers droite
+    branchPaint.strokeWidth = w * .13;
+    final main = Path()
+      ..moveTo(w * .04, h * .82)
+      ..cubicTo(w * .25, h * .72, w * .55, h * .62, w * .96, h * .50);
+    canvas.drawPath(main, branchPaint);
+
+    // Sous-branche gauche
+    branchPaint.strokeWidth = w * .07;
+    final subL = Path()
+      ..moveTo(w * .32, h * .70)
+      ..cubicTo(w * .24, h * .52, w * .18, h * .38, w * .14, h * .18);
+    canvas.drawPath(subL, branchPaint);
+
+    // Sous-branche centre
+    final subC = Path()
+      ..moveTo(w * .55, h * .62)
+      ..cubicTo(w * .50, h * .44, w * .46, h * .28, w * .44, h * .10);
+    canvas.drawPath(subC, branchPaint);
+
+    // Sous-branche droite
+    final subR = Path()
+      ..moveTo(w * .78, h * .54)
+      ..cubicTo(w * .78, h * .40, w * .80, h * .26, w * .84, h * .12);
+    canvas.drawPath(subR, branchPaint);
+
+    // Feuilles — ovales verts avec nervure
+    void leaf(double cx, double cy, double angle, double lw, double lh) {
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.rotate(angle);
+      final darkG = Paint()..color = const Color(0xFF2E7D32)..style = PaintingStyle.fill;
+      final lightG = Paint()..color = const Color(0xFF4CAF50)..style = PaintingStyle.fill;
+      final vein = Paint()
+        ..color = const Color(0xFF1B5E20)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = lw * .08
+        ..strokeCap = StrokeCap.round;
+      canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: lw, height: lh), darkG);
+      canvas.drawOval(Rect.fromCenter(center: Offset(-lw * .06, -lh * .04), width: lw * .80, height: lh * .78), lightG);
+      canvas.drawLine(Offset(0, -lh * .42), Offset(0, lh * .42), vein);
+      canvas.restore();
+    }
+
+    final lw = w * .38; final lh = h * .26;
+    leaf(w * .16, h * .12, -0.6, lw, lh);
+    leaf(w * .38, h * .06, 0.2, lw * .9, lh);
+    leaf(w * .52, h * .04, 0.5, lw, lh);
+    leaf(w * .72, h * .08, 0.8, lw * .85, lh);
+    leaf(w * .88, h * .20, 1.1, lw, lh);
+    leaf(w * .90, h * .44, 0.5, lw * .9, lh * .9);
+    leaf(w * .60, h * .50, -0.2, lw * .8, lh * .85);
+    leaf(w * .10, h * .38, -1.0, lw * .85, lh * .85);
+  }
+  @override bool shouldRepaint(_) => false;
+}
+
 class ShrubPainter extends CustomPainter {
   const ShrubPainter();
   @override
