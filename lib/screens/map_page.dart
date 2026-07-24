@@ -2257,17 +2257,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         final pos = obs['pos'] as LatLng;
         final note = obs['note'] as String;
         final isNew = idx == _newObsIdx;
-        Widget markerBall = Container(
+        Widget markerBall = SizedBox(
           width: 44, height: 44,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFFF6B35), width: 2),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)
-            ],
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.45), blurRadius: 6, spreadRadius: 1)],
+              ),
+              child: obsIcon(note, size: 36),
+            ),
           ),
-          child: Center(child: obsIcon(note)),
         );
         if (isNew) {
           markerBall = TweenAnimationBuilder<double>(
@@ -2810,18 +2809,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               ),
             ),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
+              SizedBox(
                 width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF4A90E2), width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withOpacity(0.5), blurRadius: 4)
-                  ],
+                child: Center(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.45), blurRadius: 6, spreadRadius: 1)],
+                    ),
+                    child: obsIcon(note, size: 36),
+                  ),
                 ),
-                child: Center(child: obsIcon(note)),
               ),
               const SizedBox(height: 2),
               Container(
