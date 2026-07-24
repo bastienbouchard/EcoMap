@@ -206,24 +206,58 @@ class MudHolePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width; final h = size.height;
-    // Boue extérieure
+
+    // Herbe verte (anneau extérieur)
+    final grassPaint = Paint()..color = const Color(0xFF5A8A30)..style = PaintingStyle.fill;
+    final grassPath = Path()
+      ..addOval(Rect.fromCenter(center: Offset(w * .50, h * .52), width: w * .98, height: h * .82));
+    canvas.drawPath(grassPath, grassPaint);
+
+    // Bordure de terre brune
+    final dirtPaint = Paint()..color = const Color(0xFF8B5E2A)..style = PaintingStyle.fill;
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * .50, h * .58), width: w * .90, height: h * .68),
-      Paint()..color = const Color(0xFF8B5E2A)..style = PaintingStyle.fill,
+      Rect.fromCenter(center: Offset(w * .50, h * .54), width: w * .80, height: h * .64),
+      dirtPaint,
     );
-    // Centre plus sombre
+
+    // Boue noire centrale (irrégulière)
+    final mudPath = Path()
+      ..moveTo(w * .50, h * .16)
+      ..cubicTo(w * .72, h * .16, w * .86, h * .28, w * .88, h * .46)
+      ..cubicTo(w * .90, h * .62, w * .78, h * .78, w * .60, h * .82)
+      ..cubicTo(w * .44, h * .86, w * .26, h * .80, w * .16, h * .66)
+      ..cubicTo(w * .06, h * .52, w * .10, h * .30, w * .24, h * .20)
+      ..cubicTo(w * .33, h * .14, w * .42, h * .14, w * .50, h * .16)
+      ..close();
+    canvas.drawPath(mudPath, Paint()..color = const Color(0xFF1A1200)..style = PaintingStyle.fill);
+
+    // Reflet brillant sur la boue
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * .50, h * .60), width: w * .50, height: h * .36),
-      Paint()..color = const Color(0xFF4A2800)..style = PaintingStyle.fill,
+      Rect.fromCenter(center: Offset(w * .38, h * .38), width: w * .22, height: h * .12),
+      Paint()..color = const Color(0xFF2A2000).withOpacity(0.6)..style = PaintingStyle.fill,
     );
-    // Ondulations
-    final rp = Paint()..color = const Color(0xFFB8864E)..style = PaintingStyle.stroke..strokeWidth = 1.2;
-    canvas.drawOval(Rect.fromCenter(center: Offset(w * .50, h * .56), width: w * .70, height: h * .50), rp);
-    // Bulles
-    final bp = Paint()..color = const Color(0xFFD4A76A)..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(w * .33, h * .46), 2.5, bp);
-    canvas.drawCircle(Offset(w * .65, h * .52), 2.0, bp);
-    canvas.drawCircle(Offset(w * .48, h * .68), 1.8, bp);
+
+    // Touffes d'herbe (3 petits triangles verts sur le bord)
+    final tufts = [
+      Offset(w * .50, h * .10),
+      Offset(w * .82, h * .28),
+      Offset(w * .18, h * .32),
+    ];
+    final tuftPaint = Paint()..color = const Color(0xFF4A7A20)..style = PaintingStyle.fill;
+    for (final t in tufts) {
+      final blade = Path()
+        ..moveTo(t.dx, t.dy + h * .07)
+        ..lineTo(t.dx - w * .05, t.dy + h * .07)
+        ..lineTo(t.dx - w * .02, t.dy)
+        ..close();
+      canvas.drawPath(blade, tuftPaint);
+      final blade2 = Path()
+        ..moveTo(t.dx, t.dy + h * .07)
+        ..lineTo(t.dx + w * .05, t.dy + h * .07)
+        ..lineTo(t.dx + w * .02, t.dy - h * .02)
+        ..close();
+      canvas.drawPath(blade2, Paint()..color = const Color(0xFF6AAA38)..style = PaintingStyle.fill);
+    }
   }
   @override bool shouldRepaint(_) => false;
 }
