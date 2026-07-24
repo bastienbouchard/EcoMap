@@ -68,14 +68,22 @@ Widget mapIconBtn(
 Widget mapDividerV() => Container(width: 1, height: 20, color: Colors.white24);
 
 Widget obsIcon(String note, {double size = 26}) {
+  Widget img(String asset) => Image.asset(
+    asset,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+  );
   Widget cp(CustomPainter p) => SizedBox(width: size, height: size, child: CustomPaint(painter: p));
-  if (note.contains('Frottage')) return cp(const ShrubPainter());
-  if (note.contains('Traces')) return cp(const MooseTrackPainter());
-  if (note.contains('Souille')) return cp(const MudHolePainter());
-  if (note.contains('Cache')) return cp(const HuntingTowerPainter());
-  if (note.contains('Broutage')) return cp(const BranchPainter());
-  if (note.contains('Orignal')) return cp(const MoosePainter());
-  if (note.contains('Camion')) return cp(const TruckPainter());
+  if (note.contains('Frottage')) return img('assets/icons/frottage.png');
+  if (note.contains('Traces'))   return img('assets/icons/traces.png');
+  if (note.contains('Souille'))  return img('assets/icons/souille.png');
+  if (note.contains('Caméra'))   return img('assets/icons/camera.png');
+  if (note.contains('Crottes'))  return img('assets/icons/crottes.png');
+  if (note.contains('Cache'))    return img('assets/icons/cache.png');
+  if (note.contains('Broutage')) return img('assets/icons/broutage.png');
+  if (note.contains('Orignal'))  return img('assets/icons/orignal.png');
+  if (note.contains('Camion'))   return img('assets/icons/camion.png');
   final emoji = note.split(' ').first;
   return Text(emoji, style: TextStyle(fontSize: size * 0.76, height: 1));
 }
