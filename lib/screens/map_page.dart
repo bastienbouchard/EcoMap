@@ -82,6 +82,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _chatInitialized = false;
   double? _windDeg;
   double? _windSpeed;
+  bool _windCached = false;
   StreamSubscription<Position>? _positionStream;
 
   // ── Polygones écoforestiers ──
@@ -323,15 +324,33 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         '&longitude=${_currentPosition.longitude}'
         '&current=wind_speed_10m,wind_direction_10m',
       );
-      final resp = await http.get(url);
+      final resp = await http.get(url).timeout(const Duration(seconds: 8));
       if (resp.statusCode == 200) {
         final data = json.decode(resp.body);
+        final deg = data['current']['wind_direction_10m']?.toDouble();
+        final speed = data['current']['wind_speed_10m']?.toDouble();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble('wind_deg', deg ?? 0);
+        await prefs.setDouble('wind_speed', speed ?? 0);
+        await prefs.setInt('wind_ts', DateTime.now().millisecondsSinceEpoch);
         if (mounted) setState(() {
-          _windDeg = data['current']['wind_direction_10m']?.toDouble();
-          _windSpeed = data['current']['wind_speed_10m']?.toDouble();
+          _windDeg = deg;
+          _windSpeed = speed;
+          _windCached = false;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      final prefs = await SharedPreferences.getInstance();
+      final deg = prefs.getDouble('wind_deg');
+      final speed = prefs.getDouble('wind_speed');
+      if (deg != null && mounted) {
+        setState(() {
+          _windDeg = deg;
+          _windSpeed = speed;
+          _windCached = true;
+        });
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -3185,12 +3204,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       top: MediaQuery.of(context).padding.top + (bannerVisible ? 62 : 12),
       right: 16,
       child: GestureDetector(
-        onTap: _isOnline ? () => Navigator.push(context, MaterialPageRoute(
+        onTap: (_isOnline || _windDeg != null) ? () => Navigator.push(context, MaterialPageRoute(
           builder: (_) => MeteoPage(
             latitude: _currentPosition.latitude,
             longitude: _currentPosition.longitude,
             windDeg: _windDeg,
             windSpeed: _windSpeed,
+            windCached: _windCached,
           ),
         )) : () => _snack('Météo non disponible hors ligne', error: true),
         child: Container(
@@ -3592,15 +3612,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _navBtn(Icons.wb_sunny_rounded, 'Météo',
-                        _isOnline ? () => Navigator.push(context, MaterialPageRoute(
+                        (_isOnline || _windDeg != null) ? () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => MeteoPage(
                             latitude: _currentPosition.latitude,
                             longitude: _currentPosition.longitude,
                             windDeg: _windDeg,
                             windSpeed: _windSpeed,
+                            windCached: _windCached,
                           ),
                         )) : () => _snack('Météo non disponible hors ligne', error: true),
-                        color: _isOnline ? const Color(0xFFBDBDBD) : Colors.white24),
+                        color: (_isOnline || _windDeg != null) ? const Color(0xFFBDBDBD) : Colors.white24),
                     const SizedBox(height: 10),
                     _navBtn(Icons.people, 'Groupe',
                         _isOnline

@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MeteoPage extends StatefulWidget {
   final double latitude;
   final double longitude;
   final double? windDeg;
   final double? windSpeed;
+  final bool windCached;
 
   const MeteoPage({
     super.key,
@@ -15,6 +17,7 @@ class MeteoPage extends StatefulWidget {
     required this.longitude,
     required this.windDeg,
     required this.windSpeed,
+    this.windCached = false,
   });
 
   @override
@@ -24,6 +27,8 @@ class MeteoPage extends StatefulWidget {
 class _MeteoPageState extends State<MeteoPage> {
   List<Map<String, dynamic>> _forecast = [];
   bool _loadingForecast = true;
+  bool _forecastCached = false;
+  DateTime? _cacheTime;
 
   @override
   void initState() {
@@ -43,7 +48,7 @@ class _MeteoPageState extends State<MeteoPage> {
         '&timezone=auto'
         '&forecast_days=4',
       );
-      final resp = await http.get(url);
+      final resp = await http.get(url).timeout(const Duration(seconds: 8));
       if (resp.statusCode == 200) {
         final data = json.decode(resp.body) as Map;
         final daily = data['daily'] as Map;
@@ -62,13 +67,45 @@ class _MeteoPageState extends State<MeteoPage> {
             'sunset': daily['sunset'][i] as String?,
           });
         }
-        if (mounted) setState(() { _forecast = forecast; _loadingForecast = false; });
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('forecast_json', json.encode(forecast));
+        await prefs.setInt('forecast_ts', DateTime.now().millisecondsSinceEpoch);
+        if (mounted) setState(() {
+          _forecast = forecast;
+          _loadingForecast = false;
+          _forecastCached = false;
+        });
       } else {
-        if (mounted) setState(() => _loadingForecast = false);
+        await _loadCachedForecast();
       }
     } catch (_) {
-      if (mounted) setState(() => _loadingForecast = false);
+      await _loadCachedForecast();
     }
+  }
+
+  Future<void> _loadCachedForecast() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('forecast_json');
+    final ts = prefs.getInt('forecast_ts');
+    if (raw != null && mounted) {
+      setState(() {
+        _forecast = (json.decode(raw) as List).cast<Map<String, dynamic>>();
+        _loadingForecast = false;
+        _forecastCached = true;
+        _cacheTime = ts != null
+            ? DateTime.fromMillisecondsSinceEpoch(ts)
+            : null;
+      });
+    } else if (mounted) {
+      setState(() => _loadingForecast = false);
+    }
+  }
+
+  String _ageCacheLabel() {
+    if (_cacheTime == null) return 'données en cache';
+    final diff = DateTime.now().difference(_cacheTime!);
+    if (diff.inMinutes < 60) return 'cache — il y a ${diff.inMinutes} min';
+    return 'cache — il y a ${diff.inHours} h';
   }
 
   String _fmt(DateTime dt) =>
@@ -142,6 +179,22 @@ class _MeteoPageState extends State<MeteoPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (_forecastCached || widget.windCached)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.withOpacity(0.4)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.wifi_off_rounded, color: Colors.orange, size: 15),
+                const SizedBox(width: 8),
+                Text('Hors ligne — ${_ageCacheLabel()}',
+                    style: const TextStyle(color: Colors.orange, fontSize: 12)),
+              ]),
+            ),
           // ── VENT ACTUEL ────────────────────────────────────────
           _card(children: [
             _sectionTitle('Vent actuel'),
