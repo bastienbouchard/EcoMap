@@ -34,6 +34,7 @@ import 'login_page.dart';
 import 'meteo_page.dart';
 import 'navigation_page.dart';
 import 'territoire_download_page.dart';
+import 'suivis_page.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types d'observation disponibles
@@ -134,7 +135,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   // ── Tracé GPS ──
   bool _recording = false;
   List<LatLng> _trackPoints = [];
-  final List<({DateTime date, List<LatLng> points})> _savedTracks = [];
+  final List<({String nom, DateTime date, List<LatLng> points})> _savedTracks = [];
   final List<String?> _savedTrackIds = [];
 
   // ── Observations terrain ──
@@ -817,13 +818,50 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         _snack('Tracé trop court', error: true);
         return;
       }
-      final newIdx = _savedTracks.length;
-      setState(() {
-        _savedTracks.add((date: DateTime.now(), points: pts));
-        _savedTrackIds.add(null);
-      });
-      _saveTrack(newIdx);
-      _snack('Tracé sauvegardé — ${pts.length} points');
+      final now = DateTime.now();
+      final defaultNom = 'Suivi ${now.day.toString().padLeft(2,'0')}/${now.month.toString().padLeft(2,'0')} '
+          '${now.hour.toString().padLeft(2,'0')}h${now.minute.toString().padLeft(2,'0')}';
+      final ctrl = TextEditingController(text: defaultNom);
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1C1C),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Nommer le suivi',
+              style: TextStyle(color: Colors.white, fontSize: 16)),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFF2A2A2A),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none),
+              hintText: 'Nom du suivi',
+              hintStyle: const TextStyle(color: Colors.white38),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                final nom = ctrl.text.trim().isEmpty ? defaultNom : ctrl.text.trim();
+                final newIdx = _savedTracks.length;
+                setState(() {
+                  _savedTracks.add((nom: nom, date: now, points: pts));
+                  _savedTrackIds.add(null);
+                });
+                _saveTrack(newIdx);
+                _snack('Suivi "$nom" sauvegardé');
+              },
+              child: const Text('Sauvegarder',
+                  style: TextStyle(color: Color(0xFFFF6B35))),
+            ),
+          ],
+        ),
+      );
     } else {
       setState(() { _recording = true; _trackPoints = []; });
       _snack('Enregistrement démarré — bouge-toi!');
@@ -1004,6 +1042,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     final prefs = await SharedPreferences.getInstance();
     final list = List.generate(_savedTracks.length, (i) => {
       'id': _savedTrackIds.length > i ? _savedTrackIds[i] : null,
+      'nom': _savedTracks[i].nom,
       'date': _savedTracks[i].date.toIso8601String(),
       'points': _savedTracks[i].points
           .map((p) => {'lat': p.latitude, 'lon': p.longitude}).toList(),
@@ -1020,6 +1059,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       setState(() {
         for (final m in list) {
           _savedTracks.add((
+            nom: (m['nom'] as String?) ?? '',
             date: DateTime.parse(m['date'] as String),
             points: (m['points'] as List).map((p) =>
                 LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())).toList(),
@@ -1033,7 +1073,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Future<void> _loadTracks() async {
     final uid = AuthService.uid;
     if (uid == null) return;
-    // Cache local en premier
     await _loadTracksFromCache(uid);
     try {
       final snap = await FirebaseFirestore.instance
@@ -1041,11 +1080,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           .orderBy('date', descending: false)
           .get();
       if (!mounted) return;
-      final tracks = <({DateTime date, List<LatLng> points})>[];
+      final tracks = <({String nom, DateTime date, List<LatLng> points})>[];
       final ids = <String?>[];
       for (final doc in snap.docs) {
         final d = doc.data();
         tracks.add((
+          nom: (d['nom'] as String?) ?? '',
           date: (d['date'] as Timestamp).toDate(),
           points: (d['points'] as List).map((p) =>
               LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())).toList(),
@@ -1071,6 +1111,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       final ref = await FirebaseFirestore.instance
           .collection('users').doc(uid).collection('tracks')
           .add({
+        'nom': track.nom,
         'date': Timestamp.fromDate(track.date),
         'points': track.points
             .map((p) => {'lat': p.latitude, 'lon': p.longitude})
@@ -1078,6 +1119,21 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       });
       if (mounted) setState(() => _savedTrackIds[idx] = ref.id);
       await _persistTrackCache(uid);
+    } catch (_) {}
+  }
+
+  Future<void> _renameTrack(int idx, String newNom) async {
+    final old = _savedTracks[idx];
+    setState(() => _savedTracks[idx] = (nom: newNom, date: old.date, points: old.points));
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    await _persistTrackCache(uid);
+    final id = idx < _savedTrackIds.length ? _savedTrackIds[idx] : null;
+    if (id == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('tracks')
+          .doc(id).update({'nom': newNom});
     } catch (_) {}
   }
 
@@ -1095,6 +1151,18 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           .collection('users').doc(uid!).collection('tracks')
           .doc(id).delete();
     } catch (_) {}
+  }
+
+  void _centerOnTrack(int idx) {
+    if (idx >= _savedTracks.length) return;
+    final pts = _savedTracks[idx].points;
+    if (pts.isEmpty) return;
+    final lats = pts.map((p) => p.latitude);
+    final lngs = pts.map((p) => p.longitude);
+    final centerLat = (lats.reduce(min) + lats.reduce(max)) / 2;
+    final centerLng = (lngs.reduce(min) + lngs.reduce(max)) / 2;
+    _mapController.move(LatLng(centerLat, centerLng), 14);
+    setState(() => _followingLocation = false);
   }
 
   void _addObservation() {
@@ -1625,9 +1693,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     color: Color(0xFF4A90E2), size: 26),
               ),
               const SizedBox(height: 10),
+              if (track.nom.isNotEmpty)
+                Text(track.nom,
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 15, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
               Text(dateLabel,
-                  style: const TextStyle(color: Colors.white,
-                      fontSize: 15, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
               const SizedBox(height: 4),
               Text('$distStr · ${track.points.length} points',
                   style: const TextStyle(color: Colors.white38, fontSize: 12)),
@@ -1637,12 +1709,50 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 child: TextButton.icon(
                   onPressed: () {
                     Navigator.pop(context);
+                    final ctrl = TextEditingController(text: track.nom);
+                    showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        backgroundColor: const Color(0xFF1C1C1C),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        title: const Text('Renommer', style: TextStyle(color: Colors.white, fontSize: 16)),
+                        content: TextField(
+                          controller: ctrl,
+                          autofocus: true,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: const Color(0xFF2A2A2A),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context),
+                              child: const Text('Annuler', style: TextStyle(color: Colors.white38))),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              if (ctrl.text.trim().isNotEmpty) _renameTrack(idx, ctrl.text.trim());
+                            },
+                            child: const Text('OK', style: TextStyle(color: Color(0xFFFF6B35))),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.white54),
+                  label: const Text('Renommer', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                ),
+              ),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
                     _deleteTrack(idx);
                   },
-                  icon: const Icon(Icons.delete_outline,
-                      size: 16, color: Colors.white38),
-                  label: const Text('Supprimer',
-                      style: TextStyle(color: Colors.white38, fontSize: 13)),
+                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.white38),
+                  label: const Text('Supprimer', style: TextStyle(color: Colors.white38, fontSize: 13)),
                 ),
               ),
             ],
@@ -3500,6 +3610,28 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                         color: const Color(0xFFFF6B35),
                         size: 22,
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: Icons.list_alt_rounded,
+                      label: 'Registre',
+                      color: const Color(0xFF4A90E2),
+                      active: false,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SuivisPage(
+                              tracks: List.unmodifiable(_savedTracks),
+                              onRename: _renameTrack,
+                              onDelete: _deleteTrack,
+                              onCenterMap: (idx) {
+                                _centerOnTrack(idx);
+                              },
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
