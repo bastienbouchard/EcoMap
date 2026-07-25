@@ -2043,7 +2043,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         initialCenter: const LatLng(48.2917, -71.322),
         initialZoom: 13,
         minZoom: 5,
-        maxZoom: 19,
+        maxZoom: 22,
         onTap: (_, point) => _handleMapTap(point),
         onPositionChanged: (pos, hasGesture) {
           if (!mounted) return;
@@ -2084,6 +2084,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
+          maxNativeZoom: _satellite ? 20 : 19,
+          maxZoom: 22,
         ),
         Opacity(
           opacity: _opacity,
