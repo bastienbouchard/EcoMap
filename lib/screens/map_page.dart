@@ -2081,7 +2081,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       children: [
         TileLayer(
           urlTemplate: _satellite
-              ? 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/256/{z}/{x}/{y}?access_token=$_mapboxToken'
+              ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
         ),
