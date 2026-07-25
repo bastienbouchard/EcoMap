@@ -39,6 +39,8 @@ import 'suivis_page.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // Types d'observation disponibles
 // ─────────────────────────────────────────────────────────────────────────────
+const _mapboxToken = String.fromEnvironment('MAPBOX_TOKEN');
+
 const _typesObservation = [
   ('', 'Frottage'),
   ('💧', 'Souille'),
@@ -2079,7 +2081,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       children: [
         TileLayer(
           urlTemplate: _satellite
-              ? 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}@2x?access_token=${const String.fromEnvironment('MAPBOX_TOKEN')}'
+              ? 'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg90?access_token=$_mapboxToken'
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
         ),
