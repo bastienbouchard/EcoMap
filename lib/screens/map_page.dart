@@ -2079,7 +2079,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       children: [
         TileLayer(
           urlTemplate: _satellite
-              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              ? 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}@2x?access_token=${const String.fromEnvironment('MAPBOX_TOKEN')}'
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
         ),
