@@ -66,8 +66,10 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
       if (!mounted) return;
       setState(() {
         _compassPermissionGranted = true;
-        // N'utilise le magnétomètre que quand le GPS ne peut pas donner un cap fiable
-        if (_gpsSpeed < 0.3) _currentHeading = heading;
+        // À l'arrêt, le magnétomètre prend le relais avec lissage pour éviter les sauts
+        if (_gpsSpeed <= 0.3) {
+          _currentHeading = _smoothHeading(_currentHeading, heading);
+        }
       });
     });
   }
@@ -80,9 +82,16 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
       if (!mounted) return;
       setState(() {
         _compassPermissionGranted = true;
-        if (_gpsSpeed < 0.3) _currentHeading = heading;
+        if (_gpsSpeed <= 0.3) {
+          _currentHeading = _smoothHeading(_currentHeading, heading);
+        }
       });
     });
+  }
+
+  double _smoothHeading(double current, double incoming) {
+    final diff = ((incoming - current + 540) % 360) - 180;
+    return (current + diff * 0.35 + 360) % 360;
   }
 
   void _calculateTotalDistance() {
@@ -108,12 +117,10 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
   void _updatePosition(Position position) {
     final newPos = LatLng(position.latitude, position.longitude);
     _gpsSpeed = position.speed;
-    // GPS course (Nord vrai) quand vitesse suffisante — plus fiable que le magnétomètre
-    // en forêt avec du métal à proximité (fusil, quad, etc.)
-    if (position.speed > 0.3 && position.heading >= 0) {
-      setState(() => _currentHeading = position.heading);
-    } else if (!_compassPermissionGranted && position.heading >= 0) {
-      setState(() => _currentHeading = position.heading);
+    // GPS course uniquement (Nord vrai) — le magnétomètre n'est pas utilisé pour le cap
+    // car il est trop sensible aux interférences métal (fusil, quad, véhicule)
+    if (position.heading >= 0 && position.speed > 0.3) {
+      setState(() => _currentHeading = _smoothHeading(_currentHeading, position.heading));
     }
     _updateWaypoint(newPos);
     _updateSpeed();
