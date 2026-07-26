@@ -34,6 +34,7 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
 
   StreamSubscription<double>? _compassSubscription;
   bool _compassPermissionGranted = false;
+  double _gpsSpeed = 0;
   double _currentSegmentLength = 0;
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnim;
@@ -62,9 +63,11 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
     final granted = await requestCompassPermission();
     if (!mounted || !granted) return;
     _compassSubscription = compassHeadingStream().listen((heading) {
-      if (mounted) setState(() {
+      if (!mounted) return;
+      setState(() {
         _compassPermissionGranted = true;
-        _currentHeading = heading;
+        // N'utilise le magnétomètre que quand le GPS ne peut pas donner un cap fiable
+        if (_gpsSpeed < 0.3) _currentHeading = heading;
       });
     });
   }
@@ -74,9 +77,10 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
     final granted = await requestCompassPermission();
     if (!mounted || !granted) return;
     _compassSubscription = compassHeadingStream().listen((heading) {
-      if (mounted) setState(() {
+      if (!mounted) return;
+      setState(() {
         _compassPermissionGranted = true;
-        _currentHeading = heading;
+        if (_gpsSpeed < 0.3) _currentHeading = heading;
       });
     });
   }
@@ -103,8 +107,12 @@ class _NavigationPageState extends State<NavigationPage> with SingleTickerProvid
 
   void _updatePosition(Position position) {
     final newPos = LatLng(position.latitude, position.longitude);
-    // GPS heading seulement si le magnétomètre web n'est pas actif
-    if (!_compassPermissionGranted) {
+    _gpsSpeed = position.speed;
+    // GPS course (Nord vrai) quand vitesse suffisante — plus fiable que le magnétomètre
+    // en forêt avec du métal à proximité (fusil, quad, etc.)
+    if (position.speed > 0.3 && position.heading >= 0) {
+      setState(() => _currentHeading = position.heading);
+    } else if (!_compassPermissionGranted && position.heading >= 0) {
       setState(() => _currentHeading = position.heading);
     }
     _updateWaypoint(newPos);
