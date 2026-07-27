@@ -264,7 +264,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               )
             : const LocationSettings(
                 accuracy: LocationAccuracy.high,
-                distanceFilter: 10,
+                distanceFilter: 3,
               ),
       ).listen((position) {
         if (!mounted) return;
@@ -275,7 +275,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           if (_recording) _trackPoints.add(p);
           if (_showHotspots) _hotspots = _computeHotspots();
         });
-        if (_followingLocation) {
+        if (_followingLocation || _recording) {
           _mapController.move(p, _mapZoom);
         }
         if (_groupeActif && _partagePosition && _groupeId != null && _monNom != null) {
