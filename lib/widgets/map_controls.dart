@@ -84,6 +84,7 @@ Widget obsIcon(String note, {double size = 26}) {
   if (note.contains('Broutage')) return img('assets/icons/broutage.png');
   if (note.contains('Orignal'))  return img('assets/icons/orignal.png');
   if (note.contains('Camion'))   return img('assets/icons/camion.png');
+  if (note.contains('Saline'))   return img('assets/icons/saline.png');
   final emoji = note.split(' ').first;
   return Text(emoji, style: TextStyle(fontSize: size * 0.76, height: 1));
 }
