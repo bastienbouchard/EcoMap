@@ -47,6 +47,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>EcoMap utilise votre position pour afficher votre emplacement sur la carte.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

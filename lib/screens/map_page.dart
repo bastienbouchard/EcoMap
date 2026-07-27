@@ -250,11 +250,27 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         await _fetchWind();
       }
 
+      final locationSettings = defaultTargetPlatform == TargetPlatform.iOS
+          ? AppleSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 10,
+              activityType: ActivityType.fitness,
+              pauseLocationUpdatesAutomatically: false,
+              allowBackgroundLocationUpdates: true,
+              showBackgroundLocationIndicator: true,
+            )
+          : AndroidSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 10,
+              foregroundNotificationConfig: const ForegroundNotificationConfig(
+                notificationTitle: 'OrignalScan — Suivi actif',
+                notificationText: 'Suivi GPS en cours',
+                enableWakeLock: true,
+              ),
+            );
+
       _positionStream = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 10,
-        ),
+        locationSettings: locationSettings,
       ).listen((position) {
         if (!mounted) return;
         final p = LatLng(position.latitude, position.longitude);
@@ -264,6 +280,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           if (_recording) _trackPoints.add(p);
           if (_showHotspots) _hotspots = _computeHotspots();
         });
+        if (_followingLocation) {
+          _mapController.move(p, _mapZoom);
+        }
         if (_groupeActif && _partagePosition && _groupeId != null && _monNom != null) {
           GroupeService.publierPosition(groupeId: _groupeId!, nom: _monNom!, position: p);
         }
@@ -867,7 +886,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         ),
       );
     } else {
-      setState(() { _recording = true; _trackPoints = []; });
+      setState(() { _recording = true; _trackPoints = []; _followingLocation = true; });
       _snack('Enregistrement démarré — bouge-toi!');
     }
   }
