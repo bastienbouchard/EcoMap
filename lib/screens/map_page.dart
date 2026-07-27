@@ -52,6 +52,7 @@ const _typesObservation = [
   ('', 'Orignal'),
   ('', 'Camion'),
   ('', 'Saline'),
+  ('', 'Chalet'),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1211,72 +1212,66 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 28 + MediaQuery.of(ctx).viewPadding.bottom),
+        padding: EdgeInsets.fromLTRB(0, 12, 0, MediaQuery.of(ctx).viewPadding.bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 32, height: 3,
+            Center(child: Container(width: 32, height: 3,
                 decoration: BoxDecoration(color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2))),
+                    borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 14),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Observation',
-                  style: TextStyle(color: Colors.white,
-                      fontSize: 15, fontWeight: FontWeight.bold)),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Type d\'observation',
+                    style: TextStyle(color: Colors.white,
+                        fontSize: 15, fontWeight: FontWeight.bold)),
+              ),
             ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _typesObservation.map((t) {
-                return GestureDetector(
-                  onTap: () {
-                    final pos = _mapController.camera.center;
-                    final obs = {
-                      'pos': pos,
-                      'note': '${t.$1} ${t.$2}',
-                      'time': DateTime.now(),
-                    };
-                    final newIdx = _observations.length;
-                    setState(() {
-                      _observations.add(obs);
-                      _newObsIdx = newIdx;
-                    });
-                    _saveObservation(obs);
-                    Navigator.pop(context);
-                    _snack('${t.$1} ${t.$2} ajouté');
-                    Future.delayed(const Duration(milliseconds: 800),
-                        () { if (mounted) setState(() => _newObsIdx = null); });
-                  },
-                  child: Container(
-                    width: (MediaQuery.of(context).size.width - 52) / 3,
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 16, horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF252525),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white10),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.55),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _typesObservation.length,
+                separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10, indent: 64),
+                itemBuilder: (_, i) {
+                  final t = _typesObservation[i];
+                  return InkWell(
+                    onTap: () {
+                      final pos = _mapController.camera.center;
+                      final obs = {
+                        'pos': pos,
+                        'note': '${t.$1} ${t.$2}',
+                        'time': DateTime.now(),
+                      };
+                      final newIdx = _observations.length;
+                      setState(() {
+                        _observations.add(obs);
+                        _newObsIdx = newIdx;
+                      });
+                      _saveObservation(obs);
+                      Navigator.pop(context);
+                      _snack('${t.$2} ajouté');
+                      Future.delayed(const Duration(milliseconds: 800),
+                          () { if (mounted) setState(() => _newObsIdx = null); });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Row(children: [
+                        SizedBox(width: 36, height: 36, child: obsIcon('${t.$1} ${t.$2}', size: 36)),
+                        const SizedBox(width: 16),
+                        Text(t.$2, style: const TextStyle(color: Colors.white, fontSize: 15)),
+                      ]),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        obsIcon('${t.$1} ${t.$2}', size: 34),
-                        const SizedBox(height: 8),
-                        Text(t.$2,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500)),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
+                  );
+                },
+              ),
             ),
           ],
         ),
