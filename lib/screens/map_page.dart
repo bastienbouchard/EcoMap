@@ -283,15 +283,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           ),
         ).listen((position) => handlePos(position.latitude, position.longitude));
       } else {
-        // Android : polling toutes les 5s (getPositionStream non fiable sur Android)
-        _locationTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-          try {
-            final pos = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-            );
-            handlePos(pos.latitude, pos.longitude);
-          } catch (_) {}
-        });
+        _positionStream = Geolocator.getPositionStream(
+          locationSettings: AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 3,
+            forceLocationManager: true,
+          ),
+        ).listen((position) => handlePos(position.latitude, position.longitude));
       }
     } catch (_) {}
   }
