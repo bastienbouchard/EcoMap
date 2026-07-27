@@ -260,14 +260,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               allowBackgroundLocationUpdates: true,
               showBackgroundLocationIndicator: true,
             )
-          : AndroidSettings(
+          : const AndroidSettings(
               accuracy: LocationAccuracy.high,
               distanceFilter: 10,
-              foregroundNotificationConfig: const ForegroundNotificationConfig(
-                notificationTitle: 'OrignalScan — Suivi actif',
-                notificationText: 'Suivi GPS en cours',
-                enableWakeLock: true,
-              ),
             );
 
       _positionStream = Geolocator.getPositionStream(
