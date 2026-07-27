@@ -252,22 +252,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         await _fetchWind();
       }
 
-      final locationSettings = defaultTargetPlatform == TargetPlatform.iOS
-          ? AppleSettings(
-              accuracy: LocationAccuracy.high,
-              distanceFilter: 10,
-              activityType: ActivityType.fitness,
-              pauseLocationUpdatesAutomatically: false,
-              allowBackgroundLocationUpdates: true,
-              showBackgroundLocationIndicator: true,
-            )
-          : AndroidSettings(
-              accuracy: LocationAccuracy.high,
-              distanceFilter: 10,
-            );
-
       _positionStream = Geolocator.getPositionStream(
-        locationSettings: locationSettings,
+        locationSettings: defaultTargetPlatform == TargetPlatform.iOS
+            ? AppleSettings(
+                accuracy: LocationAccuracy.high,
+                distanceFilter: 10,
+                activityType: ActivityType.fitness,
+                pauseLocationUpdatesAutomatically: false,
+                allowBackgroundLocationUpdates: true,
+                showBackgroundLocationIndicator: true,
+              )
+            : const LocationSettings(
+                accuracy: LocationAccuracy.high,
+                distanceFilter: 10,
+              ),
       ).listen((position) {
         if (!mounted) return;
         final p = LatLng(position.latitude, position.longitude);
