@@ -91,6 +91,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   double? _windSpeed;
   bool _windCached = false;
   StreamSubscription<Position>? _positionStream;
+  Timer? _locationTimer;
 
   // ── Polygones écoforestiers ──
   List<Polygon> _polygonsCache = [];
@@ -211,6 +212,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _positionStream?.cancel();
+    _locationTimer?.cancel();
     _chatSub?.cancel();
     _groupeStream?.cancel();
     _obsGroupeSub?.cancel();
@@ -252,23 +254,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         await _fetchWind();
       }
 
-      _positionStream = Geolocator.getPositionStream(
-        locationSettings: defaultTargetPlatform == TargetPlatform.iOS
-            ? AppleSettings(
-                accuracy: LocationAccuracy.high,
-                distanceFilter: 10,
-                activityType: ActivityType.fitness,
-                pauseLocationUpdatesAutomatically: false,
-                allowBackgroundLocationUpdates: true,
-                showBackgroundLocationIndicator: true,
-              )
-            : const LocationSettings(
-                accuracy: LocationAccuracy.high,
-                distanceFilter: 3,
-              ),
-      ).listen((position) {
+      void handlePos(double lat, double lon) {
         if (!mounted) return;
-        final p = LatLng(position.latitude, position.longitude);
+        final p = LatLng(lat, lon);
         setState(() {
           _currentPosition = p;
           _hasGpsPosition = true;
@@ -281,7 +269,30 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         if (_groupeActif && _partagePosition && _groupeId != null && _monNom != null) {
           GroupeService.publierPosition(groupeId: _groupeId!, nom: _monNom!, position: p);
         }
-      });
+      }
+
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        _positionStream = Geolocator.getPositionStream(
+          locationSettings: AppleSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 3,
+            activityType: ActivityType.fitness,
+            pauseLocationUpdatesAutomatically: false,
+            allowBackgroundLocationUpdates: true,
+            showBackgroundLocationIndicator: true,
+          ),
+        ).listen((position) => handlePos(position.latitude, position.longitude));
+      } else {
+        // Android : polling toutes les 5s (getPositionStream non fiable sur Android)
+        _locationTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+          try {
+            final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+            );
+            handlePos(pos.latitude, pos.longitude);
+          } catch (_) {}
+        });
+      }
     } catch (_) {}
   }
 
