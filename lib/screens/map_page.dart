@@ -540,6 +540,27 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  int _observationBoost(LatLng pos) {
+    const weights = {
+      'Orignal': 5, 'Frottage': 4, 'Souille': 4,
+      'Traces': 3, 'Broutage': 3, 'Crottes': 2, 'Saline': 1,
+    };
+    int boost = 0;
+    for (final obs in _observations) {
+      final obsPos = obs['pos'] as LatLng;
+      final note = obs['note'] as String;
+      final dist = const Distance().as(LengthUnit.Meter, pos, obsPos);
+      if (dist > 500) continue;
+      for (final entry in weights.entries) {
+        if (note.contains(entry.key)) {
+          boost += dist < 200 ? entry.value : (entry.value * 0.5).round();
+          break;
+        }
+      }
+    }
+    return boost.clamp(0, 5);
+  }
+
   // Hotspots
   // ─────────────────────────────────────────────────────────────────────────
   List<LatLng> _computeHotspots({List<List<double>> infraPoints = const []}) {
@@ -554,7 +575,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               h.position.longitude >= b.southWest.longitude &&
               h.position.longitude <= b.northEast.longitude)
           .toList()
-        ..sort((a, b) => b.score.compareTo(a.score));
+        ..sort((a, b) => (b.score + _observationBoost(b.position))
+            .compareTo(a.score + _observationBoost(a.position)));
     } catch (_) {}
 
     if (candidates.isEmpty) {
@@ -569,7 +591,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 h.position.longitude >= center.longitude - delta * 1.5 &&
                 h.position.longitude <= center.longitude + delta * 1.5)
             .toList()
-          ..sort((a, b) => b.score.compareTo(a.score));
+          ..sort((a, b) => (b.score + _observationBoost(b.position))
+              .compareTo(a.score + _observationBoost(a.position)));
       } catch (_) {}
     }
 
