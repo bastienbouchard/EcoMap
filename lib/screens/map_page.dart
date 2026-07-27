@@ -260,7 +260,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               allowBackgroundLocationUpdates: true,
               showBackgroundLocationIndicator: true,
             )
-          : const AndroidSettings(
+          : AndroidSettings(
               accuracy: LocationAccuracy.high,
               distanceFilter: 10,
             );
