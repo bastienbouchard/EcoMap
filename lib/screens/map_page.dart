@@ -322,12 +322,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           ),
         ).listen((position) => handlePos(position.latitude, position.longitude));
       } else {
-        // Stream Android (fonctionne sur certains appareils)
         _positionStream = Geolocator.getPositionStream(
           locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.high,
             distanceFilter: 3,
             forceLocationManager: true,
+            foregroundNotificationConfig: const ForegroundNotificationConfig(
+              notificationTitle: 'OrignalScan',
+              notificationText: 'Suivi GPS actif',
+              enableWakeLock: true,
+            ),
           ),
         ).listen((position) {
           _lastStreamUpdate = DateTime.now();
