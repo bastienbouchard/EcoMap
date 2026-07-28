@@ -759,6 +759,69 @@ List<Polygon> buildPolygonsIsolate(Map<String, dynamic> geoJsonData) {
   return result;
 }
 
+// ── DÉCODEUR IFQ MRNF ──────────────────────────────────────────────────────
+const _essNoms = {
+  'EN': 'Épinette noire', 'EB': 'Épinette blanche', 'EP': 'Épinette rouge',
+  'EU': 'Épinette', 'EO': 'Épinette noire ouverte', 'EV': 'Épinette variée',
+  'SB': 'Sapin baumier', 'SE': 'Sapin-Épinette',
+  'TO': 'Thuya occidental', 'ML': 'Mélèze laricin',
+  'PG': 'Pin gris', 'PI': 'Pin blanc', 'PR': 'Pin rouge', 'PU': 'Pruche',
+  'BJ': 'Bouleau jaune', 'BP': 'Bouleau blanc',
+  'PE': 'Peuplier faux-tremble', 'PB': 'Peuplier baumier',
+  'PT': 'Peuplier à grandes dents', 'PA': 'Peuplier hybride',
+  'ER': 'Érable rouge', 'ES': 'Érable à sucre',
+  'FT': 'Feuillus tolérants', 'FI': 'Feuillus intolérants',
+  'FN': 'Feuillus nordiques', 'FX': 'Feuillus mixtes',
+  'FH': 'Frêne noir', 'FR': 'Frêne rouge',
+  'RX': 'Résineux mixtes', 'RZ': 'Régénération résineuse',
+  'EA': 'Aulne', 'HG': 'Herbacées', 'CR': 'Cerisier',
+  'FO': 'Forêt ouverte', 'FZ': 'Forêt en régénération',
+};
+
+const _essAbbrev = {
+  'EN': 'Én', 'EB': 'Éb', 'EP': 'Ér', 'EU': 'É', 'EO': 'Éo',
+  'SB': 'Sa', 'SE': 'Sa-É',
+  'TO': 'Th', 'ML': 'Mé',
+  'PG': 'Pg', 'PI': 'Pi', 'PR': 'Pr', 'PU': 'Pu',
+  'BJ': 'Bj', 'BP': 'Bb',
+  'PE': 'Pt', 'PB': 'Pb', 'PT': 'Pgd', 'PA': 'Pa',
+  'ER': 'Ear', 'ES': 'Eas',
+  'FT': 'Ft', 'FI': 'Fi', 'FN': 'Fn', 'FX': 'Fx',
+  'RX': 'Rx', 'RZ': 'Rz', 'EA': 'Aul', 'HG': 'Hb',
+};
+
+const _densNoms = {
+  'A': '10-39 %', 'B': '40-59 %', 'C': '60-79 %', 'D': '80-100 %',
+};
+
+List<String> _splitGrEss(String grEss) {
+  final parts = <String>[];
+  for (int i = 0; i + 1 < grEss.length; i += 2) {
+    parts.add(grEss.substring(i, i + 2));
+  }
+  return parts;
+}
+
+String _decodeGrEss(String grEss) =>
+    _splitGrEss(grEss).map((c) => _essNoms[c] ?? c).join(' · ');
+
+String _abbreviateGrEss(String grEss) =>
+    _splitGrEss(grEss).map((c) => _essAbbrev[c] ?? c).join('-');
+
+String _decodeAge(String age) {
+  if (age.isEmpty) return '';
+  if (RegExp(r'^\d+$').hasMatch(age)) return '$age ans';
+  // Ages composites comme '7010' = deux strates
+  if (RegExp(r'^\d{4}$').hasMatch(age)) {
+    return '${age.substring(0, 2)} ans / ${age.substring(2)} ans';
+  }
+  const ageNoms = {
+    'JIN': 'Jeune irrég.', 'JIR': 'Jeune irrég.',
+    'VIN': 'Vieux irrég.', 'VIR': 'Vieux irrég.',
+  };
+  return ageNoms[age] ?? age;
+}
+
 // Retourne les étiquettes de peuplement (centroïde + texte) pour zoom élevé
 List<Map<String, dynamic>> buildPolygonLabelsIsolate(Map<String, dynamic> geoJsonData) {
   final features = geoJsonData['features'] as List;
@@ -769,15 +832,18 @@ List<Map<String, dynamic>> buildPolygonLabelsIsolate(Map<String, dynamic> geoJso
       final ess = (props['gr_ess'] ?? '').toString();
       final age = (props['cl_age'] ?? '').toString();
       final dens = (props['cl_dens'] ?? '').toString();
-      final label = [ess, age, dens].where((s) => s.isNotEmpty).join('');
-      if (label.isEmpty) continue;
+      if (ess.isEmpty) continue;
+      final label = _abbreviateGrEss(ess) + (age.isNotEmpty ? ' ${_decodeAge(age)}' : '') + (dens.isNotEmpty ? ' $dens' : '');
+      final full = _decodeGrEss(ess)
+          + (age.isNotEmpty ? '\n${_decodeAge(age)}' : '')
+          + (dens.isNotEmpty ? ' · Densité ${_densNoms[dens] ?? dens}' : '');
       final geom = feat['geometry'];
       final ring = geom['type'] == 'Polygon'
           ? (geom['coordinates'] as List)[0] as List
           : ((geom['coordinates'] as List)[0] as List)[0] as List;
       double sumLat = 0, sumLon = 0;
       for (final c in ring) { sumLon += (c[0] as num).toDouble(); sumLat += (c[1] as num).toDouble(); }
-      result.add({'lat': sumLat / ring.length, 'lon': sumLon / ring.length, 'label': label});
+      result.add({'lat': sumLat / ring.length, 'lon': sumLon / ring.length, 'label': label, 'full': full});
     } catch (_) {}
   }
   return result;

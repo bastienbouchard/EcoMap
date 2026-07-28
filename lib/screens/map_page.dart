@@ -2246,21 +2246,47 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             child: MarkerLayer(
               markers: _polygonLabels
                   .map((l) => Marker(
-                        point: LatLng(
-                            l['lat'] as double, l['lon'] as double),
-                        width: 60, height: 20,
-                        child: Text(l['label'] as String,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            shadows: [
-                              Shadow(color: Colors.black, blurRadius: 3),
-                              Shadow(color: Colors.black, blurRadius: 6)
-                            ],
+                        point: LatLng(l['lat'] as double, l['lon'] as double),
+                        width: 80, height: 22,
+                        child: GestureDetector(
+                          onTap: () {
+                            final full = l['full'] as String?;
+                            if (full == null || full.isEmpty) return;
+                            showModalBottomSheet(
+                              context: context,
+                              backgroundColor: const Color(0xFF1A1A1A),
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                              ),
+                              builder: (_) => Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(full,
+                                      style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.6)),
+                                    const SizedBox(height: 12),
+                                    Text('Code: ${l['label']}',
+                                      style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                          child: Text(l['label'] as String,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(color: Colors.black, blurRadius: 3),
+                                Shadow(color: Colors.black, blurRadius: 6),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.clip,
                           ),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.clip,
                         ),
                       ))
                   .toList()),
