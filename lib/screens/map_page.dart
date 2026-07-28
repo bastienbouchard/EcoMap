@@ -15,6 +15,7 @@ import '../models/hotspot_info.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
 import '../providers/arcgis_export_tile_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/web_db.dart';
@@ -316,6 +317,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           ),
         ).listen((position) => handlePos(position.latitude, position.longitude));
       } else {
+        await Permission.notification.request();
         _positionStream = Geolocator.getPositionStream(
           locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.high,
