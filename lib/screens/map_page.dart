@@ -65,7 +65,7 @@ class MapPage extends StatefulWidget {
   State<MapPage> createState() => _MapPageState();
 }
 
-class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
+class _MapPageState extends State<MapPage> with TickerProviderStateMixin, WidgetsBindingObserver {
   static const double _opacity = 0.7;
 
   // ── Carte ──
@@ -188,6 +188,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _layersGlowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
     _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
     _isOnline = ConnectivityService.isOnline;
@@ -211,7 +212,44 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    if (state == AppLifecycleState.paused) {
+      _locationTimer?.cancel();
+      _locationTimer = null;
+    } else if (state == AppLifecycleState.resumed) {
+      _restartAndroidTimer();
+    }
+  }
+
+  void _restartAndroidTimer() {
+    _locationTimer?.cancel();
+    _locationTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      final last = _lastStreamUpdate;
+      if (last != null && DateTime.now().difference(last).inSeconds < 2) return;
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        );
+        if (!mounted) return;
+        final p = LatLng(pos.latitude, pos.longitude);
+        setState(() {
+          _currentPosition = p;
+          _hasGpsPosition = true;
+          if (_recording) _trackPoints.add(p);
+          if (_showHotspots) _hotspots = _computeHotspots();
+        });
+        if (_followingLocation || _recording) _mapController.move(p, _mapZoom);
+        if (_groupeActif && _partagePosition && _groupeId != null && _monNom != null) {
+          GroupeService.publierPosition(groupeId: _groupeId!, nom: _monNom!, position: p);
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _positionStream?.cancel();
     _locationTimer?.cancel();
     _chatSub?.cancel();
