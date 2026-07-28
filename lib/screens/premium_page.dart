@@ -134,7 +134,7 @@ class _PremiumPopupState extends State<PremiumPopup> {
                     text: const TextSpan(
                       style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: -0.5),
                       children: [
-                        TextSpan(text: 'OriginalScan ', style: TextStyle(color: Colors.white)),
+                        TextSpan(text: 'Orignal SCAN ', style: TextStyle(color: Colors.white)),
                         TextSpan(text: 'Pro', style: TextStyle(color: Color(0xFFFF6B35))),
                       ],
                     ),
@@ -206,7 +206,7 @@ class _PremiumPopupState extends State<PremiumPopup> {
                         child: _loading
                             ? const SizedBox(width: 16, height: 16,
                                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text('Passer à OrignalScan Pro',
+                            : const Text('Passer à Orignal SCAN Pro',
                                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                       ),
                     ),
@@ -424,7 +424,7 @@ class _PremiumPageState extends State<PremiumPage> {
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.5)),
                   ),
-                  child: const Text('OrignalScan PRO',
+                  child: const Text('Orignal SCAN Pro',
                       style: TextStyle(color: Color(0xFFFF6B35), fontSize: 12,
                           fontWeight: FontWeight.bold, letterSpacing: 2)),
                 ),
@@ -566,7 +566,7 @@ class _PremiumPageState extends State<PremiumPage> {
                 child: _loading
                     ? const SizedBox(width: 20, height: 20,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : Text('Obtenir OrignalScan Pro — $_prixAffiche',
+                    : Text('Obtenir Orignal SCAN Pro — $_prixAffiche',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
