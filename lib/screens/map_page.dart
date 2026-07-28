@@ -92,6 +92,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _windCached = false;
   StreamSubscription<Position>? _positionStream;
   Timer? _locationTimer;
+  DateTime? _lastStreamUpdate;
 
   // ── Polygones écoforestiers ──
   List<Polygon> _polygonsCache = [];
@@ -283,13 +284,28 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           ),
         ).listen((position) => handlePos(position.latitude, position.longitude));
       } else {
+        // Stream Android (fonctionne sur certains appareils)
         _positionStream = Geolocator.getPositionStream(
           locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.high,
             distanceFilter: 3,
             forceLocationManager: true,
           ),
-        ).listen((position) => handlePos(position.latitude, position.longitude));
+        ).listen((position) {
+          _lastStreamUpdate = DateTime.now();
+          handlePos(position.latitude, position.longitude);
+        });
+        // Timer fallback toutes les 2s si le stream ne répond pas
+        _locationTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+          final last = _lastStreamUpdate;
+          if (last != null && DateTime.now().difference(last).inSeconds < 2) return;
+          try {
+            final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+            );
+            handlePos(pos.latitude, pos.longitude);
+          } catch (_) {}
+        });
       }
     } catch (_) {}
   }
