@@ -213,13 +213,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (defaultTargetPlatform != TargetPlatform.android) return;
-    if (state == AppLifecycleState.paused) {
-      _locationTimer?.cancel();
-      _locationTimer = null;
-    } else if (state == AppLifecycleState.resumed) {
-      _restartAndroidTimer();
-    }
+    // Le foreground service garde le processus en vie — le timer continue même écran fermé
   }
 
   void _restartAndroidTimer() {
@@ -326,7 +320,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.high,
             distanceFilter: 3,
-            forceLocationManager: true,
             foregroundNotificationConfig: const ForegroundNotificationConfig(
               notificationTitle: 'OrignalScan',
               notificationText: 'Suivi GPS actif',
