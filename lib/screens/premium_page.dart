@@ -97,44 +97,30 @@ class _PremiumPopupState extends State<PremiumPopup> {
   Widget build(BuildContext context) {
     const orange = Color(0xFFFF6B35);
 
+    final maxH = MediaQuery.of(context).size.height - 48;
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: orange.withOpacity(0.35), width: 1.2),
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF1A0A00), Color(0xFF0D0D0D), Color(0xFF0D0D0D), Color(0xFF1A0A00)],
-              stops: [0.0, 0.25, 0.75, 1.0],
-            ),
-          ),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height - 48,
-          ),
-          child: Stack(children: [
-            Positioned(
-              bottom: 0, left: 0, right: 0, height: 130,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.bottomCenter, radius: 1.2,
-                    colors: [orange.withOpacity(0.22), Colors.transparent],
-                  ),
-                ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: orange.withOpacity(0.35), width: 1.2),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF1A0A00), Color(0xFF0D0D0D), Color(0xFF0D0D0D), Color(0xFF1A0A00)],
+                stops: [0.0, 0.25, 0.75, 1.0],
               ),
             ),
-            Positioned.fill(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   RichText(
                     text: const TextSpan(
                       style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: -0.5),
@@ -232,11 +218,9 @@ class _PremiumPopupState extends State<PremiumPopup> {
                     ),
                   ]),
                 ],
-                  ),
-                ),
               ),
             ),
-          ]),
+          ),
         ),
       ),
     );
