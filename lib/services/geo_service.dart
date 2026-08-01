@@ -833,7 +833,7 @@ List<Map<String, dynamic>> buildPolygonLabelsIsolate(Map<String, dynamic> geoJso
       final age = (props['cl_age'] ?? '').toString();
       final dens = (props['cl_dens'] ?? '').toString();
       if (ess.isEmpty) continue;
-      final label = _abbreviateGrEss(ess) + (age.isNotEmpty ? ' ${_decodeAge(age)}' : '') + (dens.isNotEmpty ? ' $dens' : '');
+      final label = _abbreviateGrEss(ess); // espèces seulement sur la carte
       final full = _decodeGrEss(ess)
           + (age.isNotEmpty ? '\n${_decodeAge(age)}' : '')
           + (dens.isNotEmpty ? ' · Densité ${_densNoms[dens] ?? dens}' : '');
