@@ -2240,7 +2240,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             child: PolygonLayer(
                 polygons: _polygonsCache, simplificationTolerance: 0),
           ),
-        if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0)
+        if (_polygonLabels.isNotEmpty && _mapZoom >= 15 && _ecoOpacity > 0)
           Opacity(
             opacity: _ecoOpacity,
             child: MarkerLayer(

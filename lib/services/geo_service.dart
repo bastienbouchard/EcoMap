@@ -808,18 +808,18 @@ String _decodeGrEss(String grEss) =>
 String _abbreviateGrEss(String grEss) =>
     _splitGrEss(grEss).map((c) => _essAbbrev[c] ?? c).join('-');
 
+final _rDigits = RegExp(r'^\d+$');
+final _r4Digits = RegExp(r'^\d{4}$');
+const _ageNoms = {
+  'JIN': 'Jeune irrég.', 'JIR': 'Jeune irrég.',
+  'VIN': 'Vieux irrég.', 'VIR': 'Vieux irrég.',
+};
+
 String _decodeAge(String age) {
   if (age.isEmpty) return '';
-  if (RegExp(r'^\d+$').hasMatch(age)) return '$age ans';
-  // Ages composites comme '7010' = deux strates
-  if (RegExp(r'^\d{4}$').hasMatch(age)) {
-    return '${age.substring(0, 2)} ans / ${age.substring(2)} ans';
-  }
-  const ageNoms = {
-    'JIN': 'Jeune irrég.', 'JIR': 'Jeune irrég.',
-    'VIN': 'Vieux irrég.', 'VIR': 'Vieux irrég.',
-  };
-  return ageNoms[age] ?? age;
+  if (_rDigits.hasMatch(age)) return '$age ans';
+  if (_r4Digits.hasMatch(age)) return '${age.substring(0, 2)} ans / ${age.substring(2)} ans';
+  return _ageNoms[age] ?? age;
 }
 
 // Retourne les étiquettes de peuplement (centroïde + texte) pour zoom élevé
