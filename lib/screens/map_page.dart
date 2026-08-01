@@ -2240,14 +2240,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             child: PolygonLayer(
                 polygons: _polygonsCache, simplificationTolerance: 0),
           ),
-        if (_polygonLabels.isNotEmpty && _mapZoom >= 17 && _ecoOpacity > 0)
+        if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0)
           Opacity(
             opacity: _ecoOpacity,
             child: MarkerLayer(
               markers: _polygonLabels
+                  .where((l) => _mapZoom >= (l['minZoom'] as int? ?? 16))
                   .map((l) => Marker(
                         point: LatLng(l['lat'] as double, l['lon'] as double),
-                        width: 80, height: 22,
+                        width: 90, height: 26,
                         child: GestureDetector(
                           onTap: () {
                             final full = l['full'] as String?;
@@ -2276,12 +2277,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                           },
                           child: Text(l['label'] as String,
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 13,
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               shadows: [
-                                Shadow(color: Colors.black, blurRadius: 3),
-                                Shadow(color: Colors.black, blurRadius: 6),
+                                Shadow(color: Colors.black, blurRadius: 4),
+                                Shadow(color: Colors.black, blurRadius: 8),
                               ],
                             ),
                             textAlign: TextAlign.center,

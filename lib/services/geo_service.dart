@@ -842,8 +842,23 @@ List<Map<String, dynamic>> buildPolygonLabelsIsolate(Map<String, dynamic> geoJso
           ? (geom['coordinates'] as List)[0] as List
           : ((geom['coordinates'] as List)[0] as List)[0] as List;
       double sumLat = 0, sumLon = 0;
-      for (final c in ring) { sumLon += (c[0] as num).toDouble(); sumLat += (c[1] as num).toDouble(); }
-      result.add({'lat': sumLat / ring.length, 'lon': sumLon / ring.length, 'label': label, 'full': full});
+      double minLon = double.infinity, maxLon = -double.infinity;
+      double minLat = double.infinity, maxLat = -double.infinity;
+      for (final c in ring) {
+        final lon = (c[0] as num).toDouble();
+        final lat = (c[1] as num).toDouble();
+        sumLon += lon; sumLat += lat;
+        if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+      }
+      final extent = (maxLon - minLon) + (maxLat - minLat);
+      // Seulement les grands polygones (extent > 0.003° ≈ ~200m) à zoom 14
+      // Les petits polygones sont visibles à partir de zoom 16
+      final minZoom = extent > 0.003 ? 14 : 16;
+      result.add({
+        'lat': sumLat / ring.length, 'lon': sumLon / ring.length,
+        'label': label, 'full': full, 'minZoom': minZoom,
+      });
     } catch (_) {}
   }
   return result;
