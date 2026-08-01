@@ -113,6 +113,9 @@ class _PremiumPopupState extends State<PremiumPopup> {
               stops: [0.0, 0.25, 0.75, 1.0],
             ),
           ),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height - 48,
+          ),
           child: Stack(children: [
             Positioned(
               bottom: 0, left: 0, right: 0, height: 130,
@@ -125,11 +128,13 @@ class _PremiumPopupState extends State<PremiumPopup> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+            Positioned.fill(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                   RichText(
                     text: const TextSpan(
                       style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: -0.5),
@@ -227,6 +232,8 @@ class _PremiumPopupState extends State<PremiumPopup> {
                     ),
                   ]),
                 ],
+                  ),
+                ),
               ),
             ),
           ]),
