@@ -42,7 +42,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     _PageData(
       emoji: '__map__',
       title: 'Connais ton territoire mieux que quiconque',
-      subtitle: 'Carte écoforestière officielle + cadastre complet + imagerie satellite à jour — chasse légalement et stratégiquement.',
+      subtitle: 'Carte écoforestière officielle + cadastre complet + imagerie satellite à jour — tout ce qu\'il faut pour maîtriser ton territoire.',
       items: [
         ('__map__', 'Carte écoforestière', 'Peuplement, âge et drainage par secteur'),
         ('🛰', 'Satellite à jour', 'Imagerie aérienne récente de tout le Québec'),
