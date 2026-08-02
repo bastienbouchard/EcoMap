@@ -1087,9 +1087,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         return LatLng(lat, lon);
       }
     }
-    // Format DMS: "46°48'44"N 71°14'44"W" ou "46° 48' 44" N, 71° 14' 44" W"
+    // Format DMS: 46°48'44"N 71°14'44"W
     final dms = RegExp(
-      r'(\d+)\s*[°]\s*(\d+)\s*[\'′]\s*(\d+(?:\.\d+)?)\s*[\"″]?\s*([NS])[,\s]+(\d+)\s*[°]\s*(\d+)\s*[\'′]\s*(\d+(?:\.\d+)?)\s*[\"″]?\s*([EW])',
+      "(\\d+)\\s*°\\s*(\\d+)\\s*[']\\s*(\\d+(?:\\.\\d+)?)\\s*[\"]?\\s*([NS])[,\\s]+(\\d+)\\s*°\\s*(\\d+)\\s*[']\\s*(\\d+(?:\\.\\d+)?)\\s*[\"]?\\s*([EW])",
       caseSensitive: false,
     );
     final mm = dms.firstMatch(input);
