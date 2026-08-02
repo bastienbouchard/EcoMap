@@ -1074,7 +1074,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   LatLng? _parseCoords(String input) {
     input = input.trim();
-    // Format décimal: "46.8123, -71.2456" ou "46.8123 -71.2456"
+    // Format décimal: "47.5000, -74.0000" ou "46.8123 -71.2456"
     final dec = RegExp(r'^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$');
     final dm = dec.firstMatch(input);
     if (dm != null) {
@@ -1121,7 +1121,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: '46.8123, -71.2456',
+                  hintText: '47.5000, -74.0000',
                   hintStyle: const TextStyle(color: Colors.white38),
                   errorText: erreur,
                   enabledBorder: const OutlineInputBorder(
@@ -1137,7 +1137,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               ),
               const SizedBox(height: 8),
               const Text(
-                'Formats acceptés :\n46.8123, -71.2456\n46°48\'44"N 71°14\'44"W',
+                'Formats acceptés :\n47.5000, -74.0000\n47°30\'00"N 74°00\'00"W',
                 style: TextStyle(color: Colors.white38, fontSize: 11),
               ),
             ],
