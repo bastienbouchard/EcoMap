@@ -15,6 +15,8 @@ import '../models/hotspot_info.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
 import '../providers/arcgis_export_tile_provider.dart';
+import '../providers/cached_satellite_provider.dart';
+import '../services/tile_download_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
@@ -191,6 +193,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    CachedSatelliteTileProvider.init();
     _layersGlowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
     _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
     _isOnline = ConnectivityService.isOnline;
@@ -1232,6 +1235,98 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         ],
       ),
     );
+  }
+
+  Future<void> _downloadSatelliteZone() async {
+    final bounds = _mapController.camera.visibleBounds;
+    const minZ = 12;
+    final maxZ = (_mapZoom + 2).clamp(12, 16).toInt();
+    final total = TileDownloadService.estimateTileCount(bounds, minZ, maxZ);
+    // Estimation stockage : ~50 Ko/tuile
+    final mo = (total * 50 / 1024).ceil();
+
+    bool confirmed = false;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Télécharger les tuiles satellite',
+            style: TextStyle(color: Colors.white, fontSize: 15)),
+        content: Text(
+          'Zone visible · zoom $minZ–$maxZ\n'
+          '~$total tuiles · ~$mo Mo',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4A90E2), foregroundColor: Colors.white),
+            onPressed: () { confirmed = true; Navigator.pop(ctx); },
+            child: const Text('Télécharger'),
+          ),
+        ],
+      ),
+    );
+    if (!confirmed || !mounted) return;
+
+    bool cancelled = false;
+    final progress = ValueNotifier<int>(0);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Téléchargement en cours…',
+            style: TextStyle(color: Colors.white, fontSize: 14)),
+        content: ValueListenableBuilder<int>(
+          valueListenable: progress,
+          builder: (_, done, __) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: total > 0 ? done / total : 0,
+                backgroundColor: Colors.white12,
+                color: const Color(0xFF4A90E2),
+              ),
+              const SizedBox(height: 8),
+              Text('$done / $total tuiles',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () { cancelled = true; Navigator.pop(ctx); },
+            child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
+          ),
+        ],
+      ),
+    );
+
+    await TileDownloadService.downloadRegion(
+      bounds: bounds,
+      minZoom: minZ,
+      maxZoom: maxZ,
+      isCancelled: () => cancelled,
+      onProgress: (d, t) => progress.value = d,
+    );
+
+    progress.dispose();
+    if (mounted && !cancelled) {
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tuiles satellite sauvegardées pour consultation hors réseau'),
+          backgroundColor: Color(0xFF4A90E2),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   Future<void> _loadObservations() async {
@@ -2339,6 +2434,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           urlTemplate: _satellite
               ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          tileProvider: _satellite ? CachedSatelliteTileProvider() : NetworkTileProvider(),
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 20 : 19,
           maxZoom: 22,
@@ -3475,6 +3571,25 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 () => setState(() { _satellite = false; _showLayerPanel = false; })),
             _layerRadio('Satellite', Icons.satellite_alt_rounded, _satellite,
                 () => setState(() { _satellite = true; _showLayerPanel = false; })),
+            if (_satellite)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() => _showLayerPanel = false);
+                    _downloadSatelliteZone();
+                  },
+                  icon: const Icon(Icons.download_rounded, size: 15),
+                  label: const Text('Télécharger la zone visible', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF4A90E2),
+                    side: const BorderSide(color: Color(0xFF4A90E2), width: 0.8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
             const Divider(color: Colors.white12, height: 16),
             // ── Superpositions ──
             Padding(
