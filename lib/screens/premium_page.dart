@@ -121,38 +121,45 @@ class _PremiumPopupState extends State<PremiumPopup> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: -0.5),
-                      children: [
-                        TextSpan(text: 'Orignal SCAN ', style: TextStyle(color: Colors.white)),
-                        TextSpan(text: 'Pro', style: TextStyle(color: Color(0xFFFF6B35))),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  const Text('Accédez à l\'expérience complète, sans limites.',
-                      style: TextStyle(color: Colors.white60, fontSize: 13),
-                      textAlign: TextAlign.center),
-                  const SizedBox(height: 14),
+                  // Badge Pro
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.black38,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: orange.withOpacity(0.3)),
+                      color: orange.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: orange.withOpacity(0.5)),
                     ),
-                    child: Column(children: [
-                      const Text('Achat unique — pas d\'abonnement',
-                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 2),
-                      const Text('39,99 \$ CAD',
-                          style: TextStyle(color: Color(0xFFFF6B35), fontSize: 24,
-                              fontWeight: FontWeight.w900)),
-                    ]),
+                    child: const Text('ORIGNAL SCAN PRO',
+                        style: TextStyle(color: Color(0xFFFF6B35), fontSize: 10,
+                            fontWeight: FontWeight.bold, letterSpacing: 1.5)),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+
+                  // Héro : AUCUN ABONNEMENT
+                  const Text('AUCUN\nABONNEMENT !',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFFFF6B35),
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                        letterSpacing: -0.5,
+                      )),
+                  const SizedBox(height: 8),
+                  const Text('Un seul paiement · Accès permanent',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white70, fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text('39,99 \$ CAD',
+                      style: TextStyle(color: Colors.white.withOpacity(0.4),
+                          fontSize: 13)),
+                  const SizedBox(height: 18),
+
+                  // Divider
+                  Divider(color: orange.withOpacity(0.2), height: 1),
+                  const SizedBox(height: 14),
+
                   _section('ALGORITHMES', Icons.settings_rounded, const [
                     (Icons.local_fire_department, Color(0xFFFF6B35), 'Zones actives'),
                     (Icons.adjust_rounded, Color(0xFF42A5F5), 'Parcours optimisés'),
@@ -165,56 +172,30 @@ class _PremiumPopupState extends State<PremiumPopup> {
                     (Icons.forest_rounded, Color(0xFF4CAF50), 'Carte écoforestière MRNF'),
                     (Icons.people, Color(0xFFFF6B35), 'Groupe de chasseurs'),
                   ]),
-                  const SizedBox(height: 10),
-                  Text('Profitez de toutes les fonctionnalités Premium, pour toujours.',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5),
-                          fontSize: 11, fontStyle: FontStyle.italic),
-                      textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+
                   if (_erreur != null) ...[
-                    const SizedBox(height: 6),
                     Text(_erreur!, style: const TextStyle(color: Colors.redAccent, fontSize: 11),
                         textAlign: TextAlign.center),
+                    const SizedBox(height: 8),
                   ],
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFB34000), Color(0xFFFF6B35), Color(0xFFFF8C42)],
-                        ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [BoxShadow(color: orange.withOpacity(0.5), blurRadius: 12)],
-                      ),
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                        ),
-                        onPressed: _loading ? null : _acheter,
-                        child: _loading
-                            ? const SizedBox(width: 16, height: 16,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text('Passer à Orignal SCAN Pro',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ),
+
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      child: const Text('Pas maintenant',
-                          style: TextStyle(color: Colors.white24, fontSize: 11)),
+                      child: const Text('Fermer',
+                          style: TextStyle(color: Colors.white38, fontSize: 12)),
                     ),
-                    const Text(' · ', style: TextStyle(color: Colors.white12, fontSize: 11)),
+                    const Text(' · ', style: TextStyle(color: Colors.white12, fontSize: 12)),
                     TextButton(
                       onPressed: _loading ? null : _restaurer,
                       style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      child: const Text('Restaurer',
-                          style: TextStyle(color: Colors.white24, fontSize: 11)),
+                      child: _loading
+                          ? const SizedBox(width: 12, height: 12,
+                              child: CircularProgressIndicator(color: Colors.white38, strokeWidth: 1.5))
+                          : const Text('Restaurer',
+                              style: TextStyle(color: Colors.white38, fontSize: 12)),
                     ),
                   ]),
                 ],
