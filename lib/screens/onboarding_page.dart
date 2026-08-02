@@ -17,14 +17,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
   static const _pages = [
     _PageData(
       emoji: '__logo__',
-      title: 'Bienvenue dans OrignalScan',
-      subtitle: 'Algorithmes IA + données écoforestières officielles du MRNF — l\'outil de chasse à l\'orignal le plus avancé au Québec.',
+      title: 'Prospection efficace,\nCap sur la chasse',
+      subtitle: 'Données écoforestières MRNF + IA — des décisions basées sur la science, pas le hasard.',
       items: [],
     ),
     _PageData(
       emoji: '🔥',
-      title: 'Détecte l\'habitat',
-      subtitle: 'Algorithmes IA qui analysent le terrain pour toi.',
+      title: 'Fini de chercher à l\'aveugle',
+      subtitle: 'L\'IA analyse les données de terrain pour cibler exactement les Zones actives de ton territoire.',
       items: [
         ('🔥', 'Zones actives', 'Les meilleurs habitats orignal dans la zone visible'),
         ('🗺', 'Parcours optimisé', 'Itinéraire calculé selon le vent et le terrain'),
@@ -32,8 +32,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
     ),
     _PageData(
       emoji: '__tower__',
-      title: 'Trouve les meilleurs spots',
-      subtitle: 'Détection par algorithme IA — basé sur les données écoforestières du MRNF.',
+      title: 'Là où les autres chasseurs ne regardent pas',
+      subtitle: 'Corridors naturels et zones d\'alimentation idéales — détectés par algorithme, invisibles à l\'œil nu.',
       items: [
         ('__tower__', 'Postes d\'affût — IA', 'Corridors naturels où l\'orignal est forcé de passer'),
         ('__cube__', 'Salines — IA', 'Zones humides idéales pour installer une saline'),
@@ -41,17 +41,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
     ),
     _PageData(
       emoji: '__map__',
-      title: 'Maîtrise le territoire',
-      subtitle: 'Toutes les données officielles dans ta poche.',
+      title: 'Connais ton territoire mieux que quiconque',
+      subtitle: 'Carte écoforestière officielle + cadastre complet + imagerie satellite à jour — chasse légalement et stratégiquement.',
       items: [
         ('__map__', 'Carte écoforestière', 'Peuplement, âge et drainage par secteur'),
+        ('🛰', 'Satellite à jour', 'Imagerie aérienne récente de tout le Québec'),
         ('📐', 'Terres privées', 'Limites de lots cadastraux en temps réel'),
       ],
     ),
     _PageData(
       emoji: '👥',
-      title: 'Chasse en équipe',
-      subtitle: 'Reste connecté avec ton équipe en temps réel.',
+      title: 'Une équipe, une stratégie',
+      subtitle: 'Coordonnez-vous en temps réel. Vos coéquipiers sur la carte, vos observations partagées instantanément.',
       items: [
         ('__compass__', 'Positions GPS en direct', 'Vois où est chaque chasseur sur la carte'),
         ('💬', 'Clavardage & photos', 'Échange messages et photos avec ton équipe'),
@@ -209,8 +210,9 @@ class _PageContent extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold)),
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  height: 1.3)),
           const SizedBox(height: 12),
           Text(data.subtitle,
               textAlign: TextAlign.center,
