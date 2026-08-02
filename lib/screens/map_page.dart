@@ -4043,9 +4043,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   children: [
                     if (!PremiumService.isPremium) ...[
                       _navBtn(Icons.workspace_premium_rounded, 'Pro',
-                          () => Navigator.push(context, MaterialPageRoute(
-                                builder: (_) => const PremiumPage(),
-                              )),
+                          () => showDialog(
+                                context: context,
+                                builder: (_) => const PremiumPopup(),
+                              ),
                           color: const Color(0xFFFF6B35)),
                       const SizedBox(height: 10),
                     ],
