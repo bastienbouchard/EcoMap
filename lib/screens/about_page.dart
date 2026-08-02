@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'onboarding_page.dart';
 import '../services/auth_service.dart';
+import '../providers/cached_satellite_provider.dart';
 import 'login_page.dart';
 
 class AboutPage extends StatefulWidget {
@@ -15,6 +16,7 @@ class AboutPage extends StatefulWidget {
 
 class _AboutPageState extends State<AboutPage> {
   String _version = '';
+  int _cacheCount = 0;
 
   @override
   void initState() {
@@ -22,7 +24,14 @@ class _AboutPageState extends State<AboutPage> {
     PackageInfo.fromPlatform().then((info) {
       setState(() => _version = 'v${info.version} (${info.buildNumber})');
     });
+    _loadCacheCount();
   }
+
+  Future<void> _loadCacheCount() async {
+    final n = await CachedSatelliteTileProvider.cachedTileCount();
+    if (mounted) setState(() => _cacheCount = n);
+  }
+
   Future<void> _supprimerCompte() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -252,6 +261,50 @@ class _AboutPageState extends State<AboutPage> {
                       style: TextStyle(color: Colors.white70, fontSize: 13)),
                 ),
                 const Icon(Icons.open_in_new, color: Colors.white38, size: 14),
+              ]),
+            ),
+            const Divider(height: 20, color: Colors.white10),
+            GestureDetector(
+              onTap: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: const Color(0xFF2D2D2D),
+                    title: const Text('Vider le cache satellite',
+                        style: TextStyle(color: Colors.white, fontSize: 15)),
+                    content: Text(
+                      '$_cacheCount tuiles en cache (~${(_cacheCount * 50 / 1024).ceil()} Mo)\n\nLes tuiles seront retéléchargées automatiquement à la prochaine utilisation avec réseau.',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Vider'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await CachedSatelliteTileProvider.clearCache();
+                  await _loadCacheCount();
+                }
+              },
+              child: Row(children: [
+                const Icon(Icons.satellite_alt_rounded, color: Colors.white54, size: 20),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Vider le cache satellite',
+                      style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  Text('$_cacheCount tuiles · ~${(_cacheCount * 50 / 1024).ceil()} Mo',
+                      style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                ])),
+                const Icon(Icons.delete_outline, color: Colors.white38, size: 18),
               ]),
             ),
             const Divider(height: 20, color: Colors.white10),
