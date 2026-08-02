@@ -130,6 +130,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   List<Map<String, dynamic>> _pinnedPoints = [];
   List<Map<String, dynamic>> _groupePins = [];
   StreamSubscription? _groupePinsSub;
+  LatLng? _coordPreview;
 
   // ── Affût (pinch points) ──
   bool _showPinchPoints = false;
@@ -1069,6 +1070,168 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             type: type, lat: pos.latitude, lon: pos.longitude);
       }
     }
+  }
+
+  LatLng? _parseCoords(String input) {
+    input = input.trim();
+    // Format décimal: "46.8123, -71.2456" ou "46.8123 -71.2456"
+    final dec = RegExp(r'^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$');
+    final dm = dec.firstMatch(input);
+    if (dm != null) {
+      final lat = double.tryParse(dm.group(1)!);
+      final lon = double.tryParse(dm.group(2)!);
+      if (lat != null && lon != null && lat.abs() <= 90 && lon.abs() <= 180) {
+        return LatLng(lat, lon);
+      }
+    }
+    // Format DMS: "46°48'44"N 71°14'44"W" ou "46° 48' 44" N, 71° 14' 44" W"
+    final dms = RegExp(
+      r'(\d+)\s*[°]\s*(\d+)\s*[\'′]\s*(\d+(?:\.\d+)?)\s*[\"″]?\s*([NS])[,\s]+(\d+)\s*[°]\s*(\d+)\s*[\'′]\s*(\d+(?:\.\d+)?)\s*[\"″]?\s*([EW])',
+      caseSensitive: false,
+    );
+    final mm = dms.firstMatch(input);
+    if (mm != null) {
+      double toDec(String d, String m, String s) =>
+          double.parse(d) + double.parse(m) / 60 + double.parse(s) / 3600;
+      double lat = toDec(mm.group(1)!, mm.group(2)!, mm.group(3)!);
+      double lon = toDec(mm.group(5)!, mm.group(6)!, mm.group(7)!);
+      if (mm.group(4)!.toUpperCase() == 'S') lat = -lat;
+      if (mm.group(8)!.toUpperCase() == 'W') lon = -lon;
+      return LatLng(lat, lon);
+    }
+    return null;
+  }
+
+  void _showCoordsSearch() {
+    final ctrl = TextEditingController();
+    String? erreur;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: const Color(0xFF2D2D2D),
+          title: const Text('Aller à des coordonnées',
+              style: TextStyle(color: Colors.white, fontSize: 15)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: '46.8123, -71.2456',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  errorText: erreur,
+                  enabledBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24)),
+                  focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFFFF6B35))),
+                  errorBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.redAccent)),
+                  focusedErrorBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.redAccent)),
+                ),
+                onSubmitted: (_) => _submitCoords(ctrl.text, ctx, setS, (e) => erreur = e),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Formats acceptés :\n46.8123, -71.2456\n46°48\'44"N 71°14\'44"W',
+                style: TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35), foregroundColor: Colors.white),
+              onPressed: () => _submitCoords(ctrl.text, ctx, setS, (e) => erreur = e),
+              child: const Text('Aller'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submitCoords(String text, BuildContext ctx, StateSetter setS, void Function(String?) setErr) {
+    final pos = _parseCoords(text);
+    if (pos == null) {
+      setS(() => setErr('Format invalide'));
+      return;
+    }
+    Navigator.pop(ctx);
+    _mapController.move(pos, _mapZoom < 14 ? 15 : _mapZoom);
+    setState(() => _coordPreview = pos);
+    // Afficher dialog de sauvegarde après déplacement
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      _showCoordPreviewDialog(pos);
+    });
+  }
+
+  void _showCoordPreviewDialog(LatLng pos) {
+    final nomCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: Row(children: [
+          Expanded(child: _coordsWidget(pos)),
+          IconButton(
+            icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
+            onPressed: () { Navigator.pop(ctx); setState(() => _coordPreview = null); },
+            padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+          ),
+        ]),
+        content: TextField(
+          controller: nomCtrl,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Nom du favori (optionnel)',
+            hintStyle: TextStyle(color: Colors.white38),
+            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.pop(ctx); setState(() => _coordPreview = null); },
+            child: const Text('Fermer', style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6B35), foregroundColor: Colors.white),
+            icon: const Icon(Icons.star_rounded, size: 16),
+            label: const Text('Sauvegarder'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _coordPreview = null;
+                final nom = nomCtrl.text.trim();
+                _pinnedPoints.add({
+                  'type': 'coordonnees',
+                  'lat': pos.latitude,
+                  'lon': pos.longitude,
+                  if (nom.isNotEmpty) 'nom': nom,
+                });
+              });
+              _savePins();
+              if (_groupeActif && _groupeId != null && _monNom != null) {
+                GroupeService.publierEpingle(
+                    groupeId: _groupeId!, nom: _monNom!,
+                    type: 'coordonnees', lat: pos.latitude, lon: pos.longitude);
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadObservations() async {
@@ -2355,6 +2518,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           ]),
         if (_observations.isNotEmpty) _buildObservationMarkers(),
         if (_pinnedPoints.isNotEmpty || _groupePins.isNotEmpty) _buildPinnedLayer(),
+        if (_coordPreview != null) MarkerLayer(markers: [
+          Marker(
+            point: _coordPreview!,
+            width: 36, height: 44,
+            child: GestureDetector(
+              onTap: () => _showCoordPreviewDialog(_coordPreview!),
+              child: _pinMarker('coordonnees'),
+            ),
+          ),
+        ]),
         if (_showHotspots && _hotspots.isNotEmpty) _buildHotspotMarkers(),
         if (_showPinchPoints && _pinchPoints.isNotEmpty)
           _buildPinchMarkers(),
@@ -3113,7 +3286,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 ? CustomPaint(painter: HuntingTowerPainter(color: const Color(0xFFAAAAAA)))
                 : type == 'saline'
                     ? CustomPaint(painter: SaltCubePainter(color: const Color(0xFFAAAAAA)))
-                    : const Icon(Icons.local_fire_department_rounded, color: Color(0xFFAAAAAA), size: 10),
+                    : type == 'coordonnees'
+                        ? const Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 12)
+                        : const Icon(Icons.local_fire_department_rounded, color: Color(0xFFAAAAAA), size: 10),
           ),
         ),
       ),
@@ -3134,7 +3309,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             builder: (_) => AlertDialog(
               backgroundColor: const Color(0xFF2D2D2D),
               title: Row(children: [
-                Expanded(child: Text('Point épinglé',
+                Expanded(child: Text(
+                    (p['nom'] as String?)?.isNotEmpty == true ? p['nom'] as String : 'Point épinglé',
                     style: const TextStyle(color: Colors.white, fontSize: 15))),
                 IconButton(
                   icon: const Icon(Icons.close, color: Color(0xFFFF6B35), size: 20),
@@ -3950,6 +4126,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 mapDividerV(),
                 mapIconBtn(Icons.my_location, _goToCurrentLocation,
                     loading: _loading),
+                mapDividerV(),
+                mapIconBtn(Icons.search_rounded, _showCoordsSearch),
                 mapDividerV(),
                 AnimatedBuilder(
                   animation: _layersGlowAnim,
