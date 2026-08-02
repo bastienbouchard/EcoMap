@@ -1237,6 +1237,77 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     );
   }
 
+  Future<void> _showDownloadChoiceDialog() async {
+    bool wantEco = true;
+    bool wantSat = true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: const Color(0xFF2D2D2D),
+          title: const Text('Télécharger pour hors réseau',
+              style: TextStyle(color: Colors.white, fontSize: 15)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CheckboxListTile(
+                value: wantEco,
+                onChanged: (v) => setS(() => wantEco = v ?? true),
+                title: const Text('Carte écoforestière',
+                    style: TextStyle(color: Colors.white, fontSize: 13)),
+                subtitle: const Text('Peuplements forestiers (MBTiles)',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
+                activeColor: const Color(0xFFFF6B35),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              CheckboxListTile(
+                value: wantSat,
+                onChanged: (v) => setS(() => wantSat = v ?? true),
+                title: const Text('Carte satellite',
+                    style: TextStyle(color: Colors.white, fontSize: 13)),
+                subtitle: const Text('Imagerie MERN · zoom 12–16',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
+                activeColor: const Color(0xFFFF6B35),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6B35), foregroundColor: Colors.white),
+              onPressed: (wantEco || wantSat)
+                  ? () => Navigator.pop(ctx, true)
+                  : null,
+              child: const Text('Télécharger'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    if (wantSat) await _downloadSatelliteZone();
+
+    if (wantEco && mounted) {
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => TerritoireDownloadPage(
+          initialCenter: _mapController.camera.center,
+          initialZoom: _mapController.camera.zoom,
+        ),
+      ));
+      _reloadTerritoire();
+    }
+  }
+
   Future<void> _downloadSatelliteZone() async {
     final bounds = _mapController.camera.visibleBounds;
     const minZ = 12;
@@ -3571,25 +3642,24 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 () => setState(() { _satellite = false; _showLayerPanel = false; })),
             _layerRadio('Satellite', Icons.satellite_alt_rounded, _satellite,
                 () => setState(() { _satellite = true; _showLayerPanel = false; })),
-            if (_satellite)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    setState(() => _showLayerPanel = false);
-                    _downloadSatelliteZone();
-                  },
-                  icon: const Icon(Icons.download_rounded, size: 15),
-                  label: const Text('Télécharger la zone visible', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF4A90E2),
-                    side: const BorderSide(color: Color(0xFF4A90E2), width: 0.8),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() => _showLayerPanel = false);
+                  _showDownloadChoiceDialog();
+                },
+                icon: const Icon(Icons.download_rounded, size: 15),
+                label: const Text('Télécharger la zone visible', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF4A90E2),
+                  side: const BorderSide(color: Color(0xFF4A90E2), width: 0.8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
+            ),
             const Divider(color: Colors.white12, height: 16),
             // ── Superpositions ──
             Padding(
@@ -3602,13 +3672,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               onTap: () async {
                 setState(() => _showLayerPanel = false);
                 if (!_requirePremium()) return;
-                await Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => TerritoireDownloadPage(
-                    initialCenter: _mapController.camera.center,
-                    initialZoom: _mapController.camera.zoom,
-                  ),
-                ));
-                _reloadTerritoire();
+                _showDownloadChoiceDialog();
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
