@@ -4041,6 +4041,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (!PremiumService.isPremium) ...[
+                      _navBtn(Icons.workspace_premium_rounded, 'Pro',
+                          () => Navigator.push(context, MaterialPageRoute(
+                                builder: (_) => const PremiumPage(),
+                              )),
+                          color: const Color(0xFFFF6B35)),
+                      const SizedBox(height: 10),
+                    ],
                     _navBtn(Icons.wb_sunny_rounded, 'Météo',
                         (_isOnline || _windDeg != null) ? () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => MeteoPage(
