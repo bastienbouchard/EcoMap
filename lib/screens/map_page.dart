@@ -178,6 +178,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Timer? _pinchDebounce;
   Timer? _salineDebounce;
   Timer? _zoomDebounce;
+  Timer? _gestureEndTimer;
+  bool _isGesturing = false;
 
   // ── Connectivité ──
   bool _isOnline = true;
@@ -258,6 +260,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _pinchDebounce?.cancel();
     _salineDebounce?.cancel();
     _zoomDebounce?.cancel();
+    _gestureEndTimer?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
@@ -2305,7 +2308,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         onTap: (_, point) => _handleMapTap(point),
         onPositionChanged: (pos, hasGesture) {
           if (!mounted) return;
-          if (hasGesture) _followingLocation = false;
+          if (hasGesture) {
+            _followingLocation = false;
+            if (!_isGesturing) setState(() => _isGesturing = true);
+            _gestureEndTimer?.cancel();
+            _gestureEndTimer = Timer(const Duration(milliseconds: 250), () {
+              if (mounted) setState(() => _isGesturing = false);
+            });
+          }
           final newZoom = pos.zoom;
           final newLat = pos.center.latitude;
           if ((newZoom - _mapZoom).abs() > 0.1 ||
@@ -2406,9 +2416,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           Opacity(
             opacity: _ecoOpacity,
             child: PolygonLayer(
-                polygons: _polygonsCache, simplificationTolerance: 0.5),
+                polygons: _polygonsCache,
+                simplificationTolerance: _isGesturing ? 3.0 : 0.5),
           ),
-        if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0)
+        if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0 && !_isGesturing)
           Opacity(
             opacity: _ecoOpacity,
             child: MarkerLayer(
