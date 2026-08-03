@@ -75,6 +75,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   double _mapLat = 48.2917;
   bool _satellite = false;
   int _satelliteTileErrors = 0;
+  bool _satelliteFallback = false;
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
 
@@ -2352,19 +2353,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       ),
       children: [
         TileLayer(
-          key: ValueKey(_satellite),
+          key: ValueKey('$_satellite-$_satelliteFallback'),
           urlTemplate: _satellite
-              ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
+              ? (_satelliteFallback
+                  ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                  : 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}')
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
-          maxNativeZoom: _satellite ? 20 : 19,
+          maxNativeZoom: _satellite ? 19 : 19,
           maxZoom: 22,
-          errorTileCallback: _satellite
+          errorTileCallback: (_satellite && !_satelliteFallback)
               ? (tile, error, stackTrace) {
                   _satelliteTileErrors++;
-                  if (_satelliteTileErrors == 3 && mounted) {
-                    _snack('Satellite indisponible — vérifie ta connexion', error: true);
-                    setState(() { _satellite = false; _satelliteTileErrors = 0; });
+                  if (_satelliteTileErrors >= 3 && mounted) {
+                    setState(() { _satelliteFallback = true; _satelliteTileErrors = 0; });
                   }
                 }
               : null,
@@ -3504,6 +3506,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 () => setState(() {
                   _satellite = true;
                   _satelliteTileErrors = 0;
+                  _satelliteFallback = false;
                   if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
                   _showLayerPanel = false;
                 })),
