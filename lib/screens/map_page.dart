@@ -74,6 +74,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   double _mapZoom = 13.0;
   double _mapLat = 48.2917;
   bool _satellite = false;
+  int _satelliteTileErrors = 0;
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
 
@@ -2351,12 +2352,22 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       ),
       children: [
         TileLayer(
+          key: ValueKey(_satellite),
           urlTemplate: _satellite
               ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 20 : 19,
           maxZoom: 22,
+          errorTileCallback: _satellite
+              ? (tile, error, stackTrace) {
+                  _satelliteTileErrors++;
+                  if (_satelliteTileErrors == 3 && mounted) {
+                    _snack('Satellite indisponible — vérifie ta connexion', error: true);
+                    setState(() { _satellite = false; _satelliteTileErrors = 0; });
+                  }
+                }
+              : null,
         ),
         Opacity(
           opacity: _opacity,
@@ -3490,7 +3501,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             _layerRadio('OpenStreetMap', Icons.map_rounded, !_satellite,
                 () => setState(() { _satellite = false; _showLayerPanel = false; })),
             _layerRadio('Satellite', Icons.satellite_alt_rounded, _satellite,
-                () => setState(() { _satellite = true; _showLayerPanel = false; })),
+                () => setState(() { _satellite = true; _satelliteTileErrors = 0; _showLayerPanel = false; })),
             const Divider(color: Colors.white12, height: 16),
             // ── Superpositions ──
             Padding(
