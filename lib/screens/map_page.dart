@@ -177,6 +177,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   List<List<double>> _salineInfraCache = [];
   Timer? _pinchDebounce;
   Timer? _salineDebounce;
+  Timer? _zoomDebounce;
 
   // ── Connectivité ──
   bool _isOnline = true;
@@ -256,6 +257,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _hotspotDebounce?.cancel();
     _pinchDebounce?.cancel();
     _salineDebounce?.cancel();
+    _zoomDebounce?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
@@ -2308,7 +2310,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           final newLat = pos.center.latitude;
           if ((newZoom - _mapZoom).abs() > 0.1 ||
               (newLat - _mapLat).abs() > 0.001) {
-            setState(() { _mapZoom = newZoom; _mapLat = newLat; });
+            _zoomDebounce?.cancel();
+            _zoomDebounce = Timer(const Duration(milliseconds: 150), () {
+              if (mounted) setState(() { _mapZoom = newZoom; _mapLat = newLat; });
+            });
           }
           if (_showHotspots) {
             _hotspotDebounce?.cancel();
@@ -2401,7 +2406,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           Opacity(
             opacity: _ecoOpacity,
             child: PolygonLayer(
-                polygons: _polygonsCache, simplificationTolerance: 0),
+                polygons: _polygonsCache, simplificationTolerance: 0.5),
           ),
         if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0)
           Opacity(
