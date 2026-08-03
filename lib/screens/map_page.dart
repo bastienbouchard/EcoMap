@@ -2370,7 +2370,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               : null,
         ),
         Opacity(
-          opacity: _opacity,
+          opacity: _ecoOpacity,
           child: TileLayer(
             tileProvider: MBTilesProvider(),
             minNativeZoom: mbtilesMinZoom,
@@ -3501,7 +3501,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             _layerRadio('OpenStreetMap', Icons.map_rounded, !_satellite,
                 () => setState(() { _satellite = false; _showLayerPanel = false; })),
             _layerRadio('Satellite', Icons.satellite_alt_rounded, _satellite,
-                () => setState(() { _satellite = true; _satelliteTileErrors = 0; _showLayerPanel = false; })),
+                () => setState(() {
+                  _satellite = true;
+                  _satelliteTileErrors = 0;
+                  if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
+                  _showLayerPanel = false;
+                })),
             const Divider(color: Colors.white12, height: 16),
             // ── Superpositions ──
             Padding(
