@@ -15,6 +15,8 @@ class GroupeService {
   }) async {
     final uid = AuthService.uid;
     if (uid == null) return;
+    // Supprimer l'ancien document format nom-based s'il existe
+    _db.collection(_collection).doc('${groupeId}_$nom').delete().catchError((_) {});
     await _db.collection(_collection).doc('${groupeId}_$uid').set({
       'groupeId': groupeId,
       'uid': uid,
@@ -33,7 +35,11 @@ class GroupeService {
         .where('groupeId', isEqualTo: groupeId)
         .snapshots()
         .map((snap) => snap.docs
-            .where((d) => d['uid'] != monUid) // exclure par UID, pas par nom
+            .where((d) {
+              final docUid = d.data().containsKey('uid') ? d['uid'] as String? : null;
+              if (docUid != null && monUid != null) return docUid != monUid;
+              return d['nom'] != monNom; // fallback ancien format
+            })
             .map((d) => MembreGroupe(
                   nom: d['nom'] as String,
                   position: LatLng(

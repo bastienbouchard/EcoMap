@@ -1580,10 +1580,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               if (nom.isEmpty || nomGroupe.isEmpty) return;
               final code = _genererCode();
               Navigator.pop(context);
-              GroupeService.creerGroupe(code, nomGroupe).then((_) {
-                _rejoindreGroupe(nom, code, nomGroupe);
-                _dialogueCodeGenere(code, nomGroupe);
-              });
+              _rejoindreGroupe(nom, code, nomGroupe);
+              GroupeService.creerGroupe(code, nomGroupe);
+              _dialogueCodeGenere(code, nomGroupe);
             },
             child: const Text('Créer', style: TextStyle(color: Colors.white)),
           ),
