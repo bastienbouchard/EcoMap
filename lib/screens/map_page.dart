@@ -1637,7 +1637,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   void _dialogueCode() {
     final nomCtrl = TextEditingController(text: _monNom);
-    final codeCtrl = TextEditingController();
+    final codeCtrl = TextEditingController(text: _groupeId);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
