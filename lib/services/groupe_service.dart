@@ -1,19 +1,23 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:latlong2/latlong.dart';
+import 'auth_service.dart';
 
 class GroupeService {
   static final _db = FirebaseFirestore.instance;
   static const _collection = 'groupe_positions';
 
-  // Publie la position de ce chasseur
+  // Publie la position de ce chasseur (clé unique = groupeId + uid)
   static Future<void> publierPosition({
     required String groupeId,
     required String nom,
     required LatLng position,
   }) async {
-    await _db.collection(_collection).doc('${groupeId}_$nom').set({
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    await _db.collection(_collection).doc('${groupeId}_$uid').set({
       'groupeId': groupeId,
+      'uid': uid,
       'nom': nom,
       'lat': position.latitude,
       'lon': position.longitude,
@@ -23,12 +27,13 @@ class GroupeService {
 
   // Écoute les positions des autres membres du groupe
   static Stream<List<MembreGroupe>> ecouterGroupe(String groupeId, String monNom) {
+    final monUid = AuthService.uid;
     return _db
         .collection(_collection)
         .where('groupeId', isEqualTo: groupeId)
         .snapshots()
         .map((snap) => snap.docs
-            .where((d) => d['nom'] != monNom) // exclure sa propre position
+            .where((d) => d['uid'] != monUid) // exclure par UID, pas par nom
             .map((d) => MembreGroupe(
                   nom: d['nom'] as String,
                   position: LatLng(
@@ -134,7 +139,12 @@ class GroupeService {
 
   // Supprime la position quand on quitte
   static Future<void> quitter(String groupeId, String nom) async {
-    await _db.collection(_collection).doc('${groupeId}_$nom').delete();
+    final uid = AuthService.uid;
+    if (uid != null) {
+      await _db.collection(_collection).doc('${groupeId}_$uid').delete();
+    }
+    // Nettoyage ancien format (nom-based) si présent
+    await _db.collection(_collection).doc('${groupeId}_$nom').delete().catchError((_) {});
   }
 }
 
