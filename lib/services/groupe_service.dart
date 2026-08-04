@@ -15,8 +15,6 @@ class GroupeService {
   }) async {
     final uid = AuthService.uid;
     if (uid == null) return;
-    // Supprimer l'ancien document format nom-based s'il existe
-    _db.collection(_collection).doc('${groupeId}_$nom').delete().catchError((_) {});
     await _db.collection(_collection).doc('${groupeId}_$uid').set({
       'groupeId': groupeId,
       'uid': uid,
