@@ -137,6 +137,25 @@ class GroupeService {
             .toList());
   }
 
+  // Crée un groupe avec un code unique
+  static Future<void> creerGroupe(String code, String nom) async {
+    await _db.collection('groupes').doc(code).set({
+      'nom': nom,
+      'code': code,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  // Récupère le nom d'affichage d'un groupe à partir de son code
+  static Future<String?> getNomGroupe(String code) async {
+    try {
+      final doc = await _db.collection('groupes').doc(code).get();
+      return doc.data()?['nom'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Supprime la position quand on quitte
   static Future<void> quitter(String groupeId, String nom) async {
     final uid = AuthService.uid;

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show pi, min, max, cos, sqrt, pow;
+import 'dart:math' show pi, min, max, cos, sqrt, pow, Random;
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -161,6 +161,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   StreamSubscription? _obsGroupeSub;
   StreamSubscription? _tracesGroupeSub;
   String? _groupeId;
+  String? _groupeNom;
   String? _monNom;
   bool _groupeActif = false;
   bool _partagePosition = false;
@@ -1517,41 +1518,155 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _groupeActif ? _panelGroupe() : _dialogueRejoindre();
   }
 
+  String _genererCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final rand = Random();
+    return List.generate(6, (_) => chars[rand.nextInt(chars.length)]).join();
+  }
+
   void _dialogueRejoindre() {
-    final nomCtrl = TextEditingController(text: _monNom);
-    final codeCtrl = TextEditingController(text: _groupeId);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF2D2D2D),
-        title: const Text('Rejoindre un groupe',
+        title: const Text('Groupe de chasseurs',
             style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Tu veux créer un nouveau groupe ou rejoindre un groupe existant ?',
+              style: TextStyle(color: Colors.white60, fontSize: 13)),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler', style: TextStyle(color: Colors.white38))),
+          TextButton(
+              onPressed: () { Navigator.pop(context); _dialogueCreer(); },
+              child: const Text('Créer', style: TextStyle(color: Color(0xFF4A90E2)))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D5016)),
+            onPressed: () { Navigator.pop(context); _dialogueCode(); },
+            child: const Text('Rejoindre', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dialogueCreer() {
+    final nomCtrl = TextEditingController(text: _monNom);
+    final groupeNomCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Créer un groupe', style: TextStyle(color: Colors.white, fontSize: 16)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           _inputField(nomCtrl, 'Ton nom'),
           const SizedBox(height: 12),
-          _inputField(codeCtrl, 'Code du groupe (ex: chasse2026)'),
+          _inputField(groupeNomCtrl, 'Nom du groupe (ex: Chasse Laurentides)'),
           const SizedBox(height: 8),
-          const Text(
-              'Tous les chasseurs du même code se voient sur la carte.',
+          const Text('Un code unique sera généré à partager avec tes coéquipiers.',
               style: TextStyle(color: Colors.white38, fontSize: 11)),
         ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler',
-                  style: TextStyle(color: Colors.white54))),
+              child: const Text('Annuler', style: TextStyle(color: Colors.white38))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2D5016)),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D5016)),
             onPressed: () {
               final nom = nomCtrl.text.trim();
-              final code = codeCtrl.text.trim();
+              final nomGroupe = groupeNomCtrl.text.trim();
+              if (nom.isEmpty || nomGroupe.isEmpty) return;
+              final code = _genererCode();
+              Navigator.pop(context);
+              GroupeService.creerGroupe(code, nomGroupe).then((_) {
+                _rejoindreGroupe(nom, code, nomGroupe);
+                _dialogueCodeGenere(code, nomGroupe);
+              });
+            },
+            child: const Text('Créer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dialogueCodeGenere(String code, String nomGroupe) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Groupe créé !', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Partage ce code avec tes coéquipiers pour qu\'ils rejoignent "$nomGroupe" :',
+              style: const TextStyle(color: Colors.white60, fontSize: 13)),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () {
+              _snack('Code copié !');
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.6)),
+              ),
+              child: Column(children: [
+                Text(code,
+                    style: const TextStyle(color: Color(0xFFFF6B35), fontSize: 32,
+                        fontWeight: FontWeight.w900, letterSpacing: 6)),
+                const SizedBox(height: 4),
+                const Text('Appuie pour copier', style: TextStyle(color: Colors.white38, fontSize: 10)),
+              ]),
+            ),
+          ),
+        ]),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D5016)),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dialogueCode() {
+    final nomCtrl = TextEditingController(text: _monNom);
+    final codeCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2D2D2D),
+        title: const Text('Rejoindre un groupe', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          _inputField(nomCtrl, 'Ton nom'),
+          const SizedBox(height: 12),
+          _inputField(codeCtrl, 'Code du groupe (6 caractères)'),
+          const SizedBox(height: 8),
+          const Text('Entre le code reçu de ton chef de groupe.',
+              style: TextStyle(color: Colors.white38, fontSize: 11)),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler', style: TextStyle(color: Colors.white38))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D5016)),
+            onPressed: () async {
+              final nom = nomCtrl.text.trim();
+              final code = codeCtrl.text.trim().toUpperCase();
               if (nom.isEmpty || code.isEmpty) return;
               Navigator.pop(context);
-              _rejoindreGroupe(nom, code);
+              final nomGroupe = await GroupeService.getNomGroupe(code);
+              _rejoindreGroupe(nom, code, nomGroupe ?? code);
             },
-            child: const Text('Rejoindre',
-                style: TextStyle(color: Colors.white)),
+            child: const Text('Rejoindre', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -1576,12 +1691,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Groupe actif',
-                          style: TextStyle(
+                      Text(_groupeNom ?? _groupeId ?? 'Groupe actif',
+                          style: const TextStyle(
                               color: Colors.white,
                               fontSize: 15,
                               fontWeight: FontWeight.bold)),
-                      Text(_groupeId ?? '',
+                      Text('Code : ${_groupeId ?? ''}',
                           style: const TextStyle(
                               color: Color(0xFF4A90E2), fontSize: 12)),
                     ]),
@@ -1656,17 +1771,26 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     final prefs = await SharedPreferences.getInstance();
     final code = prefs.getString('last_groupe_code');
     final nom = prefs.getString('last_groupe_nom');
-    if (code != null && mounted) setState(() { _groupeId = code; _monNom = nom; });
+    final nomGroupe = prefs.getString('last_groupe_nomgroupe');
+    if (code != null && mounted) {
+      setState(() {
+        _groupeId = code;
+        _monNom = nom;
+        _groupeNom = nomGroupe ?? code;
+      });
+    }
   }
 
-  void _rejoindreGroupe(String nom, String groupeId) {
+  void _rejoindreGroupe(String nom, String groupeId, [String? nomGroupe]) {
     SharedPreferences.getInstance().then((prefs) {
       prefs.setString('last_groupe_code', groupeId);
       prefs.setString('last_groupe_nom', nom);
+      if (nomGroupe != null) prefs.setString('last_groupe_nomgroupe', nomGroupe);
     });
     setState(() {
       _monNom = nom;
       _groupeId = groupeId;
+      _groupeNom = nomGroupe ?? groupeId;
       _groupeActif = true;
       _partagePosition = false;
     });
