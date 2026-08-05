@@ -2178,6 +2178,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   void _showChatBanner(String nom, String texte) {
     if (!mounted) return;
+    HapticFeedback.mediumImpact();
     _toastEntry?.remove();
     _toastEntry = OverlayEntry(
       builder: (_) => Positioned(
