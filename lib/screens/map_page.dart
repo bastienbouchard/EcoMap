@@ -2489,7 +2489,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           errorTileCallback: (_satellite && !_satelliteFallback)
               ? (tile, error, stackTrace) {
                   _satelliteTileErrors++;
-                  if (_satelliteTileErrors >= 3 && mounted) {
+                  if (_satelliteTileErrors >= 10 && mounted) {
                     setState(() { _satelliteFallback = true; _satelliteTileErrors = 0; });
                   }
                 }
