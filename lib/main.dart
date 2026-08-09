@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import 'app_globals.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
@@ -18,20 +17,9 @@ Future<void> main() async {
   try { await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform); } catch (_) {}
   try { await AuthService.restoreSession(); } catch (_) {}
   try { await ConnectivityService.init(); } catch (_) {}
-  if (!kIsWeb) try { await _initTileCache(); } catch (_) {}
   if (!kIsWeb) try { await _initMBTiles(); } catch (_) {}
   try { await _loadGeoJson(); } catch (_) {}
   runApp(const EcoMapApp());
-}
-
-Future<void> _initTileCache() async {
-  final dir = await getApplicationDocumentsDirectory();
-  tileCache = CacheOptions(
-    store: FileCacheStore('${dir.path}/tile_cache'),
-    policy: CachePolicy.request,
-    maxStale: const Duration(days: 30),
-    hitCacheOnErrorExcept: [],
-  );
 }
 
 Future<void> _initMBTiles() async {
