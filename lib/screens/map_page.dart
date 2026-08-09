@@ -723,6 +723,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         'lat': startPos.latitude,
         'lon': startPos.longitude,
         'windRad': (_windDeg ?? 0) * pi / 180,
+        'hasWind': _windDeg != null,
         'hotspots': topHotspots,
         'targetDist': _distanceParcours * 1000,
         'geoJson': geoJson,

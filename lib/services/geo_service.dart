@@ -266,6 +266,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   final lat = params['lat'] as double;
   final lon = params['lon'] as double;
   final windRad = params['windRad'] as double;
+  final hasWind = params['hasWind'] as bool? ?? true;
   final targetDist = params['targetDist'] as double;
   final geoJsonData = params['geoJson'] as Map<String, dynamic>;
   final features = geoJsonData['features'] as List;
@@ -414,9 +415,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
     }
 
-    // Contrainte principale : ±60° autour du vent de face (vent de face ou légèrement de côté).
-    // Sur lisière F↔B forte : jusqu'à ±80° pour longer l'edge sans perdre l'avantage du vent.
-    final maxDelta = nearStrongEdge ? 80.0 : 60.0;
+    // Sans données de vent : explore 360°. Avec vent : ±60° face au vent (±80° sur lisière).
+    final maxDelta = hasWind ? (nearStrongEdge ? 80.0 : 60.0) : 180.0;
 
     int bestScore = -1;
     double? bestLat, bestLon;
@@ -452,8 +452,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
         else if (degDist < 800.0 / 111000) waterBonus = 2;
       }
 
-      // 2. Bonus vent : face au vent = max, perpendiculaire = 0
-      final windBonus = ((60 - angleDelta.abs()) / 60 * 5).round().clamp(0, 5);
+      // 2. Bonus vent : face au vent = max, perpendiculaire = 0 (ignoré sans données vent)
+      final windBonus = hasWind ? ((60 - angleDelta.abs()) / 60 * 5).round().clamp(0, 5) : 0;
 
       // 3. Bonus hotspot : attire fortement la route vers les zones actives
       int hotspotBonus = 0;
