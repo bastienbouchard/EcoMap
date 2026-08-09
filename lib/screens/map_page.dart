@@ -82,6 +82,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   bool _satellite = false;
   int _satelliteTileErrors = 0;
   bool _satelliteFallback = false;
+  String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
 
@@ -2484,17 +2485,23 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       ),
       children: [
         TileLayer(
-          key: ValueKey('$_satellite-$_satelliteFallback'),
+          key: ValueKey('$_satellite-$_satSource-$_satelliteFallback'),
           urlTemplate: _satellite
-              ? (_satelliteFallback
-                  ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                  : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
+              ? (_satSource == 'mern'
+                  ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
+                  : _satSource == 'esri'
+                      ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                      : _satSource == 'sentinel'
+                          ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
+                          : (_satelliteFallback
+                              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                              : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken'))
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 19 : 19,
           maxZoom: 22,
           tileProvider: CachedTileProvider(store: _tileCache),
-          errorTileCallback: (_satellite && !_satelliteFallback)
+          errorTileCallback: (_satellite && _satSource == 'mapbox' && !_satelliteFallback)
               ? (tile, error, stackTrace) {
                   _satelliteTileErrors++;
                   if (_satelliteTileErrors >= 10 && mounted) {
@@ -3634,14 +3641,50 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             ),
             _layerRadio('OpenStreetMap', Icons.map_rounded, !_satellite,
                 () => setState(() { _satellite = false; _showLayerPanel = false; })),
-            _layerRadio('Satellite', Icons.satellite_alt_rounded, _satellite,
+            _layerRadio('Mapbox Satellite', Icons.satellite_alt_rounded,
+                _satellite && _satSource == 'mapbox',
                 () => setState(() {
                   _satellite = true;
+                  _satSource = 'mapbox';
                   _satelliteTileErrors = 0;
                   _satelliteFallback = false;
                   if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
                   _showLayerPanel = false;
-                })),
+                }),
+                subtitle: 'Maxar · récent au sud QC'),
+            _layerRadio('MRNF Québec', Icons.landscape_rounded,
+                _satellite && _satSource == 'mern',
+                () => setState(() {
+                  _satellite = true;
+                  _satSource = 'mern';
+                  _satelliteTileErrors = 0;
+                  _satelliteFallback = false;
+                  if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
+                  _showLayerPanel = false;
+                }),
+                subtitle: 'Orthophotos provinciales'),
+            _layerRadio('ESRI World Imagery', Icons.public_rounded,
+                _satellite && _satSource == 'esri',
+                () => setState(() {
+                  _satellite = true;
+                  _satSource = 'esri';
+                  _satelliteTileErrors = 0;
+                  _satelliteFallback = false;
+                  if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
+                  _showLayerPanel = false;
+                }),
+                subtitle: 'Imagerie mondiale · bon pour le nord'),
+            _layerRadio('Sentinel-2 (Copernicus)', Icons.blur_on_rounded,
+                _satellite && _satSource == 'sentinel',
+                () => setState(() {
+                  _satellite = true;
+                  _satSource = 'sentinel';
+                  _satelliteTileErrors = 0;
+                  _satelliteFallback = false;
+                  if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
+                  _showLayerPanel = false;
+                }),
+                subtitle: 'Gratuit · couverture globale · 10m'),
             const Divider(color: Colors.white12, height: 16),
             // ── Superpositions ──
             Padding(
@@ -3736,7 +3779,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     );
   }
 
-  Widget _layerRadio(String label, IconData icon, bool selected, VoidCallback onTap) {
+  Widget _layerRadio(String label, IconData icon, bool selected, VoidCallback onTap, {String? subtitle}) {
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -3744,8 +3787,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         child: Row(children: [
           Icon(icon, color: selected ? const Color(0xFFFF6B35) : Colors.white54, size: 18),
           const SizedBox(width: 10),
-          Expanded(child: Text(label,
-              style: TextStyle(color: selected ? Colors.white : Colors.white60, fontSize: 13))),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(color: selected ? Colors.white : Colors.white60, fontSize: 13)),
+              if (subtitle != null)
+                Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+            ],
+          )),
           Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
               color: selected ? const Color(0xFFFF6B35) : Colors.white24, size: 18),
         ]),
