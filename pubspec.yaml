@@ -1,6 +1,6 @@
 name: ecomap
 description: A new Flutter project.
-version: 1.0.14+248
+version: 1.0.14+249
 
 environment:
   sdk: '>=3.2.6 <4.0.0'
@@ -27,7 +27,6 @@ dependencies:
   flutter_map_cache: ^2.1.0
   dio: ^5.2.0
   dio_cache_interceptor: ^4.0.7
-  dio_cache_interceptor_hive_store: ^4.0.0
 
 dev_dependencies:
   flutter_test:

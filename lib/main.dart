@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
-import 'package:dio_cache_interceptor_hive_store/dio_cache_interceptor_hive_store.dart';
 import 'app_globals.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
@@ -28,7 +27,7 @@ Future<void> main() async {
 Future<void> _initTileCache() async {
   final dir = await getApplicationDocumentsDirectory();
   tileCache = CacheOptions(
-    store: HiveCacheStore('${dir.path}/tile_cache'),
+    store: FileCacheStore('${dir.path}/tile_cache'),
     policy: CachePolicy.request,
     maxStale: const Duration(days: 30),
     hitCacheOnErrorExcept: [],
