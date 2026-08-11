@@ -85,6 +85,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
+  bool _showChemins = false;
+  List<List<LatLng>> _cheminsPoints = [];
+  Timer? _cheminsDebounce;
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
@@ -270,6 +273,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _pinchDebounce?.cancel();
     _salineDebounce?.cancel();
     _zoomDebounce?.cancel();
+    _cheminsDebounce?.cancel();
     _gestureEndTimer?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
@@ -547,6 +551,35 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     } catch (e) {
       debugPrint('Cadastre error: $e');
     }
+  }
+
+  Future<void> _fetchChemins() async {
+    if (!_showChemins || _mapZoom < 11) return;
+    try {
+      final center = _mapController.camera.center;
+      final radiusM = _visibleRadiusM(minM: 3000).clamp(0.0, 15000.0);
+      final query =
+          '[out:json][timeout:25];'
+          'way["highway"~"^(track|path)\$"](around:${radiusM.round()},${center.latitude},${center.longitude});'
+          'out geom;';
+      final resp = await http
+          .post(Uri.parse('https://overpass-api.de/api/interpreter'), body: query)
+          .timeout(const Duration(seconds: 30));
+      if (resp.statusCode != 200 || !mounted || !_showChemins) return;
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final elements = data['elements'] as List;
+      final lines = <List<LatLng>>[];
+      for (final el in elements) {
+        if (el['type'] != 'way') continue;
+        final geom = el['geometry'] as List?;
+        if (geom == null || geom.length < 2) continue;
+        lines.add(geom.map((n) => LatLng(
+          (n['lat'] as num).toDouble(),
+          (n['lon'] as num).toDouble(),
+        )).toList());
+      }
+      if (mounted && _showChemins) setState(() => _cheminsPoints = lines);
+    } catch (_) {}
   }
 
   bool _pointInPolygon(LatLng pt, List<LatLng> poly) {
@@ -2481,6 +2514,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               _fetchCadastre();
             }
           }
+          if (_showChemins) {
+            _cheminsDebounce?.cancel();
+            _cheminsDebounce = Timer(const Duration(milliseconds: 800), _fetchChemins);
+          }
         },
       ),
       children: [
@@ -2564,6 +2601,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             }).toList(),
           ),
         ],
+        if (_showChemins && _cheminsPoints.isNotEmpty)
+          PolylineLayer(
+            polylines: _cheminsPoints.map((pts) => Polyline(
+              points: pts,
+              color: const Color(0xFFD2691E).withOpacity(0.85),
+              strokeWidth: 1.8,
+            )).toList(),
+          ),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _ecoOpacity > 0)
           Opacity(
             opacity: _ecoOpacity,
@@ -3771,6 +3816,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     _showLayerPanel = false;
                   });
                   _fetchCadastre();
+                }),
+            _layerToggle('Chemins forestiers', Icons.route_rounded,
+                _showChemins, () {
+                  setState(() {
+                    _showChemins = !_showChemins;
+                    _showLayerPanel = false;
+                    if (!_showChemins) _cheminsPoints = [];
+                  });
+                  if (_showChemins) _fetchChemins();
                 }),
             const SizedBox(height: 8),
           ],
