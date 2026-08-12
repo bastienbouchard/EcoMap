@@ -2609,12 +2609,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               strokeWidth: 1.8,
             )).toList(),
           ),
-        if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _ecoOpacity > 0)
+        if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _ecoOpacity > 0 && !_isGesturing)
           Opacity(
             opacity: _ecoOpacity,
             child: PolygonLayer(
                 polygons: _polygonsCache,
-                simplificationTolerance: _isGesturing ? 3.0 : 0.5),
+                simplificationTolerance: 0.5),
           ),
         if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0 && !_isGesturing)
           Opacity(
@@ -4489,7 +4489,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                           onChanged: (val) {
                             _mapController.move(
                                 _mapController.camera.center, val);
-                            setState(() => _mapZoom = val);
                           },
                         ),
                       ),
