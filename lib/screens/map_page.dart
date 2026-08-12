@@ -2548,8 +2548,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 19 : 19,
           maxZoom: 22,
-          keepBuffer: 6,
-          panBuffer: 2,
+          tileUpdateTransformer: TileUpdateTransformers.throttle(
+            const Duration(milliseconds: 200),
+          ),
           errorTileCallback: (_satellite && _satSource == 'mapbox' && !_satelliteFallback)
               ? (tile, error, stackTrace) {
                   _satelliteTileErrors++;
