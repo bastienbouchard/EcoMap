@@ -231,7 +231,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Le foreground service garde le processus en vie — le timer continue même écran fermé
+    if (state == AppLifecycleState.resumed) {
+      if (_positionStream == null) _initLocation();
+    }
   }
 
   void _restartAndroidTimer() {
@@ -335,7 +337,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             allowBackgroundLocationUpdates: true,
             showBackgroundLocationIndicator: true,
           ),
-        ).listen((position) => handlePos(position.latitude, position.longitude));
+        ).listen(
+          (position) => handlePos(position.latitude, position.longitude),
+          onError: (_) {},
+          cancelOnError: false,
+        );
       } else {
         await Permission.notification.request();
         _positionStream = Geolocator.getPositionStream(
@@ -348,10 +354,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               enableWakeLock: true,
             ),
           ),
-        ).listen((position) {
-          _lastStreamUpdate = DateTime.now();
-          handlePos(position.latitude, position.longitude);
-        });
+        ).listen(
+          (position) {
+            _lastStreamUpdate = DateTime.now();
+            handlePos(position.latitude, position.longitude);
+          },
+          onError: (_) {},
+          cancelOnError: false,
+        );
         // Timer fallback toutes les 2s si le stream ne répond pas
         _locationTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
           final last = _lastStreamUpdate;
@@ -1835,21 +1845,25 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       _partagePosition = false;
     });
     _groupeStream?.cancel();
-    _groupeStream = GroupeService.ecouterGroupe(groupeId, nom).listen((membres) {
-      if (mounted) setState(() => _membres = membres);
-    });
+    _groupeStream = GroupeService.ecouterGroupe(groupeId, nom).listen(
+      (membres) { if (mounted) setState(() => _membres = membres); },
+      onError: (_) {}, cancelOnError: false,
+    );
     _obsGroupeSub?.cancel();
-    _obsGroupeSub = GroupeService.ecouterObservations(groupeId, nom).listen((obs) {
-      if (mounted) setState(() => _obsGroupe = obs);
-    });
+    _obsGroupeSub = GroupeService.ecouterObservations(groupeId, nom).listen(
+      (obs) { if (mounted) setState(() => _obsGroupe = obs); },
+      onError: (_) {}, cancelOnError: false,
+    );
     _tracesGroupeSub?.cancel();
-    _tracesGroupeSub = GroupeService.ecouterTraces(groupeId, nom).listen((traces) {
-      if (mounted) setState(() => _tracesGroupe = traces);
-    });
+    _tracesGroupeSub = GroupeService.ecouterTraces(groupeId, nom).listen(
+      (traces) { if (mounted) setState(() => _tracesGroupe = traces); },
+      onError: (_) {}, cancelOnError: false,
+    );
     _groupePinsSub?.cancel();
-    _groupePinsSub = GroupeService.ecouterEpingles(groupeId, nom).listen((pins) {
-      if (mounted) setState(() => _groupePins = pins);
-    });
+    _groupePinsSub = GroupeService.ecouterEpingles(groupeId, nom).listen(
+      (pins) { if (mounted) setState(() => _groupePins = pins); },
+      onError: (_) {}, cancelOnError: false,
+    );
     _loadLastSeenTs(groupeId);
     _startChatStream(groupeId);
     _snack('Groupe "$groupeId" rejoint');
