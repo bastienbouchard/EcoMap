@@ -2529,10 +2529,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               _fetchCadastre();
             }
           }
-          if (_showChemins) {
-            _cheminsDebounce?.cancel();
-            _cheminsDebounce = Timer(const Duration(milliseconds: 800), _fetchChemins);
-          }
           _tileResetTimer?.cancel();
           _tileResetTimer = Timer(const Duration(milliseconds: 800), () {
             final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -2562,6 +2558,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 19 : 19,
           maxZoom: 22,
+          tileProvider: _satellite
+              ? NetworkTileProvider(
+                  cachingProvider: BuiltInMapCachingProvider.getOrCreateInstance(
+                    overrideFreshAge: const Duration(days: 14),
+                  ),
+                )
+              : const NetworkTileProvider(),
           tileBuilder: (context, child, tile) {
             if (tile.readyToDisplay) {
               _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
@@ -2631,14 +2634,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             }).toList(),
           ),
         ],
-        if (_showChemins && _cheminsPoints.isNotEmpty)
-          PolylineLayer(
-            polylines: _cheminsPoints.map((pts) => Polyline(
-              points: pts,
-              color: const Color(0xFFD2691E).withOpacity(0.85),
-              strokeWidth: 1.8,
-            )).toList(),
-          ),
         if (_polygonsCache.isNotEmpty && _mapZoom >= 11 && _ecoOpacity > 0 && !_isGesturing)
           Opacity(
             opacity: _ecoOpacity,
@@ -3846,15 +3841,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     _showLayerPanel = false;
                   });
                   _fetchCadastre();
-                }),
-            _layerToggle('Chemins forestiers', Icons.route_rounded,
-                _showChemins, () {
-                  setState(() {
-                    _showChemins = !_showChemins;
-                    _showLayerPanel = false;
-                    if (!_showChemins) _cheminsPoints = [];
-                  });
-                  if (_showChemins) _fetchChemins();
                 }),
             const SizedBox(height: 8),
           ],
