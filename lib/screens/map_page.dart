@@ -189,6 +189,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Timer? _salineDebounce;
   Timer? _zoomDebounce;
   Timer? _gestureEndTimer;
+  Timer? _tileResetTimer;
+  int _tileEpoch = 0;
   bool _isGesturing = false;
 
   // ── Connectivité ──
@@ -274,6 +276,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _zoomDebounce?.cancel();
     _cheminsDebounce?.cancel();
     _gestureEndTimer?.cancel();
+    _tileResetTimer?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
@@ -2529,11 +2532,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             _cheminsDebounce?.cancel();
             _cheminsDebounce = Timer(const Duration(milliseconds: 800), _fetchChemins);
           }
+          _tileResetTimer?.cancel();
+          _tileResetTimer = Timer(const Duration(milliseconds: 600), () {
+            if (mounted) setState(() => _tileEpoch++);
+          });
         },
       ),
       children: [
         TileLayer(
-          key: ValueKey('$_satellite-$_satSource-$_satelliteFallback'),
+          key: ValueKey('$_satellite-$_satSource-$_satelliteFallback-$_tileEpoch'),
           urlTemplate: _satellite
               ? (_satSource == 'mern'
                   ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
@@ -2548,10 +2555,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 19 : 19,
           maxZoom: 22,
-          tileProvider: NetworkTileProvider(abortObsoleteRequests: false),
-          tileUpdateTransformer: TileUpdateTransformers.debounce(
-            const Duration(milliseconds: 300),
-          ),
           errorTileCallback: (_satellite && _satSource == 'mapbox' && !_satelliteFallback)
               ? (tile, error, stackTrace) {
                   _satelliteTileErrors++;
