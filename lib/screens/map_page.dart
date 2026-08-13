@@ -2564,7 +2564,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     overrideFreshAge: const Duration(days: 14),
                   ),
                 )
-              : const NetworkTileProvider(),
+              : NetworkTileProvider(),
           tileBuilder: (context, child, tile) {
             if (tile.readyToDisplay) {
               _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
