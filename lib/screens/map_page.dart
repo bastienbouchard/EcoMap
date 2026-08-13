@@ -191,6 +191,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Timer? _gestureEndTimer;
   Timer? _tileResetTimer;
   int _tileEpoch = 0;
+  int _lastTileVisibleMs = 0;
   bool _isGesturing = false;
 
   // ── Connectivité ──
@@ -2533,8 +2534,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             _cheminsDebounce = Timer(const Duration(milliseconds: 800), _fetchChemins);
           }
           _tileResetTimer?.cancel();
-          _tileResetTimer = Timer(const Duration(milliseconds: 600), () {
-            if (mounted) setState(() => _tileEpoch++);
+          _tileResetTimer = Timer(const Duration(milliseconds: 800), () {
+            final nowMs = DateTime.now().millisecondsSinceEpoch;
+            if (mounted && nowMs - _lastTileVisibleMs > 600) {
+              setState(() {
+                _tileEpoch++;
+                _lastTileVisibleMs = nowMs;
+              });
+            }
           });
         },
       ),
@@ -2555,6 +2562,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 19 : 19,
           maxZoom: 22,
+          tileBuilder: (context, child, tile) {
+            if (tile.readyToDisplay) {
+              _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
+            }
+            return child;
+          },
           errorTileCallback: (_satellite && _satSource == 'mapbox' && !_satelliteFallback)
               ? (tile, error, stackTrace) {
                   _satelliteTileErrors++;
