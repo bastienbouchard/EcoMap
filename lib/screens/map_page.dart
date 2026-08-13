@@ -77,14 +77,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   double _mapZoom = 13.0;
   double _mapLat = 48.2917;
   bool _satellite = false;
-  int _satelliteTileErrors = 0;
-  bool _satelliteFallback = false;
   String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
-  bool _showChemins = false;
-  List<List<LatLng>> _cheminsPoints = [];
-  Timer? _cheminsDebounce;
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
@@ -275,7 +270,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _pinchDebounce?.cancel();
     _salineDebounce?.cancel();
     _zoomDebounce?.cancel();
-    _cheminsDebounce?.cancel();
     _gestureEndTimer?.cancel();
     _tileResetTimer?.cancel();
     _connectivitySub?.cancel();
@@ -564,34 +558,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     }
   }
 
-  Future<void> _fetchChemins() async {
-    if (!_showChemins || _mapZoom < 11) return;
-    try {
-      final center = _mapController.camera.center;
-      final radiusM = _visibleRadiusM(minM: 3000).clamp(0.0, 15000.0);
-      final query =
-          '[out:json][timeout:25];'
-          'way["highway"~"^(track|path)\$"](around:${radiusM.round()},${center.latitude},${center.longitude});'
-          'out geom;';
-      final resp = await http
-          .post(Uri.parse('https://overpass-api.de/api/interpreter'), body: query)
-          .timeout(const Duration(seconds: 30));
-      if (resp.statusCode != 200 || !mounted || !_showChemins) return;
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final elements = data['elements'] as List;
-      final lines = <List<LatLng>>[];
-      for (final el in elements) {
-        if (el['type'] != 'way') continue;
-        final geom = el['geometry'] as List?;
-        if (geom == null || geom.length < 2) continue;
-        lines.add(geom.map((n) => LatLng(
-          (n['lat'] as num).toDouble(),
-          (n['lon'] as num).toDouble(),
-        )).toList());
-      }
-      if (mounted && _showChemins) setState(() => _cheminsPoints = lines);
-    } catch (_) {}
-  }
 
   bool _pointInPolygon(LatLng pt, List<LatLng> poly) {
     bool inside = false;
@@ -2543,7 +2509,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       ),
       children: [
         TileLayer(
-          key: ValueKey('$_satellite-$_satSource-$_satelliteFallback-$_tileEpoch'),
+          key: ValueKey('$_satellite-$_satSource-$_tileEpoch'),
           urlTemplate: _satellite
               ? (_satSource == 'mern'
                   ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
@@ -2551,9 +2517,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
                       : _satSource == 'sentinel'
                           ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
-                          : (_satelliteFallback
-                              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                              : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken'))
+                          : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 19 : 19,
@@ -2571,14 +2535,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             }
             return child;
           },
-          errorTileCallback: (_satellite && _satSource == 'mapbox' && !_satelliteFallback)
-              ? (tile, error, stackTrace) {
-                  _satelliteTileErrors++;
-                  if (_satelliteTileErrors >= 10 && mounted) {
-                    setState(() { _satelliteFallback = true; _satelliteTileErrors = 0; });
-                  }
-                }
-              : null,
         ),
         Opacity(
           opacity: _ecoOpacity,
@@ -3716,8 +3672,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 () => setState(() {
                   _satellite = true;
                   _satSource = 'mapbox';
-                  _satelliteTileErrors = 0;
-                  _satelliteFallback = false;
+
                   if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
                   _showLayerPanel = false;
                 }),
@@ -3727,8 +3682,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 () => setState(() {
                   _satellite = true;
                   _satSource = 'mern';
-                  _satelliteTileErrors = 0;
-                  _satelliteFallback = false;
+
                   if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
                   _showLayerPanel = false;
                 }),
@@ -3738,8 +3692,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 () => setState(() {
                   _satellite = true;
                   _satSource = 'esri';
-                  _satelliteTileErrors = 0;
-                  _satelliteFallback = false;
+
                   if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
                   _showLayerPanel = false;
                 }),
@@ -3749,8 +3702,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 () => setState(() {
                   _satellite = true;
                   _satSource = 'sentinel';
-                  _satelliteTileErrors = 0;
-                  _satelliteFallback = false;
+
                   if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
                   _showLayerPanel = false;
                 }),
