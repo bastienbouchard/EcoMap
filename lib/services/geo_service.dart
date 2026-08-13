@@ -333,19 +333,24 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
            depSur.startsWith('7') || depSur.startsWith('8');
   }
 
-  // Vérifie si le segment entre deux points traverse de l'eau (9 échantillons)
+  // Vérifie si le segment entre deux points traverse de l'eau ou un gap (13 échantillons)
   bool segmentCrossesWater(double fromLat, double fromLon, double toLat, double toLon) {
-    for (int s = 1; s <= 9; s++) {
-      final t = s / 10.0;
+    for (int s = 1; s <= 13; s++) {
+      final t = s / 14.0;
       final sLat = fromLat + (toLat - fromLat) * t;
       final sLon = fromLon + (toLon - fromLon) * t;
+      bool inAnyPolygon = false;
       for (final feat in features) {
         try {
-          if (_isWaterFeature(feat['properties'] as Map)) {
-            if (pointInGeometry(LatLng(sLat, sLon), feat['geometry'] as Map)) return true;
+          if (pointInGeometry(LatLng(sLat, sLon), feat['geometry'] as Map)) {
+            inAnyPolygon = true;
+            if (_isWaterFeature(feat['properties'] as Map)) return true;
+            break;
           }
         } catch (_) {}
       }
+      // Gap entre polygones = rivière, route ou découvert → obstacle
+      if (!inAnyPolygon) return true;
     }
     return false;
   }
