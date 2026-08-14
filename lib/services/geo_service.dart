@@ -320,17 +320,22 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     return 'X';
   }
 
-  // Détecte si un ensemble de propriétés représente un plan d'eau
+  // Détecte si un ensemble de propriétés représente un obstacle (eau, roc, découvert)
   bool _isWaterFeature(Map props) {
     final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
     final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
     final typeCouv = (props['type_couv'] ?? '').toString().toUpperCase();
     final depSur   = (props['dep_sur']  ?? '').toString().toUpperCase();
-    return typeEco.contains('EAU') || typeEco.contains('RIV') ||
-           typeEco.contains('LAC') || typeEco.startsWith('RE') ||
-           codeCouv == 'EE' || codeCouv.contains('EAU') ||
-           typeCouv == 'EAU' || typeCouv == 'IN' ||
-           depSur.startsWith('7') || depSur.startsWith('8');
+    final grEss    = (props['gr_ess']   ?? '').toString().toUpperCase();
+    final clAge    = (props['cl_age']   ?? '').toString().toUpperCase();
+    if (typeEco.contains('EAU') || typeEco.contains('RIV') ||
+        typeEco.contains('LAC') || typeEco.startsWith('RE') ||
+        codeCouv == 'EE' || codeCouv.contains('EAU') ||
+        typeCouv == 'EAU' || typeCouv == 'IN' ||
+        depSur.startsWith('7') || depSur.startsWith('8')) return true;
+    // Polygone sans aucun attribut végétal = eau / roc / non-classifié → obstacle
+    if (typeEco.isEmpty && typeCouv.isEmpty && grEss.isEmpty && clAge.isEmpty) return true;
+    return false;
   }
 
   // Vérifie si le segment entre deux points traverse de l'eau ou un gap (13 échantillons)
