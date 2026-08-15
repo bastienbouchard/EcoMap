@@ -80,6 +80,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
+  bool _showLauCarte = false;
+  double _lauOpacity = 0.7;
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
@@ -2544,6 +2546,19 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
+        if (_showLauCarte)
+          OverlayImageLayer(
+            overlayImages: [
+              OverlayImage(
+                bounds: LatLngBounds(
+                  const LatLng(47.44113, -71.44859),
+                  const LatLng(47.61134, -71.15313),
+                ),
+                imageProvider: const AssetImage('assets/lau_secteur11.jpg'),
+                opacity: _lauOpacity,
+              ),
+            ],
+          ),
         if (_showTerresPrivees && _mapZoom >= 12.0)
           Opacity(
             opacity: 0.7,
@@ -3782,6 +3797,43 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   min: 0.0,
                   max: 1.0,
                   onChanged: (v) => setState(() => _ecoOpacity = v),
+                ),
+              ),
+            ],
+            _layerToggle('Carte LAU Secteur 11', Icons.map_outlined,
+                _showLauCarte, () => setState(() => _showLauCarte = !_showLauCarte)),
+            if (_showLauCarte) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+                child: Row(children: [
+                  Icon(Icons.opacity_rounded,
+                      color: _lauOpacity > 0 ? const Color(0xFFFF6B35) : Colors.white38,
+                      size: 16),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Opacité carte LAU',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  ),
+                  Text('${(_lauOpacity * 100).round()}%',
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 12,
+                          fontFeatures: [ui.FontFeature.tabularFigures()])),
+                ]),
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: const Color(0xFFFF6B35),
+                  thumbColor: const Color(0xFFFF6B35),
+                  inactiveTrackColor: Colors.white24,
+                  trackHeight: 2,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                ),
+                child: Slider(
+                  value: _lauOpacity,
+                  min: 0.0,
+                  max: 1.0,
+                  onChanged: (v) => setState(() => _lauOpacity = v),
                 ),
               ),
             ],

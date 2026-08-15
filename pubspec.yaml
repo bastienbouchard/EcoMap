@@ -1,6 +1,6 @@
 name: ecomap
 description: A new Flutter project.
-version: 1.0.15+273
+version: 1.0.15+274
 
 environment:
   sdk: '>=3.2.6 <4.0.0'
@@ -45,4 +45,5 @@ flutter:
     - assets/eco_zone.geojson
     - assets/feuillets_index.geojson
     - assets/logo.png
+    - assets/lau_secteur11.jpg
     - assets/icons/
