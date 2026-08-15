@@ -1133,9 +1133,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     final bytes = file.bytes;
     if (bytes == null) return;
 
-    // Extraction GPTS depuis les octets bruts du GeoPDF
-    final str = String.fromCharCodes(bytes.where((b) => b >= 32 && b < 128).take(500000));
-    final m = RegExp(r'/GPTS\s*\[\s*([\d\s.\-]+?)\]').firstMatch(str);
+    // Extraction GPTS depuis les octets bruts du GeoPDF (latin1 = 1 char par octet, préserve tout)
+    final str = latin1.decode(bytes, allowInvalid: true);
+    final m = RegExp(r'/GPTS\s*\[\s*([\d\s.\-]+)\]').firstMatch(str);
     if (m == null) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Ce PDF n\'est pas géoréférencé (aucune donnée GPTS trouvée)')));
