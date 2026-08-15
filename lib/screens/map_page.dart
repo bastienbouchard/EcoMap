@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' show pi, min, max, cos, sqrt, pow, Random;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdfx/pdfx.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -60,6 +65,36 @@ const _typesObservation = [
 // ─────────────────────────────────────────────────────────────────────────────
 // MapPage
 // ─────────────────────────────────────────────────────────────────────────────
+class _PdfLayerData {
+  final String id;
+  final String name;
+  final String imagePath;
+  final double swLat, swLon, neLat, neLon;
+  double opacity;
+  bool visible;
+
+  _PdfLayerData({
+    required this.id, required this.name, required this.imagePath,
+    required this.swLat, required this.swLon,
+    required this.neLat, required this.neLon,
+    this.opacity = 0.7, this.visible = true,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id, 'name': name, 'imagePath': imagePath,
+    'swLat': swLat, 'swLon': swLon, 'neLat': neLat, 'neLon': neLon,
+    'opacity': opacity, 'visible': visible,
+  };
+
+  static _PdfLayerData fromJson(Map<String, dynamic> j) => _PdfLayerData(
+    id: j['id'], name: j['name'], imagePath: j['imagePath'],
+    swLat: j['swLat'], swLon: j['swLon'],
+    neLat: j['neLat'], neLon: j['neLon'],
+    opacity: (j['opacity'] ?? 0.7).toDouble(),
+    visible: j['visible'] ?? true,
+  );
+}
+
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
 
@@ -80,8 +115,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
-  bool _showLauCarte = false;
-  double _lauOpacity = 0.7;
+  List<_PdfLayerData> _pdfLayers = [];
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
@@ -223,6 +257,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _loadTracks();
     _loadGroupePrefs();
     _loadPins();
+    _loadPdfLayers();
     requestPersistentStorage();
   }
 
@@ -1069,6 +1104,90 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Future<void> _savePins() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('pinned_points', jsonEncode(_pinnedPoints));
+  }
+
+  Future<void> _loadPdfLayers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('pdf_layers');
+    if (raw == null) return;
+    final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+    final layers = list.map(_PdfLayerData.fromJson)
+        .where((l) => File(l.imagePath).existsSync())
+        .toList();
+    if (mounted) setState(() => _pdfLayers = layers);
+  }
+
+  Future<void> _savePdfLayers() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('pdf_layers', jsonEncode(_pdfLayers.map((l) => l.toJson()).toList()));
+  }
+
+  Future<void> _importPdf() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) return;
+
+    // Extraction GPTS depuis les octets bruts du GeoPDF
+    final str = String.fromCharCodes(bytes.where((b) => b >= 32 && b < 128).take(500000));
+    final m = RegExp(r'/GPTS\s*\[\s*([\d\s.\-]+?)\]').firstMatch(str);
+    if (m == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ce PDF n\'est pas géoréférencé (aucune donnée GPTS trouvée)')));
+      return;
+    }
+    final nums = m.group(1)!.trim().split(RegExp(r'\s+')).map(double.tryParse).whereType<double>().toList();
+    if (nums.length < 8) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Coordonnées GPTS incomplètes dans ce PDF')));
+      return;
+    }
+    final lats = [nums[0], nums[2], nums[4], nums[6]];
+    final lons = [nums[1], nums[3], nums[5], nums[7]];
+    final swLat = lats.reduce(min), neLat = lats.reduce(max);
+    final swLon = lons.reduce(min), neLon = lons.reduce(max);
+
+    // Rendu du PDF en JPEG
+    PdfDocument? doc;
+    try {
+      doc = await PdfDocument.openData(bytes);
+      final page = await doc.getPage(1);
+      final img = await page.render(
+        width: page.width * 2,
+        height: page.height * 2,
+        format: PdfPageImageFormat.jpeg,
+        quality: 85,
+      );
+      await page.close();
+      if (img == null) throw Exception('rendu vide');
+
+      final docsDir = await getApplicationDocumentsDirectory();
+      final id = DateTime.now().millisecondsSinceEpoch.toString();
+      final layerDir = Directory('${docsDir.path}/pdf_layers');
+      await layerDir.create(recursive: true);
+      final imgPath = '${layerDir.path}/$id.jpg';
+      await File(imgPath).writeAsBytes(img.bytes);
+
+      final layer = _PdfLayerData(
+        id: id,
+        name: file.name.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), ''),
+        imagePath: imgPath,
+        swLat: swLat, swLon: swLon,
+        neLat: neLat, neLon: neLon,
+      );
+      setState(() => _pdfLayers.add(layer));
+      _savePdfLayers();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors du traitement du PDF: $e')));
+    } finally {
+      await doc?.close();
+    }
   }
 
   bool _isPinned(LatLng pos) => _pinnedPoints.any((p) =>
@@ -2546,19 +2665,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
-        if (_showLauCarte)
-          OverlayImageLayer(
-            overlayImages: [
-              OverlayImage(
-                bounds: LatLngBounds(
-                  const LatLng(47.44113, -71.44859),
-                  const LatLng(47.61134, -71.15313),
+        for (final pdfLayer in _pdfLayers)
+          if (pdfLayer.visible)
+            OverlayImageLayer(
+              overlayImages: [
+                OverlayImage(
+                  bounds: LatLngBounds(
+                    LatLng(pdfLayer.swLat, pdfLayer.swLon),
+                    LatLng(pdfLayer.neLat, pdfLayer.neLon),
+                  ),
+                  imageProvider: FileImage(File(pdfLayer.imagePath)),
+                  opacity: pdfLayer.opacity,
                 ),
-                imageProvider: const AssetImage('assets/lau_secteur11.jpg'),
-                opacity: _lauOpacity,
-              ),
-            ],
-          ),
+              ],
+            ),
         if (_showTerresPrivees && _mapZoom >= 12.0)
           Opacity(
             opacity: 0.7,
@@ -3800,43 +3920,77 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 ),
               ),
             ],
-            _layerToggle('Carte LAU Secteur 11', Icons.map_outlined,
-                _showLauCarte, () => setState(() => _showLauCarte = !_showLauCarte)),
-            if (_showLauCarte) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+            // ── Cartes PDF importées ──
+            for (final pdfLayer in _pdfLayers) ...[
+              InkWell(
+                onTap: () => setState(() => pdfLayer.visible = !pdfLayer.visible),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  child: Row(children: [
+                    Icon(Icons.picture_as_pdf_rounded,
+                        color: pdfLayer.visible ? const Color(0xFFFF6B35) : Colors.white54,
+                        size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(pdfLayer.name,
+                        style: TextStyle(
+                            color: pdfLayer.visible ? Colors.white : Colors.white60,
+                            fontSize: 13),
+                        maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() => _pdfLayers.removeWhere((l) => l.id == pdfLayer.id));
+                        File(pdfLayer.imagePath).deleteSync();
+                        _savePdfLayers();
+                      },
+                      child: const Icon(Icons.close, color: Colors.white24, size: 16),
+                    ),
+                  ]),
+                ),
+              ),
+              if (pdfLayer.visible)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+                  child: Row(children: [
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: const Color(0xFFFF6B35),
+                          thumbColor: const Color(0xFFFF6B35),
+                          inactiveTrackColor: Colors.white24,
+                          trackHeight: 2,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                        ),
+                        child: Slider(
+                          value: pdfLayer.opacity,
+                          min: 0.0, max: 1.0,
+                          onChanged: (v) => setState(() => pdfLayer.opacity = v),
+                          onChangeEnd: (_) => _savePdfLayers(),
+                        ),
+                      ),
+                    ),
+                    Text('${(pdfLayer.opacity * 100).round()}%',
+                        style: const TextStyle(color: Colors.white54, fontSize: 12,
+                            fontFeatures: [ui.FontFeature.tabularFigures()])),
+                    const SizedBox(width: 4),
+                  ]),
+                ),
+            ],
+            InkWell(
+              onTap: () {
+                setState(() => _showLayerPanel = false);
+                _importPdf();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: Row(children: [
-                  Icon(Icons.opacity_rounded,
-                      color: _lauOpacity > 0 ? const Color(0xFFFF6B35) : Colors.white38,
-                      size: 16),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text('Opacité carte LAU',
-                        style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  ),
-                  Text('${(_lauOpacity * 100).round()}%',
-                      style: const TextStyle(
-                          color: Colors.white54, fontSize: 12,
-                          fontFeatures: [ui.FontFeature.tabularFigures()])),
+                  const Icon(Icons.add_rounded, color: Colors.white54, size: 18),
+                  const SizedBox(width: 10),
+                  const Expanded(child: Text('Importer une carte PDF',
+                      style: TextStyle(color: Colors.white60, fontSize: 13))),
                 ]),
               ),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: const Color(0xFFFF6B35),
-                  thumbColor: const Color(0xFFFF6B35),
-                  inactiveTrackColor: Colors.white24,
-                  trackHeight: 2,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                ),
-                child: Slider(
-                  value: _lauOpacity,
-                  min: 0.0,
-                  max: 1.0,
-                  onChanged: (v) => setState(() => _lauOpacity = v),
-                ),
-              ),
-            ],
+            ),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
                   if (!_showTerresPrivees && !_requirePremium()) return;
