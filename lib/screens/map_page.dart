@@ -69,27 +69,34 @@ class _PdfLayerData {
   final String id;
   final String name;
   final String imagePath;
-  final double swLat, swLon, neLat, neLon;
+  // Coins réels de la page entière (pour RotatedOverlayImage)
+  final double tlLat, tlLon; // top-left
+  final double blLat, blLon; // bottom-left
+  final double brLat, brLon; // bottom-right
   double opacity;
   bool visible;
 
   _PdfLayerData({
     required this.id, required this.name, required this.imagePath,
-    required this.swLat, required this.swLon,
-    required this.neLat, required this.neLon,
+    required this.tlLat, required this.tlLon,
+    required this.blLat, required this.blLon,
+    required this.brLat, required this.brLon,
     this.opacity = 0.7, this.visible = true,
   });
 
   Map<String, dynamic> toJson() => {
     'id': id, 'name': name, 'imagePath': imagePath,
-    'swLat': swLat, 'swLon': swLon, 'neLat': neLat, 'neLon': neLon,
+    'tlLat': tlLat, 'tlLon': tlLon,
+    'blLat': blLat, 'blLon': blLon,
+    'brLat': brLat, 'brLon': brLon,
     'opacity': opacity, 'visible': visible,
   };
 
   static _PdfLayerData fromJson(Map<String, dynamic> j) => _PdfLayerData(
     id: j['id'], name: j['name'], imagePath: j['imagePath'],
-    swLat: j['swLat'], swLon: j['swLon'],
-    neLat: j['neLat'], neLon: j['neLon'],
+    tlLat: (j['tlLat'] ?? 0.0).toDouble(), tlLon: (j['tlLon'] ?? 0.0).toDouble(),
+    blLat: (j['blLat'] ?? 0.0).toDouble(), blLon: (j['blLon'] ?? 0.0).toDouble(),
+    brLat: (j['brLat'] ?? 0.0).toDouble(), brLon: (j['brLon'] ?? 0.0).toDouble(),
     opacity: (j['opacity'] ?? 0.7).toDouble(),
     visible: j['visible'] ?? true,
   );
@@ -1147,19 +1154,55 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           content: Text('Coordonnées GPTS incomplètes dans ce PDF')));
       return;
     }
-    final lats = [nums[0], nums[2], nums[4], nums[6]];
-    final lons = [nums[1], nums[3], nums[5], nums[7]];
-    final swLat = lats.reduce(min), neLat = lats.reduce(max);
-    final swLon = lons.reduce(min), neLon = lons.reduce(max);
+    // GPTS: (lat,lon) × 4 coins du viewport — ordre LPTS: BL, TL, TR, BR
+    final g0Lat = nums[0], g0Lon = nums[1]; // bottom-left du viewport
+    final g1Lat = nums[2], g1Lon = nums[3]; // top-left du viewport
+    final g3Lat = nums[6], g3Lon = nums[7]; // bottom-right du viewport
 
     // Rendu du PDF en JPEG
     PdfDocument? doc;
     try {
       doc = await PdfDocument.openData(bytes);
       final page = await doc.getPage(1);
+      final pw = page.width;   // largeur page en points PDF
+      final ph = page.height;  // hauteur page en points PDF
+
+      // Vecteurs de direction par point PDF (depuis le coin BL du viewport)
+      // Calculés à partir des coins réels GPTS pour éviter les erreurs de projection
+      double dLatDx = (g3Lat - g0Lat) / 1; // sera divisé par bx2-bx1 si BBox trouvé
+      double dLonDx = (g3Lon - g0Lon) / 1;
+      double dLatDy = (g1Lat - g0Lat) / 1;
+      double dLonDy = (g1Lon - g0Lon) / 1;
+      double tlLat = g1Lat, tlLon = g1Lon;
+      double blLat = g0Lat, blLon = g0Lon;
+      double brLat = g3Lat, brLon = g3Lon;
+
+      // Recherche du BBox du viewport juste avant le GPTS dans le PDF
+      final searchBefore = str.substring(max(0, m.start - 800), m.start);
+      final bboxMatches = RegExp(r'/BBox\s*\[\s*([\d\s.\-]+)\]').allMatches(searchBefore);
+      if (bboxMatches.isNotEmpty) {
+        final bNums = bboxMatches.last.group(1)!.trim()
+            .split(RegExp(r'\s+')).map(double.tryParse).whereType<double>().toList();
+        if (bNums.length >= 4) {
+          final bx1 = bNums[0], by1 = bNums[1], bx2 = bNums[2], by2 = bNums[3];
+          // Vecteurs réels par point PDF
+          dLatDx = (g3Lat - g0Lat) / (bx2 - bx1);
+          dLonDx = (g3Lon - g0Lon) / (bx2 - bx1);
+          dLatDy = (g1Lat - g0Lat) / (by2 - by1);
+          dLonDy = (g1Lon - g0Lon) / (by2 - by1);
+          // Extrapolation aux coins de la page entière (marges incluses)
+          blLat = g0Lat + (-bx1)*dLatDx + (-by1)*dLatDy;
+          blLon = g0Lon + (-bx1)*dLonDx + (-by1)*dLonDy;
+          tlLat = g1Lat + (-bx1)*dLatDx + (ph - by2)*dLatDy;
+          tlLon = g1Lon + (-bx1)*dLonDx + (ph - by2)*dLonDy;
+          brLat = g3Lat + (pw - bx2)*dLatDx + (-by1)*dLatDy;
+          brLon = g3Lon + (pw - bx2)*dLonDx + (-by1)*dLonDy;
+        }
+      }
+
       final img = await page.render(
-        width: page.width * 2,
-        height: page.height * 2,
+        width: pw * 2,
+        height: ph * 2,
         format: PdfPageImageFormat.jpeg,
         quality: 85,
       );
@@ -1177,8 +1220,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         id: id,
         name: file.name.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), ''),
         imagePath: imgPath,
-        swLat: swLat, swLon: swLon,
-        neLat: neLat, neLon: neLon,
+        tlLat: tlLat, tlLon: tlLon,
+        blLat: blLat, blLon: blLon,
+        brLat: brLat, brLon: brLon,
       );
       setState(() => _pdfLayers.add(layer));
       _savePdfLayers();
@@ -2669,11 +2713,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           if (pdfLayer.visible)
             OverlayImageLayer(
               overlayImages: [
-                OverlayImage(
-                  bounds: LatLngBounds(
-                    LatLng(pdfLayer.swLat, pdfLayer.swLon),
-                    LatLng(pdfLayer.neLat, pdfLayer.neLon),
-                  ),
+                RotatedOverlayImage(
+                  topLeftCorner: LatLng(pdfLayer.tlLat, pdfLayer.tlLon),
+                  bottomLeftCorner: LatLng(pdfLayer.blLat, pdfLayer.blLon),
+                  bottomRightCorner: LatLng(pdfLayer.brLat, pdfLayer.brLon),
                   imageProvider: FileImage(File(pdfLayer.imagePath)),
                   opacity: pdfLayer.opacity,
                 ),
