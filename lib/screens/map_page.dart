@@ -337,31 +337,21 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       }
       if (permission == LocationPermission.deniedForever) return;
 
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 60),
-        ),
-      );
-      if (mounted) {
-        final gpsPos = LatLng(pos.latitude, pos.longitude);
-        setState(() { _currentPosition = gpsPos; _hasGpsPosition = true; });
-        if (_followingLocation) _mapController.move(gpsPos, 13);
-        await _fetchWind();
-      }
-
+      // handlePos et le stream sont créés EN PREMIER pour qu'un timeout du
+      // getCurrentPosition initial n'empêche pas le GPS de fonctionner.
       void handlePos(double lat, double lon) {
         if (!mounted) return;
         final p = LatLng(lat, lon);
+        final firstFix = !_hasGpsPosition;
         setState(() {
           _currentPosition = p;
           _hasGpsPosition = true;
           if (_recording) _trackPoints.add(p);
           if (_showHotspots) _hotspots = _computeHotspots();
         });
-        if (_followingLocation || _recording) {
-          _mapController.move(p, _mapZoom);
-        }
+        if (firstFix && _followingLocation) _mapController.move(p, 13);
+        else if (_followingLocation || _recording) _mapController.move(p, _mapZoom);
+        if (firstFix) _fetchWind();
         if (_groupeActif && _partagePosition && _groupeId != null && _monNom != null) {
           GroupeService.publierPosition(groupeId: _groupeId!, nom: _monNom!, position: p);
         }
@@ -402,18 +392,35 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           onError: (_) {},
           cancelOnError: false,
         );
-        // Timer fallback toutes les 2s si le stream ne répond pas
         _locationTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
           final last = _lastStreamUpdate;
           if (last != null && DateTime.now().difference(last).inSeconds < 2) return;
           try {
             final pos = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.high,
+                timeLimit: Duration(seconds: 25),
+              ),
             );
             handlePos(pos.latitude, pos.longitude);
           } catch (_) {}
         });
       }
+
+      // Tentative d'obtenir une position initiale rapide pour centrer la carte.
+      // Si ça timeout (signal faible au chalet), ce n'est pas grave — le stream
+      // ci-dessus livrera une position dès qu'un satellite sera capté.
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 60),
+          ),
+        );
+        if (mounted && !_hasGpsPosition) {
+          handlePos(pos.latitude, pos.longitude);
+        }
+      } catch (_) {}
     } catch (_) {}
   }
 
