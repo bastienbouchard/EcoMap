@@ -30,6 +30,7 @@ import '../services/geo_service.dart';
 import '../services/groupe_service.dart';
 import '../services/premium_service.dart';
 import '../services/territoire_service.dart';
+import '../services/satellite_cache_service.dart';
 import 'aide_page.dart';
 import '../widgets/hotspot_detail_sheet.dart';
 import '../widgets/map_controls.dart';
@@ -2688,11 +2689,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           maxNativeZoom: _satellite ? 19 : 19,
           maxZoom: 22,
           tileProvider: _satellite
-              ? NetworkTileProvider(
-                  cachingProvider: BuiltInMapCachingProvider.getOrCreateInstance(
-                    overrideFreshAge: const Duration(days: 14),
-                  ),
-                )
+              ? SatelliteTileProvider()
               : NetworkTileProvider(),
           tileBuilder: (context, child, tile) {
             if (tile.readyToDisplay) {
@@ -3901,6 +3898,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   builder: (_) => TerritoireDownloadPage(
                     initialCenter: _mapController.camera.center,
                     initialZoom: _mapController.camera.zoom,
+                    satUrlTemplate: _satellite
+                        ? (_satSource == 'mern'
+                            ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
+                            : _satSource == 'esri'
+                                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                                : _satSource == 'sentinel'
+                                    ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
+                                    : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
+                        : null,
+                    satSource: _satellite ? _satSource : null,
                   ),
                 ));
                 _reloadTerritoire();

@@ -3,13 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import '../services/territoire_service.dart';
+import '../services/satellite_cache_service.dart';
 
 enum _SelectionMode { screen, draw }
 
 class TerritoireDownloadPage extends StatefulWidget {
   final LatLng initialCenter;
   final double initialZoom;
-  const TerritoireDownloadPage({super.key, required this.initialCenter, required this.initialZoom});
+  final String? satUrlTemplate;
+  final String? satSource;
+  const TerritoireDownloadPage({
+    super.key,
+    required this.initialCenter,
+    required this.initialZoom,
+    this.satUrlTemplate,
+    this.satSource,
+  });
 
   @override
   State<TerritoireDownloadPage> createState() => _TerritoireDownloadPageState();
@@ -23,6 +32,12 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   List<Map<String, dynamic>> _territoires = [];
   String? _activeId;
   _SelectionMode _mode = _SelectionMode.screen;
+
+  // satellite pre-download
+  bool _downloadingSat = false;
+  int _satProgress = 0;
+  int _satTotal = 0;
+  String _satStatus = '';
 
   // dessin
   List<Offset> _drawPoints = [];
@@ -204,6 +219,102 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     if (confirm != true) return;
     await TerritoireService.deleteTerritoire(id);
     await _loadTerritoires();
+  }
+
+  Future<void> _downloadSatellite({List<LatLng>? polygon}) async {
+    if (widget.satUrlTemplate == null) return;
+    double minLat, maxLat, minLon, maxLon;
+
+    if (polygon != null && polygon.length >= 3) {
+      minLat = polygon.map((p) => p.latitude).reduce((a, b) => a < b ? a : b);
+      maxLat = polygon.map((p) => p.latitude).reduce((a, b) => a > b ? a : b);
+      minLon = polygon.map((p) => p.longitude).reduce((a, b) => a < b ? a : b);
+      maxLon = polygon.map((p) => p.longitude).reduce((a, b) => a > b ? a : b);
+    } else {
+      final bounds = _mapController.camera.visibleBounds;
+      minLat = bounds.south; maxLat = bounds.north;
+      minLon = bounds.west;  maxLon = bounds.east;
+    }
+
+    final count = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
+
+    if (count > 3000) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Zone trop grande ($count tuiles). Zoome sur ton secteur de chasse.'),
+        backgroundColor: const Color(0xFF1C1C1C),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+      ));
+      return;
+    }
+
+    final sizeMb = (count * 30 / 1024).round();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text('Pré-charger satellite', style: TextStyle(color: Colors.white)),
+        content: Text(
+          '$count tuiles satellitaires (${widget.satSource ?? ''}) seront téléchargées '
+          'pour cette zone.\n\n~$sizeMb MB · zoom 10–14',
+          style: const TextStyle(color: Colors.white70, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Télécharger', style: TextStyle(color: Color(0xFF42A5F5))),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() {
+      _downloadingSat = true; _satProgress = 0; _satTotal = 0; _satStatus = 'Démarrage…';
+    });
+    try {
+      await SatelliteCacheService.downloadTiles(
+        urlTemplate: widget.satUrlTemplate!,
+        minLat: minLat, minLon: minLon,
+        maxLat: maxLat, maxLon: maxLon,
+        onProgress: (done, total, status) {
+          if (mounted) setState(() { _satProgress = done; _satTotal = total; _satStatus = status; });
+        },
+      );
+      final cached = await SatelliteCacheService.countCachedTiles();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'Satellite pré-chargé ! ($cached tuiles en cache)',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF1C1C1C),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: const Color(0xFF42A5F5).withOpacity(0.5)),
+          ),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+          duration: const Duration(seconds: 5),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur : $e', style: const TextStyle(color: Colors.white)),
+          backgroundColor: const Color(0xFF1C1C1C),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _downloadingSat = false);
+    }
   }
 
   @override
@@ -391,6 +502,71 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               ]);
             }),
           ),
+
+          // ── Pré-chargement satellite ──
+          if (widget.satUrlTemplate != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1A2A),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF42A5F5).withOpacity(0.35)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: _downloadingSat
+                    ? Row(children: [
+                        const SizedBox(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF42A5F5)),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Satellite ${widget.satSource ?? ''} · $_satStatus',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                            const SizedBox(height: 4),
+                            LinearProgressIndicator(
+                              value: _satTotal > 0 ? _satProgress / _satTotal : null,
+                              color: const Color(0xFF42A5F5),
+                              backgroundColor: Colors.white12,
+                            ),
+                          ],
+                        )),
+                      ])
+                    : Row(children: [
+                        const Icon(Icons.satellite_alt, color: Color(0xFF42A5F5), size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Satellite ${widget.satSource ?? ''} — zoom 10–14 pour hors-ligne',
+                            style: const TextStyle(color: Colors.white60, fontSize: 12),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _downloading
+                              ? null
+                              : () => _downloadSatellite(
+                                    polygon: _mode == _SelectionMode.draw
+                                        ? (_drawnLatLng.length >= 3 ? _drawnLatLng : null)
+                                        : null,
+                                  ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1565C0),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.white12,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            textStyle: const TextStyle(fontSize: 13),
+                          ),
+                          child: const Text('Pré-charger'),
+                        ),
+                      ]),
+              ),
+            ),
 
           // ── Liste des territoires ──
           if (_territoires.isNotEmpty)
