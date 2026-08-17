@@ -11,6 +11,12 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+    configurations.all {
+        resolutionStrategy {
+            force("com.android.billingclient:billing:8.0.0")
+            force("com.android.billingclient:billing-ktx:8.0.0")
+        }
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")
