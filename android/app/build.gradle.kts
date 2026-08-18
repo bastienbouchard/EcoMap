@@ -71,12 +71,5 @@ flutter {
     source = "../.."
 }
 
-// in_app_purchase_android 0.4.x est codé contre Billing Library 5.x
-// mais AGP 8+ peut résoudre une version 6+ incompatible — on force 5.2.1
-configurations.all {
-    resolutionStrategy {
-        force("com.android.billingclient:billing:5.2.1")
-    }
-}
 
 
