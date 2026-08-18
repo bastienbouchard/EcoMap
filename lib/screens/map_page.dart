@@ -1208,9 +1208,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         }
       }
 
+      // Plafond à 2500 px pour éviter crash OOM sur grandes cartes ZEC/passes
+      const maxPx = 2500.0;
+      final scale = min(maxPx / max(pw, ph), 2.0);
       final img = await page.render(
-        width: pw * 2,
-        height: ph * 2,
+        width: pw * scale,
+        height: ph * scale,
         format: PdfPageImageFormat.jpeg,
         quality: 85,
       );
