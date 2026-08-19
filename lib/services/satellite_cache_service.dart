@@ -131,6 +131,36 @@ class SatelliteCacheService {
   }
 }
 
+// ── Semaphore pour limiter les requêtes réseau simultanées ──────────────────
+
+class _Semaphore {
+  final int _max;
+  int _available;
+  final _queue = <Completer<void>>[];
+
+  _Semaphore(int max)
+      : _max = max,
+        _available = max;
+
+  Future<void> acquire() async {
+    if (_available > 0) {
+      _available--;
+      return;
+    }
+    final c = Completer<void>();
+    _queue.add(c);
+    await c.future;
+  }
+
+  void release() {
+    if (_queue.isNotEmpty) {
+      _queue.removeAt(0).complete();
+    } else {
+      _available++;
+    }
+  }
+}
+
 // ── Custom TileProvider qui sert les tuiles pré-chargées hors-ligne ─────────
 
 class SatelliteTileProvider extends TileProvider {
@@ -146,13 +176,27 @@ class _CachedTileImageProvider extends ImageProvider<_CachedTileImageProvider> {
   final String url;
   const _CachedTileImageProvider(this.url);
 
+  static final _sem = _Semaphore(6);
+
+  static Future<ui.Codec> _emptyCodec() async {
+    final bytes = Uint8List(4); // 1×1 pixel RGBA transparent
+    final buf = await ui.ImmutableBuffer.fromUint8List(bytes);
+    final desc = await ui.ImageDescriptor.raw(
+      buf,
+      width: 1,
+      height: 1,
+      pixelFormat: ui.PixelFormat.rgba8888,
+    );
+    return desc.instantiateCodec();
+  }
+
   @override
   Future<_CachedTileImageProvider> obtainKey(ImageConfiguration configuration) =>
       SynchronousFuture(this);
 
   @override
   ImageStreamCompleter loadImage(
-      _CachedTileImageProvider key, ImageDecoderCallback decode) =>
+          _CachedTileImageProvider key, ImageDecoderCallback decode) =>
       MultiFrameImageStreamCompleter(
         codec: _loadAsync(decode),
         scale: 1.0,
@@ -160,22 +204,36 @@ class _CachedTileImageProvider extends ImageProvider<_CachedTileImageProvider> {
       );
 
   Future<ui.Codec> _loadAsync(ImageDecoderCallback decode) async {
-    final cached = await SatelliteCacheService.getTile(url);
-    if (cached != null) {
-      final buffer = await ui.ImmutableBuffer.fromUint8List(cached);
-      return decode(buffer);
-    }
-    final client = http.Client();
     try {
-      final resp = await client.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
-      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
-        final buffer = await ui.ImmutableBuffer.fromUint8List(resp.bodyBytes);
+      final cached = await SatelliteCacheService.getTile(url);
+      if (cached != null) {
+        final buffer = await ui.ImmutableBuffer.fromUint8List(cached);
         return decode(buffer);
       }
-      throw Exception('HTTP ${resp.statusCode}');
-    } finally {
-      client.close();
-    }
+      await _sem.acquire();
+      Uint8List? tileData;
+      try {
+        final client = http.Client();
+        try {
+          final resp = await client
+              .get(Uri.parse(url))
+              .timeout(const Duration(seconds: 6));
+          if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+            tileData = resp.bodyBytes;
+          }
+        } finally {
+          client.close();
+        }
+      } finally {
+        _sem.release();
+      }
+      if (tileData != null) {
+        SatelliteCacheService.putTile(url, tileData);
+        final buffer = await ui.ImmutableBuffer.fromUint8List(tileData);
+        return decode(buffer);
+      }
+    } catch (_) {}
+    return _emptyCodec();
   }
 
   @override

@@ -67,6 +67,18 @@ android {
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        force("com.android.billingclient:billing:7.1.1")
+        force("com.android.billingclient:billing-ktx:7.1.1")
+    }
+}
+
+dependencies {
+    implementation("com.android.billingclient:billing:7.1.1")
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
+}
+
 flutter {
     source = "../.."
 }
