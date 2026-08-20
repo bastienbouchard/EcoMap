@@ -22,6 +22,7 @@ import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
 import '../providers/arcgis_export_tile_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/web_db.dart';
@@ -140,6 +141,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   double? _windSpeed;
   bool _windCached = false;
   StreamSubscription<Position>? _positionStream;
+  StreamSubscription<CompassEvent>? _compassSub;
+  bool _headingUp = false;
   Timer? _locationTimer;
   DateTime? _lastStreamUpdate;
 
@@ -317,6 +320,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _zoomDebounce?.cancel();
     _gestureEndTimer?.cancel();
     _tileResetTimer?.cancel();
+    _compassSub?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
@@ -469,7 +473,27 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     }
   }
 
-  void _resetNorth() => _mapController.rotate(0);
+  void _resetNorth() {
+    _compassSub?.cancel();
+    _compassSub = null;
+    setState(() => _headingUp = false);
+    _mapController.rotate(0);
+  }
+
+  void _toggleHeadingUp() {
+    if (_headingUp) {
+      _resetNorth();
+      return;
+    }
+    setState(() => _headingUp = true);
+    _compassSub?.cancel();
+    _compassSub = FlutterCompass.events?.listen((event) {
+      final heading = event.heading;
+      if (heading != null && mounted) {
+        _mapController.rotate(-heading);
+      }
+    });
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Vent
@@ -4637,7 +4661,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                mapIconBtn(Icons.explore, _resetNorth),
+                mapIconBtn(
+                  Icons.explore,
+                  _toggleHeadingUp,
+                  active: _headingUp,
+                ),
                 mapDividerV(),
                 mapIconBtn(Icons.my_location, _goToCurrentLocation,
                     loading: _loading),
