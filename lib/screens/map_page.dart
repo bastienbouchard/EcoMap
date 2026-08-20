@@ -1560,13 +1560,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         ));
         ids.add(doc.id);
       }
-      setState(() {
-        _savedTracks.clear();
-        _savedTrackIds.clear();
-        _savedTracks.addAll(tracks);
-        _savedTrackIds.addAll(ids);
-      });
-      await _persistTrackCache(uid);
+      if (tracks.isNotEmpty) {
+        setState(() {
+          _savedTracks.clear();
+          _savedTrackIds.clear();
+          _savedTracks.addAll(tracks);
+          _savedTrackIds.addAll(ids);
+        });
+        await _persistTrackCache(uid);
+      }
     } catch (_) {}
   }
 
@@ -1582,7 +1584,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         'nom': track.nom,
         'date': Timestamp.fromDate(track.date),
         'points': track.points
-            .map((p) => {'lat': p.latitude, 'lon': p.longitude})
+            .map((p) => <String, dynamic>{'lat': p.latitude, 'lon': p.longitude})
             .toList(),
       });
       if (mounted) setState(() => _savedTrackIds[idx] = ref.id);
@@ -2128,7 +2130,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       await col.add({
         'nom': _monNom,
         'points': track.points
-            .map((p) => {'lat': p.latitude, 'lon': p.longitude})
+            .map((p) => <String, dynamic>{'lat': p.latitude, 'lon': p.longitude})
             .toList(),
         'date': track.date.toIso8601String(),
         'ts': FieldValue.serverTimestamp(),
