@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' show pi, min, max, cos, sqrt, pow, Random;
+import 'dart:math' show pi, sin, min, max, cos, sqrt, pow, Random;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
@@ -3545,6 +3545,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   MarkerLayer _buildCurrentPositionMarker() {
     if (!_hasGpsPosition) return const MarkerLayer(markers: []);
     return MarkerLayer(markers: [
+      if (_headingUp)
+        Marker(
+          point: _currentPosition,
+          width: 120, height: 120,
+          child: CustomPaint(painter: _HeadingHaloPainter()),
+        ),
       Marker(
         point: _currentPosition,
         width: 20, height: 20,
@@ -4133,6 +4139,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     );
   }
 
+  String _windCardinal(double deg) {
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+    return dirs[((deg + 22.5) / 45).floor() % 8];
+  }
+
   Widget _buildWindIndicator() {
     final deg = _windDeg!;
     final speed = _windSpeed ?? 0.0;
@@ -4170,11 +4181,23 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     color: Colors.white70, size: 15),
               ),
               const SizedBox(width: 6),
-              Text('${speed.round()} km/h',
-                  style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500)),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${speed.round()} km/h',
+                      style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
+                  Text(_windCardinal(deg),
+                      style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5)),
+                ],
+              ),
             ],
           ),
         ),
@@ -4901,4 +4924,37 @@ class _AppToastState extends State<_AppToast>
       ),
     );
   }
+}
+
+class _HeadingHaloPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = size.width * 0.48;
+
+    final paint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF4A90E2).withOpacity(0.45),
+          const Color(0xFF4A90E2).withOpacity(0.0),
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
+
+    // Cône de 60° pointant vers le haut
+    final path = Path()
+      ..moveTo(cx, cy)
+      ..arcTo(
+        Rect.fromCircle(center: Offset(cx, cy), radius: r),
+        -2 * pi / 3, // -120° (bord gauche du cône)
+        pi / 3,      // balayage 60°
+        false,
+      )
+      ..close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_HeadingHaloPainter old) => false;
 }
