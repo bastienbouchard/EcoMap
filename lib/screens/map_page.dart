@@ -3549,6 +3549,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         Marker(
           point: _currentPosition,
           width: 120, height: 120,
+          rotate: true,
           child: CustomPaint(painter: _HeadingHaloPainter()),
         ),
       Marker(
