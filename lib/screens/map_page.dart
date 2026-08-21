@@ -4942,7 +4942,7 @@ class _HeadingHaloPainter extends CustomPainter {
       ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
 
     // Cône de 60° pointant vers le haut
-    final path = Path()
+    final path = ui.Path()
       ..moveTo(cx, cy)
       ..arcTo(
         Rect.fromCircle(center: Offset(cx, cy), radius: r),
