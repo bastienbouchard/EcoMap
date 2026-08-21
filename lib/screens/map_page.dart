@@ -3863,17 +3863,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   Widget _buildLayerPanel() {
+    final maxH = MediaQuery.of(context).size.height - 120 - MediaQuery.of(context).padding.top - 80;
     return Positioned(
       bottom: 120, right: 28,
       child: Container(
         width: 220,
+        constraints: BoxConstraints(maxHeight: maxH),
         decoration: BoxDecoration(
           color: const Color(0xFF1A1A1A).withOpacity(0.97),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.white24),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10)],
         ),
-        child: Column(
+        child: SingleChildScrollView(
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Fond de carte ──
@@ -4095,6 +4098,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 }),
             const SizedBox(height: 8),
           ],
+        ),
         ),
       ),
     );
