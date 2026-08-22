@@ -124,8 +124,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel' | 'topo'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
-  bool _showHumidite = false;
-  double _humiditeOpacity = 0.6;
+
   List<_PdfLayerData> _pdfLayers = [];
 
   // ── Téléchargement de zone ──
@@ -2777,17 +2776,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
-        if (_showHumidite)
-          Opacity(
-            opacity: _humiditeOpacity,
-            child: TileLayer(
-              urlTemplate: 'https://storage.googleapis.com/global-surface-water/maptiles/occurrence/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.bastienbouchard.ecomap',
-              maxNativeZoom: 13,
-              maxZoom: 22,
-              tileProvider: NetworkTileProvider(),
-            ),
-          ),
         for (final pdfLayer in _pdfLayers)
           if (pdfLayer.visible)
             OverlayImageLayer(
@@ -3918,7 +3906,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       {'label': 'Satellite ESRI', 'key': 'esri', 'icon': '🛰️'},
       {'label': 'Satellite Mapbox', 'key': 'mapbox', 'icon': '🛰️'},
       {'label': 'Relief topographique', 'key': 'topo', 'icon': '⛰️'},
-      {'label': 'Zones humides', 'key': 'humidite', 'icon': '💧'},
     ];
     final selected = {for (final s in allSources) s['key']!: true};
     final nomCtrl = TextEditingController();
@@ -3989,7 +3976,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       if (sel['esri'] == true) {'label': 'Satellite ESRI', 'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'},
       if (sel['mapbox'] == true) {'label': 'Satellite Mapbox', 'url': 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken'},
       if (sel['topo'] == true) {'label': 'Relief topographique', 'url': 'https://tile.opentopomap.org/{z}/{x}/{y}.png'},
-      if (sel['humidite'] == true) {'label': 'Zones humides', 'url': 'https://storage.googleapis.com/global-surface-water/maptiles/occurrence/{z}/{x}/{y}.png'},
     ];
 
     try {
@@ -4122,15 +4108,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 }
               },
               onSlider: (v) => setState(() => _ecoOpacity = v),
-            ),
-            _overlayRow(
-              icon: Icons.water_rounded,
-              label: 'Zones humides',
-              active: _showHumidite,
-              color: const Color(0xFF42A5F5),
-              opacity: _humiditeOpacity,
-              onToggle: () => setState(() => _showHumidite = !_showHumidite),
-              onSlider: (v) => setState(() => _humiditeOpacity = v),
             ),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
