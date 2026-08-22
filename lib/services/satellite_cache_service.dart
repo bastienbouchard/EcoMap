@@ -10,6 +10,7 @@ import 'package:sqflite/sqflite.dart';
 
 class SatelliteCacheService {
   static Database? _db;
+  static bool isOnline = true;
 
   static Future<Database> get _database async {
     if (_db != null) return _db!;
@@ -210,6 +211,8 @@ class _CachedTileImageProvider extends ImageProvider<_CachedTileImageProvider> {
         final buffer = await ui.ImmutableBuffer.fromUint8List(cached);
         return decode(buffer);
       }
+      // Hors réseau : tuile non cachée → transparent immédiatement, aucune requête
+      if (!SatelliteCacheService.isOnline) return _emptyCodec();
       await _sem.acquire();
       Uint8List? tileData;
       try {

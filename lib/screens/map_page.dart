@@ -259,8 +259,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _layersGlowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
     _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
     _isOnline = ConnectivityService.isOnline;
+    SatelliteCacheService.isOnline = _isOnline;
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
       if (mounted) setState(() { _isOnline = online; if (!online) _showOfflineBanner = true; });
+      SatelliteCacheService.isOnline = online;
       if (online) {
         _fetchWind();
         final uid = AuthService.uid;
@@ -2757,11 +2759,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                               : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
-          maxNativeZoom: _satellite ? 19 : 19,
+          maxNativeZoom: 19,
           maxZoom: 22,
-          tileProvider: _satellite
-              ? SatelliteTileProvider()
-              : NetworkTileProvider(),
+          tileProvider: SatelliteTileProvider(),
           tileBuilder: (context, child, tile) {
             if (tile.readyToDisplay) {
               _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
@@ -3912,78 +3912,120 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     if (_downloadingZone) return;
     setState(() => _showLayerPanel = false);
 
+    // Définition des couches téléchargeables
+    final allSources = [
+      {'label': 'Carte écoforestière', 'key': 'eco', 'icon': '🌿'},
+      {'label': 'Satellite ESRI', 'key': 'esri', 'icon': '🛰️'},
+      {'label': 'Satellite Mapbox', 'key': 'mapbox', 'icon': '🛰️'},
+      {'label': 'Relief topographique', 'key': 'topo', 'icon': '⛰️'},
+      {'label': 'Zones humides', 'key': 'humidite', 'icon': '💧'},
+    ];
+    final selected = {for (final s in allSources) s['key']!: true};
     final nomCtrl = TextEditingController();
-    final nom = await showDialog<String>(
+
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        title: const Text('Télécharger ma zone', style: TextStyle(color: Colors.white)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text(
-            'Donne un nom à ta zone de chasse — carte éco et satellite seront disponibles hors réseau.',
-            style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: nomCtrl,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              hintText: 'ex: Lac Pikauba, ZEC Magasinipi…',
-              hintStyle: TextStyle(color: Colors.white38),
-              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
-              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Text('Télécharger ma zone', style: TextStyle(color: Colors.white)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: nomCtrl,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Nom de la zone (ex: Lac Pikauba)',
+                hintStyle: TextStyle(color: Colors.white38),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+              ),
             ),
-          ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
-          TextButton(
-            onPressed: () {
-              final v = nomCtrl.text.trim();
-              if (v.isNotEmpty) Navigator.pop(context, v);
-            },
-            child: const Text('Télécharger', style: TextStyle(color: Color(0xFFFF6B35))),
-          ),
-        ],
+            const SizedBox(height: 14),
+            const Align(alignment: Alignment.centerLeft,
+              child: Text('Couches à télécharger :',
+                  style: TextStyle(color: Colors.white54, fontSize: 12))),
+            const SizedBox(height: 6),
+            for (final src in allSources)
+              InkWell(
+                onTap: () => setS(() => selected[src['key']!] = !(selected[src['key']!]!)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(children: [
+                    Icon(selected[src['key']!]! ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                        color: selected[src['key']!]! ? const Color(0xFFFF6B35) : Colors.white38, size: 20),
+                    const SizedBox(width: 10),
+                    Text('${src['icon']}  ${src['label']}',
+                        style: TextStyle(color: selected[src['key']!]! ? Colors.white : Colors.white54, fontSize: 13)),
+                  ]),
+                ),
+              ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
+            TextButton(
+              onPressed: () {
+                final v = nomCtrl.text.trim();
+                if (v.isNotEmpty) Navigator.pop(ctx, {'nom': v, 'selected': Map<String, bool>.from(selected)});
+              },
+              child: const Text('Télécharger', style: TextStyle(color: Color(0xFFFF6B35))),
+            ),
+          ],
+        ),
       ),
     );
-    if (nom == null || nom.isEmpty) return;
+    if (result == null) return;
+    final nom = result['nom'] as String;
+    final sel = result['selected'] as Map<String, bool>;
 
     final bounds = _mapController.camera.visibleBounds;
     final minLat = bounds.south; final maxLat = bounds.north;
     final minLon = bounds.west;  final maxLon = bounds.east;
 
-    setState(() { _downloadingZone = true; _zoneStatus = 'Carte éco…'; _zoneProgress = null; });
+    setState(() { _downloadingZone = true; _zoneStatus = 'Démarrage…'; _zoneProgress = null; });
+
+    // Sources de tuiles selon sélection
+    final tileSources = <Map<String, String>>[
+      if (sel['esri'] == true) {'label': 'Satellite ESRI', 'url': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'},
+      if (sel['mapbox'] == true) {'label': 'Satellite Mapbox', 'url': 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken'},
+      if (sel['topo'] == true) {'label': 'Relief topographique', 'url': 'https://tile.opentopomap.org/{z}/{x}/{y}.png'},
+      if (sel['humidite'] == true) {'label': 'Zones humides', 'url': 'https://storage.googleapis.com/global-surface-water/maptiles/occurrence/{z}/{x}/{y}.png'},
+    ];
 
     try {
-      // 1. Tuiles éco
-      final tileCount = TerritoireService.estimateTileCount(minLat, minLon, maxLat, maxLon);
-      if (tileCount <= 4) {
-        await TerritoireService.downloadTerritoire(
-          nom: nom,
-          minLat: minLat, minLon: minLon,
-          maxLat: maxLat, maxLon: maxLon,
-          onStatus: (s) { if (mounted) setState(() => _zoneStatus = 'Carte éco · $s'); },
-        );
-      }
-
-      // 2. Tuiles satellite
-      if (_satellite) {
-        final satUrl = _currentSatUrl();
-        final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
-        if (satCount <= 3000) {
-          await SatelliteCacheService.downloadTiles(
-            urlTemplate: satUrl,
+      // 1. Carte écoforestière (polygones GeoJSON)
+      if (sel['eco'] == true) {
+        setState(() => _zoneStatus = 'Carte éco…');
+        final ecoCount = TerritoireService.estimateTileCount(minLat, minLon, maxLat, maxLon);
+        if (ecoCount <= 4) {
+          await TerritoireService.downloadTerritoire(
+            nom: nom,
             minLat: minLat, minLon: minLon,
             maxLat: maxLat, maxLon: maxLon,
-            onProgress: (done, total, s) {
-              if (mounted) setState(() {
-                _zoneProgress = total > 0 ? done / total : null;
-                _zoneStatus = 'Satellite · $s';
-              });
-            },
+            onStatus: (s) { if (mounted) setState(() => _zoneStatus = 'Éco · $s'); },
           );
+        }
+      }
+
+      // 2. Toutes les couches de tuiles
+      final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
+      if (satCount <= 3000) {
+        for (int i = 0; i < tileSources.length; i++) {
+          final src = tileSources[i];
+          if (mounted) setState(() { _zoneProgress = 0; _zoneStatus = '${src['label']} (${i + 1}/${tileSources.length})…'; });
+          try {
+            await SatelliteCacheService.downloadTiles(
+              urlTemplate: src['url']!,
+              minLat: minLat, minLon: minLon,
+              maxLat: maxLat, maxLon: maxLon,
+              onProgress: (done, total, s) {
+                if (mounted) setState(() {
+                  _zoneProgress = total > 0 ? done / total : null;
+                  _zoneStatus = '${src['label']} · $s';
+                });
+              },
+            );
+          } catch (_) {}
         }
       }
 
