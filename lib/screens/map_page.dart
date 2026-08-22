@@ -121,10 +121,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   double _mapZoom = 13.0;
   double _mapLat = 48.2917;
   bool _satellite = false;
-  String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel'
+  String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel' | 'topo'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
   List<_PdfLayerData> _pdfLayers = [];
+
+  // ── Téléchargement de zone ──
+  bool _downloadingZone = false;
+  String _zoneStatus = '';
+  double? _zoneProgress; // null = indéterminé
 
   // ── GPS / vent ──
   LatLng _currentPosition = const LatLng(48.2917, -71.322);
@@ -2620,6 +2625,32 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
           if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
           if (_showLayerPanel) _buildLayerPanel(),
+          if (_downloadingZone) Positioned(
+            bottom: 130,
+            left: 16, right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
+              ),
+              child: Row(children: [
+                SizedBox(
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(
+                    value: _zoneProgress,
+                    strokeWidth: 2,
+                    color: const Color(0xFF4CAF50),
+                    backgroundColor: Colors.white12,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(_zoneStatus,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12))),
+              ]),
+            ),
+          ),
           Positioned(
             bottom: 20,
             left: 16,
@@ -3864,6 +3895,120 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     );
   }
 
+  Future<void> _downloadCurrentZone() async {
+    if (_downloadingZone) return;
+    setState(() => _showLayerPanel = false);
+
+    final nomCtrl = TextEditingController();
+    final nom = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text('Télécharger ma zone', style: TextStyle(color: Colors.white)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+            'Donne un nom à ta zone de chasse — carte éco et satellite seront disponibles hors réseau.',
+            style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: nomCtrl,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'ex: Lac Pikauba, ZEC Magasinipi…',
+              hintStyle: TextStyle(color: Colors.white38),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
+          TextButton(
+            onPressed: () {
+              final v = nomCtrl.text.trim();
+              if (v.isNotEmpty) Navigator.pop(context, v);
+            },
+            child: const Text('Télécharger', style: TextStyle(color: Color(0xFFFF6B35))),
+          ),
+        ],
+      ),
+    );
+    if (nom == null || nom.isEmpty) return;
+
+    final bounds = _mapController.camera.visibleBounds;
+    final minLat = bounds.south; final maxLat = bounds.north;
+    final minLon = bounds.west;  final maxLon = bounds.east;
+
+    setState(() { _downloadingZone = true; _zoneStatus = 'Carte éco…'; _zoneProgress = null; });
+
+    try {
+      // 1. Tuiles éco
+      final tileCount = TerritoireService.estimateTileCount(minLat, minLon, maxLat, maxLon);
+      if (tileCount <= 4) {
+        await TerritoireService.downloadTerritoire(
+          nom: nom,
+          minLat: minLat, minLon: minLon,
+          maxLat: maxLat, maxLon: maxLon,
+          onStatus: (s) { if (mounted) setState(() => _zoneStatus = 'Carte éco · $s'); },
+        );
+      }
+
+      // 2. Tuiles satellite
+      if (_satellite) {
+        final satUrl = _satSource == 'mern'
+            ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
+            : _satSource == 'esri'
+                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                : _satSource == 'sentinel'
+                    ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
+                    : _satSource == 'topo'
+                        ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
+                        : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken';
+        final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
+        if (satCount <= 3000) {
+          await SatelliteCacheService.downloadTiles(
+            urlTemplate: satUrl,
+            minLat: minLat, minLon: minLon,
+            maxLat: maxLat, maxLon: maxLon,
+            onProgress: (done, total, s) {
+              if (mounted) setState(() {
+                _zoneProgress = total > 0 ? done / total : null;
+                _zoneStatus = 'Satellite · $s';
+              });
+            },
+          );
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('« $nom » téléchargé pour hors réseau !', style: const TextStyle(color: Colors.white)),
+          backgroundColor: const Color(0xFF1C1C1C),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: const Color(0xFF4CAF50).withOpacity(0.5)),
+          ),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+          duration: const Duration(seconds: 5),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur : $e', style: const TextStyle(color: Colors.white)),
+          backgroundColor: const Color(0xFF1C1C1C),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() { _downloadingZone = false; _zoneStatus = ''; _zoneProgress = null; });
+    }
+  }
+
   Widget _buildLayerPanel() {
     final maxH = MediaQuery.of(context).size.height - 120 - MediaQuery.of(context).padding.top - 80;
     return Positioned(
@@ -3938,6 +4083,25 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   _showLayerPanel = false;
                 }),
                 subtitle: 'Courbes de niveau · ombrage · OpenTopoMap'),
+            const Divider(color: Colors.white12, height: 16),
+            // ── Téléchargement hors réseau ──
+            InkWell(
+              onTap: _downloadCurrentZone,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(children: [
+                  Icon(Icons.download_for_offline_outlined,
+                      color: _downloadingZone ? Colors.white38 : const Color(0xFF4CAF50), size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Télécharger ma zone',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                    const Text('Carte éco + satellite · hors réseau',
+                        style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  ])),
+                ]),
+              ),
+            ),
             const Divider(color: Colors.white12, height: 16),
             // ── Superpositions ──
             Padding(
