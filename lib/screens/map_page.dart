@@ -3987,6 +3987,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         }
       }
 
+      await TerritoireService.setActiveTerritoire(nom);
+      await _reloadTerritoire();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('« $nom » téléchargé pour hors réseau !', style: const TextStyle(color: Colors.white)),
@@ -4125,7 +4128,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             InkWell(
               onTap: _downloadCurrentZone,
               child: Container(
-                margin: const EdgeInsets.all(10),
+                margin: const EdgeInsets.fromLTRB(10, 10, 10, 4),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1A3A1A),
@@ -4142,6 +4145,31 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     Text('Carte éco + satellite · hors réseau',
                         style: TextStyle(color: Colors.white54, fontSize: 11)),
                   ])),
+                ]),
+              ),
+            ),
+            InkWell(
+              onTap: () async {
+                setState(() => _showLayerPanel = false);
+                await Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => TerritoireDownloadPage(
+                    initialCenter: _mapController.camera.center,
+                    initialZoom: _mapController.camera.zoom,
+                    satUrlTemplate: _currentSatUrl().isEmpty ? null : _currentSatUrl(),
+                    satSource: _satellite ? _satSource : null,
+                  ),
+                ));
+                _reloadTerritoire();
+              },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                child: Row(children: [
+                  const Icon(Icons.folder_open_rounded, color: Colors.white38, size: 15),
+                  const SizedBox(width: 8),
+                  const Text('Gérer mes zones téléchargées',
+                      style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  const Spacer(),
+                  const Icon(Icons.chevron_right, color: Colors.white24, size: 16),
                 ]),
               ),
             ),
