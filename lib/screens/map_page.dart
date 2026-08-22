@@ -124,6 +124,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel' | 'topo'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
+  bool _showHumidite = false;
+  double _humiditeOpacity = 0.6;
   List<_PdfLayerData> _pdfLayers = [];
 
   // ── Téléchargement de zone ──
@@ -2775,6 +2777,17 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             maxNativeZoom: mbtilesMaxZoom,
           ),
         ),
+        if (_showHumidite)
+          Opacity(
+            opacity: _humiditeOpacity,
+            child: TileLayer(
+              urlTemplate: 'https://storage.googleapis.com/global-surface-water/maptiles/occurrence/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.bastienbouchard.ecomap',
+              maxNativeZoom: 13,
+              maxZoom: 22,
+              tileProvider: NetworkTileProvider(),
+            ),
+          ),
         for (final pdfLayer in _pdfLayers)
           if (pdfLayer.visible)
             OverlayImageLayer(
@@ -4263,6 +4276,26 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 ]),
               ),
             ),
+            _layerToggle('Zones humides · LiDAR', Icons.water_rounded,
+                _showHumidite, () => setState(() => _showHumidite = !_showHumidite)),
+            if (_showHumidite)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+                child: Row(children: [
+                  const Icon(Icons.opacity, color: Colors.white38, size: 14),
+                  Expanded(
+                    child: Slider(
+                      value: _humiditeOpacity,
+                      min: 0.1, max: 1.0,
+                      activeColor: const Color(0xFF42A5F5),
+                      inactiveColor: Colors.white12,
+                      onChanged: (v) => setState(() => _humiditeOpacity = v),
+                    ),
+                  ),
+                  Text('${(_humiditeOpacity * 100).round()}%',
+                      style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                ]),
+              ),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
                   if (!_showTerresPrivees && !_requirePremium()) return;
