@@ -2719,7 +2719,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
                       : _satSource == 'sentinel'
                           ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
-                          : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
+                          : _satSource == 'topo'
+                              ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
+                              : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _satellite ? 19 : 19,
@@ -3928,6 +3930,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   _showLayerPanel = false;
                 }),
                 subtitle: 'Gratuit · couverture globale · 10m'),
+            _layerRadio('Relief topographique', Icons.terrain_rounded,
+                _satellite && _satSource == 'topo',
+                () => setState(() {
+                  _satellite = true;
+                  _satSource = 'topo';
+                  _showLayerPanel = false;
+                }),
+                subtitle: 'Courbes de niveau · ombrage · OpenTopoMap'),
             const Divider(color: Colors.white12, height: 16),
             // ── Superpositions ──
             Padding(
@@ -3951,7 +3961,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                                 ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
                                 : _satSource == 'sentinel'
                                     ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
-                                    : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
+                                    : _satSource == 'topo'
+                                        ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
+                                        : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
                         : null,
                     satSource: _satellite ? _satSource : null,
                   ),
