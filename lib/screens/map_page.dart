@@ -4091,22 +4091,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               active: _ecoOpacity > 0,
               color: const Color(0xFFFF6B35),
               opacity: _ecoOpacity,
-              onToggle: () {
-                if (_polygonsCache.isEmpty) {
-                  _showLayerPanel = false;
-                  if (!_requirePremium()) return;
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => TerritoireDownloadPage(
-                      initialCenter: _mapController.camera.center,
-                      initialZoom: _mapController.camera.zoom,
-                      satUrlTemplate: _currentSatUrl(),
-                      satSource: _satellite ? _satSource : null,
-                    ),
-                  )).then((_) => _reloadTerritoire());
-                } else {
-                  setState(() => _ecoOpacity = _ecoOpacity > 0 ? 0 : 0.5);
-                }
-              },
+              onToggle: () => setState(() => _ecoOpacity = _ecoOpacity > 0 ? 0 : 0.5),
               onSlider: (v) => setState(() => _ecoOpacity = v),
             ),
             _layerToggle('Terres privées', Icons.fence_rounded,
@@ -4133,65 +4118,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             InkWell(
               onTap: () { setState(() => _showLayerPanel = false); _importPdf(); },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 child: Row(children: [
                   const Icon(Icons.add_rounded, color: Colors.white38, size: 16),
                   const SizedBox(width: 8),
-                  const Text('Importer carte PDF', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  const Text('Importer carte GeoPDF', style: TextStyle(color: Colors.white54, fontSize: 12)),
                 ]),
               ),
             ),
-
-            // ══ HORS RÉSEAU ══
-            const Divider(color: Colors.white12, height: 1),
-            InkWell(
-              onTap: _downloadCurrentZone,
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(10, 10, 10, 4),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A3A1A),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
-                ),
-                child: Row(children: [
-                  Icon(Icons.download_for_offline_outlined,
-                      color: _downloadingZone ? Colors.white38 : const Color(0xFF4CAF50), size: 18),
-                  const SizedBox(width: 10),
-                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Télécharger ma zone',
-                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                    Text('Carte éco + satellite · hors réseau',
-                        style: TextStyle(color: Colors.white54, fontSize: 11)),
-                  ])),
-                ]),
-              ),
-            ),
-            InkWell(
-              onTap: () async {
-                setState(() => _showLayerPanel = false);
-                await Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => TerritoireDownloadPage(
-                    initialCenter: _mapController.camera.center,
-                    initialZoom: _mapController.camera.zoom,
-                    satUrlTemplate: _currentSatUrl().isEmpty ? null : _currentSatUrl(),
-                    satSource: _satellite ? _satSource : null,
-                  ),
-                ));
-                _reloadTerritoire();
-              },
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
-                child: Row(children: [
-                  const Icon(Icons.folder_open_rounded, color: Colors.white38, size: 15),
-                  const SizedBox(width: 8),
-                  const Text('Gérer mes zones téléchargées',
-                      style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right, color: Colors.white24, size: 16),
-                ]),
-              ),
-            ),
+            const SizedBox(height: 4),
           ],
         ),
         ),
@@ -4876,6 +4811,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     loading: _loading),
                 mapDividerV(),
                 mapIconBtn(Icons.search_rounded, _showCoordsSearch),
+                mapDividerV(),
+                mapIconBtn(Icons.download_for_offline_outlined, () async {
+                  setState(() => _showLayerPanel = false);
+                  await Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TerritoireDownloadPage(
+                      initialCenter: _mapController.camera.center,
+                      initialZoom: _mapController.camera.zoom,
+                      satUrlTemplate: _currentSatUrl().isEmpty ? null : _currentSatUrl(),
+                      satSource: _satellite ? _satSource : null,
+                      mapboxToken: _mapboxToken,
+                    ),
+                  ));
+                  _reloadTerritoire();
+                }, active: false),
                 mapDividerV(),
                 AnimatedBuilder(
                   animation: _layersGlowAnim,
