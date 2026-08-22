@@ -3970,15 +3970,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
       // 2. Tuiles satellite
       if (_satellite) {
-        final satUrl = _satSource == 'mern'
-            ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
-            : _satSource == 'esri'
-                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                : _satSource == 'sentinel'
-                    ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
-                    : _satSource == 'topo'
-                        ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
-                        : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken';
+        final satUrl = _currentSatUrl();
         final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
         if (satCount <= 3000) {
           await SatelliteCacheService.downloadTiles(
@@ -4025,9 +4017,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Widget _buildLayerPanel() {
     final maxH = MediaQuery.of(context).size.height - 120 - MediaQuery.of(context).padding.top - 80;
     return Positioned(
-      bottom: 120, right: 28,
+      bottom: 120, right: 12,
       child: Container(
-        width: 220,
+        width: 250,
         constraints: BoxConstraints(maxHeight: maxH),
         decoration: BoxDecoration(
           color: const Color(0xFF1A1A1A).withOpacity(0.97),
@@ -4039,278 +4031,207 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Fond de carte ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-              child: Text('Fond de carte',
-                  style: TextStyle(color: Colors.white54, fontSize: 11,
-                      fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+
+            // ══ FOND DE CARTE ══
+            _panelHeader('Fond de carte'),
+            _layerRadio('Carte', Icons.map_rounded, !_satellite,
+                () => setState(() { _satellite = false; })),
+            _layerRadio('Satellite', Icons.satellite_alt_rounded, _satellite && _satSource != 'topo',
+                () => setState(() { _satellite = true; if (_satSource == 'topo') _satSource = 'mapbox'; if (_ecoOpacity > 0.5) _ecoOpacity = 0.4; })),
+            if (_satellite && _satSource != 'topo')
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                child: Wrap(spacing: 6, runSpacing: 6, children: [
+                  _satChip('Mapbox', 'mapbox'),
+                  _satChip('MRNF QC', 'mern'),
+                  _satChip('ESRI', 'esri'),
+                  _satChip('Sentinel', 'sentinel'),
+                ]),
+              ),
+            _layerRadio('Topographique', Icons.terrain_rounded, _satellite && _satSource == 'topo',
+                () => setState(() { _satellite = true; _satSource = 'topo'; })),
+
+            // ══ SUPERPOSITIONS ══
+            const Divider(color: Colors.white12, height: 1),
+            _panelHeader('Superpositions'),
+            _overlayRow(
+              icon: Icons.forest_rounded,
+              label: 'Carte éco',
+              active: _ecoOpacity > 0,
+              color: const Color(0xFFFF6B35),
+              opacity: _ecoOpacity,
+              onToggle: () {
+                if (_polygonsCache.isEmpty) {
+                  _showLayerPanel = false;
+                  if (!_requirePremium()) return;
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TerritoireDownloadPage(
+                      initialCenter: _mapController.camera.center,
+                      initialZoom: _mapController.camera.zoom,
+                      satUrlTemplate: _currentSatUrl(),
+                      satSource: _satellite ? _satSource : null,
+                    ),
+                  )).then((_) => _reloadTerritoire());
+                } else {
+                  setState(() => _ecoOpacity = _ecoOpacity > 0 ? 0 : 0.5);
+                }
+              },
+              onSlider: (v) => setState(() => _ecoOpacity = v),
             ),
-            _layerRadio('OpenStreetMap', Icons.map_rounded, !_satellite,
-                () => setState(() { _satellite = false; _showLayerPanel = false; })),
-            _layerRadio('Mapbox Satellite', Icons.satellite_alt_rounded,
-                _satellite && _satSource == 'mapbox',
-                () => setState(() {
-                  _satellite = true;
-                  _satSource = 'mapbox';
+            _overlayRow(
+              icon: Icons.water_rounded,
+              label: 'Zones humides',
+              active: _showHumidite,
+              color: const Color(0xFF42A5F5),
+              opacity: _humiditeOpacity,
+              onToggle: () => setState(() => _showHumidite = !_showHumidite),
+              onSlider: (v) => setState(() => _humiditeOpacity = v),
+            ),
+            _layerToggle('Terres privées', Icons.fence_rounded,
+                _showTerresPrivees, () {
+                  if (!_showTerresPrivees && !_requirePremium()) return;
+                  setState(() { _showTerresPrivees = !_showTerresPrivees; _showLayerPanel = false; });
+                  _fetchCadastre();
+                }),
+            for (final pdfLayer in _pdfLayers) ...[
+              _overlayRow(
+                icon: Icons.picture_as_pdf_rounded,
+                label: pdfLayer.name,
+                active: pdfLayer.visible,
+                color: const Color(0xFFFF6B35),
+                opacity: pdfLayer.opacity,
+                onToggle: () => setState(() => pdfLayer.visible = !pdfLayer.visible),
+                onSlider: (v) { setState(() => pdfLayer.opacity = v); _savePdfLayers(); },
+                trailing: GestureDetector(
+                  onTap: () { setState(() => _pdfLayers.removeWhere((l) => l.id == pdfLayer.id)); File(pdfLayer.imagePath).deleteSync(); _savePdfLayers(); },
+                  child: const Icon(Icons.close, color: Colors.white24, size: 16),
+                ),
+              ),
+            ],
+            InkWell(
+              onTap: () { setState(() => _showLayerPanel = false); _importPdf(); },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Row(children: [
+                  const Icon(Icons.add_rounded, color: Colors.white38, size: 16),
+                  const SizedBox(width: 8),
+                  const Text('Importer carte PDF', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                ]),
+              ),
+            ),
 
-                  if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
-                  _showLayerPanel = false;
-                }),
-                subtitle: 'Maxar · récent au sud QC'),
-            _layerRadio('MRNF Québec', Icons.landscape_rounded,
-                _satellite && _satSource == 'mern',
-                () => setState(() {
-                  _satellite = true;
-                  _satSource = 'mern';
-
-                  if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
-                  _showLayerPanel = false;
-                }),
-                subtitle: 'Orthophotos provinciales'),
-            _layerRadio('ESRI World Imagery', Icons.public_rounded,
-                _satellite && _satSource == 'esri',
-                () => setState(() {
-                  _satellite = true;
-                  _satSource = 'esri';
-
-                  if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
-                  _showLayerPanel = false;
-                }),
-                subtitle: 'Imagerie mondiale · bon pour le nord'),
-            _layerRadio('Sentinel-2 (Copernicus)', Icons.blur_on_rounded,
-                _satellite && _satSource == 'sentinel',
-                () => setState(() {
-                  _satellite = true;
-                  _satSource = 'sentinel';
-
-                  if (_ecoOpacity > 0.5) _ecoOpacity = 0.4;
-                  _showLayerPanel = false;
-                }),
-                subtitle: 'Gratuit · couverture globale · 10m'),
-            _layerRadio('Relief topographique', Icons.terrain_rounded,
-                _satellite && _satSource == 'topo',
-                () => setState(() {
-                  _satellite = true;
-                  _satSource = 'topo';
-                  _showLayerPanel = false;
-                }),
-                subtitle: 'Courbes de niveau · ombrage · OpenTopoMap'),
-            const Divider(color: Colors.white12, height: 16),
-            // ── Téléchargement hors réseau ──
+            // ══ HORS RÉSEAU ══
+            const Divider(color: Colors.white12, height: 1),
             InkWell(
               onTap: _downloadCurrentZone,
-              child: Padding(
+              child: Container(
+                margin: const EdgeInsets.all(10),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A3A1A),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
+                ),
                 child: Row(children: [
                   Icon(Icons.download_for_offline_outlined,
                       color: _downloadingZone ? Colors.white38 : const Color(0xFF4CAF50), size: 18),
                   const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Télécharger ma zone',
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Télécharger ma zone',
                         style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                    const Text('Carte éco + satellite · hors réseau',
-                        style: TextStyle(color: Colors.white38, fontSize: 11)),
+                    Text('Carte éco + satellite · hors réseau',
+                        style: TextStyle(color: Colors.white54, fontSize: 11)),
                   ])),
                 ]),
               ),
             ),
-            const Divider(color: Colors.white12, height: 16),
-            // ── Superpositions ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
-              child: Text('Superposition',
-                  style: TextStyle(color: Colors.white54, fontSize: 11,
-                      fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-            ),
-            InkWell(
-              onTap: () async {
-                setState(() => _showLayerPanel = false);
-                if (!_requirePremium()) return;
-                await Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => TerritoireDownloadPage(
-                    initialCenter: _mapController.camera.center,
-                    initialZoom: _mapController.camera.zoom,
-                    satUrlTemplate: _satellite
-                        ? (_satSource == 'mern'
-                            ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
-                            : _satSource == 'esri'
-                                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                                : _satSource == 'sentinel'
-                                    ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
-                                    : _satSource == 'topo'
-                                        ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
-                                        : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
-                        : null,
-                    satSource: _satellite ? _satSource : null,
-                  ),
-                ));
-                _reloadTerritoire();
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                child: Row(children: [
-                  Icon(Icons.forest_rounded,
-                      color: _polygonsCache.isNotEmpty
-                          ? const Color(0xFFFF6B35)
-                          : Colors.white54,
-                      size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text('Carte écoforestière',
-                      style: TextStyle(
-                          color: _polygonsCache.isNotEmpty
-                              ? Colors.white
-                              : Colors.white60,
-                          fontSize: 13))),
-                  const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
-                ]),
-              ),
-            ),
-            if (_polygonsCache.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
-                child: Row(children: [
-                  Icon(Icons.forest_rounded,
-                      color: _ecoOpacity > 0
-                          ? const Color(0xFFFF6B35)
-                          : Colors.white38,
-                      size: 16),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text('Opacité carte éco',
-                        style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  ),
-                  Text('${(_ecoOpacity * 100).round()}%',
-                      style: const TextStyle(
-                          color: Colors.white54, fontSize: 12,
-                          fontFeatures: [ui.FontFeature.tabularFigures()])),
-                ]),
-              ),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: const Color(0xFFFF6B35),
-                  thumbColor: const Color(0xFFFF6B35),
-                  inactiveTrackColor: Colors.white24,
-                  trackHeight: 2,
-                  thumbShape:
-                      const RoundSliderThumbShape(enabledThumbRadius: 6),
-                  overlayShape:
-                      const RoundSliderOverlayShape(overlayRadius: 14),
-                ),
-                child: Slider(
-                  value: _ecoOpacity,
-                  min: 0.0,
-                  max: 1.0,
-                  onChanged: (v) => setState(() => _ecoOpacity = v),
-                ),
-              ),
-            ],
-            // ── Cartes PDF importées ──
-            for (final pdfLayer in _pdfLayers) ...[
-              InkWell(
-                onTap: () => setState(() => pdfLayer.visible = !pdfLayer.visible),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  child: Row(children: [
-                    Icon(Icons.picture_as_pdf_rounded,
-                        color: pdfLayer.visible ? const Color(0xFFFF6B35) : Colors.white54,
-                        size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(pdfLayer.name,
-                        style: TextStyle(
-                            color: pdfLayer.visible ? Colors.white : Colors.white60,
-                            fontSize: 13),
-                        maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() => _pdfLayers.removeWhere((l) => l.id == pdfLayer.id));
-                        File(pdfLayer.imagePath).deleteSync();
-                        _savePdfLayers();
-                      },
-                      child: const Icon(Icons.close, color: Colors.white24, size: 16),
-                    ),
-                  ]),
-                ),
-              ),
-              if (pdfLayer.visible)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
-                  child: Row(children: [
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          activeTrackColor: const Color(0xFFFF6B35),
-                          thumbColor: const Color(0xFFFF6B35),
-                          inactiveTrackColor: Colors.white24,
-                          trackHeight: 2,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                        ),
-                        child: Slider(
-                          value: pdfLayer.opacity,
-                          min: 0.0, max: 1.0,
-                          onChanged: (v) => setState(() => pdfLayer.opacity = v),
-                          onChangeEnd: (_) => _savePdfLayers(),
-                        ),
-                      ),
-                    ),
-                    Text('${(pdfLayer.opacity * 100).round()}%',
-                        style: const TextStyle(color: Colors.white54, fontSize: 12,
-                            fontFeatures: [ui.FontFeature.tabularFigures()])),
-                    const SizedBox(width: 4),
-                  ]),
-                ),
-            ],
-            InkWell(
-              onTap: () {
-                setState(() => _showLayerPanel = false);
-                _importPdf();
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                child: Row(children: [
-                  const Icon(Icons.add_rounded, color: Colors.white54, size: 18),
-                  const SizedBox(width: 10),
-                  const Expanded(child: Text('Importer une carte PDF',
-                      style: TextStyle(color: Colors.white60, fontSize: 13))),
-                ]),
-              ),
-            ),
-            _layerToggle('Zones humides · LiDAR', Icons.water_rounded,
-                _showHumidite, () => setState(() => _showHumidite = !_showHumidite)),
-            if (_showHumidite)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
-                child: Row(children: [
-                  const Icon(Icons.opacity, color: Colors.white38, size: 14),
-                  Expanded(
-                    child: Slider(
-                      value: _humiditeOpacity,
-                      min: 0.1, max: 1.0,
-                      activeColor: const Color(0xFF42A5F5),
-                      inactiveColor: Colors.white12,
-                      onChanged: (v) => setState(() => _humiditeOpacity = v),
-                    ),
-                  ),
-                  Text('${(_humiditeOpacity * 100).round()}%',
-                      style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                ]),
-              ),
-            _layerToggle('Terres privées', Icons.fence_rounded,
-                _showTerresPrivees, () {
-                  if (!_showTerresPrivees && !_requirePremium()) return;
-                  setState(() {
-                    _showTerresPrivees = !_showTerresPrivees;
-                    _showLayerPanel = false;
-                  });
-                  _fetchCadastre();
-                }),
-            const SizedBox(height: 8),
           ],
         ),
         ),
       ),
     );
+  }
+
+  String _currentSatUrl() {
+    if (!_satellite) return '';
+    return _satSource == 'mern'
+        ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
+        : _satSource == 'esri'
+            ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            : _satSource == 'sentinel'
+                ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
+                : _satSource == 'topo'
+                    ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
+                    : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken';
+  }
+
+  Widget _panelHeader(String label) => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+    child: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10,
+        fontWeight: FontWeight.w700, letterSpacing: 1.0)),
+  );
+
+  Widget _satChip(String label, String source) {
+    final active = _satSource == source;
+    return GestureDetector(
+      onTap: () => setState(() => _satSource = source),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFF4A90E2) : const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: active ? const Color(0xFF4A90E2) : Colors.white24),
+        ),
+        child: Text(label, style: TextStyle(
+            color: active ? Colors.white : Colors.white54,
+            fontSize: 11, fontWeight: active ? FontWeight.w600 : FontWeight.normal)),
+      ),
+    );
+  }
+
+  Widget _overlayRow({
+    required IconData icon,
+    required String label,
+    required bool active,
+    required Color color,
+    required double opacity,
+    required VoidCallback onToggle,
+    required ValueChanged<double> onSlider,
+    Widget? trailing,
+  }) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      InkWell(
+        onTap: onToggle,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          child: Row(children: [
+            Icon(icon, color: active ? color : Colors.white38, size: 17),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label,
+                style: TextStyle(color: active ? Colors.white : Colors.white54, fontSize: 13),
+                maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (trailing != null) ...[const SizedBox(width: 4), trailing]
+            else if (active) Text('${(opacity * 100).round()}%',
+                style: const TextStyle(color: Colors.white38, fontSize: 11)),
+          ]),
+        ),
+      ),
+      if (active)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 14, 2),
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: color,
+              thumbColor: color,
+              inactiveTrackColor: Colors.white12,
+              trackHeight: 2,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+            ),
+            child: Slider(value: opacity, min: 0.05, max: 1.0, onChanged: onSlider),
+          ),
+        ),
+    ]);
   }
 
   Widget _layerRadio(String label, IconData icon, bool selected, VoidCallback onTap, {String? subtitle}) {
