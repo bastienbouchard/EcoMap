@@ -1194,10 +1194,22 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           content: Text('Coordonnées GPTS incomplètes dans ce PDF')));
       return;
     }
-    // GPTS: (lat,lon) × 4 coins du viewport — ordre LPTS: BL, TL, TR, BR
-    final g0Lat = nums[0], g0Lon = nums[1]; // bottom-left du viewport
-    final g1Lat = nums[2], g1Lon = nums[3]; // top-left du viewport
-    final g3Lat = nums[6], g3Lon = nums[7]; // bottom-right du viewport
+    // Auto-détection (lon,lat) vs (lat,lon) : au Québec lat>0 et lon<0.
+    // Si le premier nombre est négatif et le deuxième positif → ordre lon,lat → on échange.
+    if (nums[0] < 0 && nums[1] > 0) {
+      for (int i = 0; i + 1 < nums.length; i += 2) {
+        final tmp = nums[i]; nums[i] = nums[i + 1]; nums[i + 1] = tmp;
+      }
+    }
+    // Identification géométrique des coins : on trie par lat/lon pour trouver TL/BL/BR
+    // peu importe l'ordre BL→TL→TR→BR ou TL→BL→BR→TR utilisé par le PDF.
+    final pts = List.generate(4, (i) => [nums[i * 2], nums[i * 2 + 1]]);
+    pts.sort((a, b) => b[0].compareTo(a[0])); // lat décroissant : top 2 = nord, bottom 2 = sud
+    final topPair = pts.sublist(0, 2)..sort((a, b) => a[1].compareTo(b[1]));
+    final botPair = pts.sublist(2, 4)..sort((a, b) => a[1].compareTo(b[1]));
+    final g1Lat = topPair[0][0], g1Lon = topPair[0][1]; // TL (nord-ouest)
+    final g0Lat = botPair[0][0], g0Lon = botPair[0][1]; // BL (sud-ouest)
+    final g3Lat = botPair[1][0], g3Lon = botPair[1][1]; // BR (sud-est)
 
     // Rendu du PDF en JPEG
     PdfDocument? doc;
@@ -4093,6 +4105,27 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               opacity: _ecoOpacity,
               onToggle: () => setState(() => _ecoOpacity = _ecoOpacity > 0 ? 0 : 0.5),
               onSlider: (v) => setState(() => _ecoOpacity = v),
+              trailing: GestureDetector(
+                onTap: () async {
+                  setState(() => _showLayerPanel = false);
+                  await Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TerritoireDownloadPage(
+                      initialCenter: _mapController.camera.center,
+                      initialZoom: _mapController.camera.zoom,
+                      satUrlTemplate: null,
+                      satSource: null,
+                      mapboxToken: _mapboxToken,
+                    ),
+                  ));
+                  _reloadTerritoire();
+                },
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (_ecoOpacity > 0) Text('${(_ecoOpacity * 100).round()}%',
+                      style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.download_outlined, color: Colors.white38, size: 15),
+                ]),
+              ),
             ),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
