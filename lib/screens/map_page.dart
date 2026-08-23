@@ -20,9 +20,7 @@ import '../app_globals.dart';
 import '../models/hotspot_info.dart';
 import '../painters/painters.dart';
 import '../providers/mbtiles_provider.dart';
-import '../providers/mbtiles_zone_provider.dart';
 import '../providers/arcgis_export_tile_provider.dart';
-import '../services/mbtiles_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -246,29 +244,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   // ── Connectivité ──
   bool _isOnline = true;
-  int _offlineMaxZoom = 16;    // conservé pour compatibilité SharedPreferences
-  String? _activeZonePath;     // chemin .mbtiles satellite de la zone active
-  String? _activeTopoPath;     // chemin .mbtiles topo de la zone active
-  String? _activeBasePath;     // chemin .mbtiles carte de base OSM de la zone active
-  int _activeZoneMaxZoom = 16;
-  int _activeTopoMaxZoom = 16;
-  int _activeBaseMaxZoom = 16;
-
-  // Quel fichier .mbtiles afficher selon le mode courant
-  String? get _currentOfflinePath {
-    if (!_satellite && _activeBasePath != null) return _activeBasePath;
-    if (_satSource == 'topo' && _activeTopoPath != null) return _activeTopoPath;
-    return _activeZonePath ?? _activeTopoPath ?? _activeBasePath;
-  }
-
-  int get _currentOfflineMaxZoom {
-    if (!_satellite && _activeBasePath != null) return _activeBaseMaxZoom;
-    if (_satSource == 'topo' && _activeTopoPath != null) return _activeTopoMaxZoom;
-    if (_activeZonePath != null) return _activeZoneMaxZoom;
-    if (_activeTopoPath != null) return _activeTopoMaxZoom;
-    if (_activeBasePath != null) return _activeBaseMaxZoom;
-    return _offlineMaxZoom;
-  }
   bool _showOfflineBanner = true;
   bool _showDownloadTip = true;
   StreamSubscription<bool>? _connectivitySub;
@@ -282,27 +257,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     WidgetsBinding.instance.addObserver(this);
     _layersGlowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
     _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
-    // La valeur initiale sera corrigée rapidement par le premier callback de listenToConnectivity
     _isOnline = ConnectivityService.isOnline;
     SatelliteCacheService.isOnline = _isOnline;
-    SharedPreferences.getInstance().then((p) {
-      final z = p.getInt('offline_max_zoom');
-      if (z != null && mounted) setState(() => _offlineMaxZoom = z);
-    });
-    MbtilesService.getActiveZone().then((name) async {
-      if (name == null) return;
-      final satPath  = await MbtilesService.pathFor(name);
-      final topoPath = await MbtilesService.pathFor('${name}_topo');
-      final basePath = await MbtilesService.pathFor('${name}_base');
-      final satMz  = await MbtilesService.getMaxZoom(satPath);
-      final topoMz = await MbtilesService.getMaxZoom(topoPath);
-      final baseMz = await MbtilesService.getMaxZoom(basePath);
-      if (mounted) setState(() {
-        if (File(satPath).existsSync())  { _activeZonePath = satPath;  _activeZoneMaxZoom = satMz; }
-        if (File(topoPath).existsSync()) { _activeTopoPath = topoPath; _activeTopoMaxZoom = topoMz; }
-        if (File(basePath).existsSync()) { _activeBasePath = basePath; _activeBaseMaxZoom = baseMz; }
-      });
-    });
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
       if (mounted) setState(() { _isOnline = online; if (!online) _showOfflineBanner = true; });
       SatelliteCacheService.isOnline = online;
@@ -2683,18 +2639,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           _buildNavPanel(),
           if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
           if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
-          // DEBUG — à retirer avant release
-          Positioned(
-            top: 100, left: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4)),
-              child: Text(
-                '${_isOnline ? "🟢 ONLINE" : "🔴 OFFLINE"}  path:${_currentOfflinePath != null ? "OK" : "NULL"}  maxZ:$_currentOfflineMaxZoom',
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontFamily: 'monospace'),
-              ),
-            ),
-          ),
           if (_showLayerPanel) _buildLayerPanel(),
           if (_downloadingZone) Positioned(
             bottom: 130,
@@ -2812,44 +2756,30 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         },
       ),
       children: [
-        if (!_isOnline && _currentOfflinePath != null)
-          TileLayer(
-            key: ValueKey('mbtiles-$_currentOfflinePath-$_tileEpoch'),
-            maxNativeZoom: _currentOfflineMaxZoom,
-            maxZoom: 22,
-            tileProvider: MbtilesZoneTileProvider(_currentOfflinePath!),
-            tileBuilder: (context, child, tile) {
-              if (tile.readyToDisplay) {
-                _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
-              }
-              return child;
-            },
-          )
-        else
-          TileLayer(
-            key: ValueKey('$_satellite-$_satSource-$_tileEpoch'),
-            urlTemplate: _satellite
-                ? (_satSource == 'mern'
-                    ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
-                    : _satSource == 'esri'
-                        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                        : _satSource == 'sentinel'
-                            ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
-                            : _satSource == 'topo'
-                                ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
-                                : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
-                : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.bastienbouchard.ecomap',
-            maxNativeZoom: _isOnline ? 19 : _offlineMaxZoom,
-            maxZoom: 22,
-            tileProvider: SatelliteTileProvider(),
-            tileBuilder: (context, child, tile) {
-              if (tile.readyToDisplay) {
-                _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
-              }
-              return child;
-            },
-          ),
+        TileLayer(
+          key: ValueKey('$_satellite-$_satSource-$_tileEpoch'),
+          urlTemplate: _satellite
+              ? (_satSource == 'mern'
+                  ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
+                  : _satSource == 'esri'
+                      ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                      : _satSource == 'sentinel'
+                          ? 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'
+                          : _satSource == 'topo'
+                              ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
+                              : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
+              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.bastienbouchard.ecomap',
+          maxNativeZoom: 19,
+          maxZoom: 22,
+          tileProvider: SatelliteTileProvider(),
+          tileBuilder: (context, child, tile) {
+            if (tile.readyToDisplay) {
+              _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
+            }
+            return child;
+          },
+        ),
         Opacity(
           opacity: _ecoOpacity,
           child: TileLayer(
@@ -4189,24 +4119,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     ),
                   ));
                   _reloadTerritoire();
-                  SharedPreferences.getInstance().then((p) {
-                    final z = p.getInt('offline_max_zoom');
-                    if (z != null && mounted) setState(() => _offlineMaxZoom = z);
-                  });
-                  MbtilesService.getActiveZone().then((name) async {
-                    if (name == null || !mounted) return;
-                    final satPath  = await MbtilesService.pathFor(name);
-                    final topoPath = await MbtilesService.pathFor('${name}_topo');
-                    final basePath = await MbtilesService.pathFor('${name}_base');
-                    final satMz  = await MbtilesService.getMaxZoom(satPath);
-                    final topoMz = await MbtilesService.getMaxZoom(topoPath);
-                    final baseMz = await MbtilesService.getMaxZoom(basePath);
-                    if (mounted) setState(() {
-                      if (File(satPath).existsSync())  { _activeZonePath = satPath;  _activeZoneMaxZoom = satMz; }
-                      if (File(topoPath).existsSync()) { _activeTopoPath = topoPath; _activeTopoMaxZoom = topoMz; }
-                      if (File(basePath).existsSync()) { _activeBasePath = basePath; _activeBaseMaxZoom = baseMz; }
-                    });
-                  });
                 },
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   if (_ecoOpacity > 0) Text('${(_ecoOpacity * 100).round()}%',
@@ -4946,24 +4858,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     ),
                   ));
                   _reloadTerritoire();
-                  SharedPreferences.getInstance().then((p) {
-                    final z = p.getInt('offline_max_zoom');
-                    if (z != null && mounted) setState(() => _offlineMaxZoom = z);
-                  });
-                  MbtilesService.getActiveZone().then((name) async {
-                    if (name == null || !mounted) return;
-                    final satPath  = await MbtilesService.pathFor(name);
-                    final topoPath = await MbtilesService.pathFor('${name}_topo');
-                    final basePath = await MbtilesService.pathFor('${name}_base');
-                    final satMz  = await MbtilesService.getMaxZoom(satPath);
-                    final topoMz = await MbtilesService.getMaxZoom(topoPath);
-                    final baseMz = await MbtilesService.getMaxZoom(basePath);
-                    if (mounted) setState(() {
-                      if (File(satPath).existsSync())  { _activeZonePath = satPath;  _activeZoneMaxZoom = satMz; }
-                      if (File(topoPath).existsSync()) { _activeTopoPath = topoPath; _activeTopoMaxZoom = topoMz; }
-                      if (File(basePath).existsSync()) { _activeBasePath = basePath; _activeBaseMaxZoom = baseMz; }
-                    });
-                  });
                 }, active: false),
                 mapDividerV(),
                 AnimatedBuilder(
