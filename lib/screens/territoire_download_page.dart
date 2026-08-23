@@ -98,10 +98,16 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     );
     if (nom == null || nom.isEmpty) return;
 
-    // Calculer les bounds du carré orange (marge 40px de chaque côté)
+    // Bounds éco : zone visible complète (comme build 310, fonctionne avec _bboxIntersects)
+    final allBounds = _mapController.camera.visibleBounds;
+    final ecoMinLat = allBounds.south;
+    final ecoMaxLat = allBounds.north;
+    final ecoMinLon = allBounds.west;
+    final ecoMaxLon = allBounds.east;
+
+    // Bounds satellite/topo : carré orange (marge 40px) pour limiter les tuiles
     final renderBox = _mapKey.currentContext!.findRenderObject() as RenderBox;
     final mapSize = renderBox.size;
-    final allBounds = _mapController.camera.visibleBounds;
     const margin = 40.0;
     final latPerPixel = (allBounds.north - allBounds.south) / mapSize.height;
     final lonPerPixel = (allBounds.east - allBounds.west) / mapSize.width;
@@ -113,19 +119,19 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     setState(() { _downloading = true; _status = 'Démarrage…'; _progress = null; });
 
     try {
-      // 1. Carte écoforestière (toujours incluse)
+      // 1. Carte écoforestière (bounds visible complète, _bboxIntersects filtre sur ces bounds)
       setState(() => _status = 'Carte écoforestière…');
-      final ecoCount = TerritoireService.estimateTileCount(minLat, minLon, maxLat, maxLon);
+      final ecoCount = TerritoireService.estimateTileCount(ecoMinLat, ecoMinLon, ecoMaxLat, ecoMaxLon);
       if (ecoCount <= 4) {
         await TerritoireService.downloadTerritoire(
           nom: nom,
-          minLat: minLat, minLon: minLon,
-          maxLat: maxLat, maxLon: maxLon,
+          minLat: ecoMinLat, minLon: ecoMinLon,
+          maxLat: ecoMaxLat, maxLon: ecoMaxLon,
           onStatus: (s) { if (mounted) setState(() => _status = 'Éco · $s'); },
         );
       }
 
-      // 2. Tuiles satellite/topo selon sélection
+      // 2. Tuiles satellite/topo selon sélection (bounds carré orange)
       final sources = <Map<String, String>>[
         if (_selSat) {'label': 'Satellite ESRI (1/4)',    'url': _satUrl('esri')},
         if (_selSat) {'label': 'Satellite Mapbox (2/4)',  'url': _satUrl('mapbox')},
