@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/territoire_service.dart';
+import '../services/mbtiles_service.dart';
 import '../services/satellite_cache_service.dart';
 
 class TerritoireDownloadPage extends StatefulWidget {
@@ -31,29 +32,24 @@ class TerritoireDownloadPage extends StatefulWidget {
 class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   final MapController _mapController = MapController();
 
-  // Sélection des couches à télécharger
-  bool _selEco = true; // obligatoire
   bool _selSat = true;
-  bool _selTopo = true;
+  bool _selTopo = false;
 
   // Précision : 14 = Bon, 16 = Précis, 17 = Très précis
   int _maxZoom = 16;
   int get _tileLimit => _maxZoom <= 14 ? 5000 : _maxZoom <= 16 ? 20000 : 80000;
 
-  // Progression
   bool _downloading = false;
   bool _downloadDone = false;
   String _status = '';
   double? _progress;
 
-  // Zones téléchargées
-  List<Map<String, dynamic>> _zones = [];
-  String? _activeId;
+  List<MbtilesZone> _zones = [];
+  String? _activeZoneName;
 
-  // Estimation de la zone visible
   StreamSubscription<MapEvent>? _mapSub;
   Timer? _estimateDebounce;
-  int _estTilesPerSource = 0;
+  int _estTiles = 0;
   bool _zoneTooLarge = false;
 
   @override
@@ -80,20 +76,28 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   void _updateEstimate() {
     if (!mounted) return;
     try {
-      final b = _mapController.camera.visibleBounds;
-      final count = SatelliteCacheService.estimateTileCount(
-          b.south, b.west, b.north, b.east, maxZoom: _maxZoom);
+      final camera = _mapController.camera;
+      final camSize = camera.nonRotatedSize;
+      final sqSide = math.min(camSize.width, camSize.height) - 80.0;
+      final sqLeft = (camSize.width - sqSide) / 2;
+      final sqTop  = (camSize.height - sqSide) / 2;
+      final tl = camera.screenOffsetToLatLng(Offset(sqLeft, sqTop));
+      final br = camera.screenOffsetToLatLng(Offset(sqLeft + sqSide, sqTop + sqSide));
+      final count = MbtilesService.estimateTileCount(
+        br.latitude, tl.longitude, tl.latitude, br.longitude,
+        maxZoom: _maxZoom,
+      );
       setState(() {
-        _estTilesPerSource = count;
+        _estTiles = count;
         _zoneTooLarge = count > _tileLimit;
       });
     } catch (_) {}
   }
 
   Future<void> _loadZones() async {
-    final list = await TerritoireService.listTerritoires();
-    final active = await TerritoireService.getActiveTerritoire();
-    if (mounted) setState(() { _zones = list; _activeId = active; });
+    final list = await MbtilesService.listZones();
+    final active = await MbtilesService.getActiveZone();
+    if (mounted) setState(() { _zones = list; _activeZoneName = active; });
   }
 
   String _satUrl(String source) {
@@ -104,6 +108,23 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       case 'topo':   return 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
       default:       return '';
     }
+  }
+
+  // Calcule les bounds du cadre carré affiché
+  ({double minLat, double minLon, double maxLat, double maxLon}) _squareBounds() {
+    final camera = _mapController.camera;
+    final camSize = camera.nonRotatedSize;
+    final sqSide = math.min(camSize.width, camSize.height) - 80.0;
+    final sqLeft = (camSize.width - sqSide) / 2;
+    final sqTop  = (camSize.height - sqSide) / 2;
+    final tl = camera.screenOffsetToLatLng(Offset(sqLeft, sqTop));
+    final br = camera.screenOffsetToLatLng(Offset(sqLeft + sqSide, sqTop + sqSide));
+    return (
+      minLat: br.latitude,
+      maxLat: tl.latitude,
+      minLon: tl.longitude,
+      maxLon: br.longitude,
+    );
   }
 
   Future<void> _download() async {
@@ -126,9 +147,15 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
           TextButton(
-            onPressed: () { final v = nomCtrl.text.trim(); if (v.isNotEmpty) Navigator.pop(context, v); },
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              final v = nomCtrl.text.trim();
+              if (v.isNotEmpty) Navigator.pop(context, v);
+            },
             child: const Text('Télécharger', style: TextStyle(color: Color(0xFFFF6B35))),
           ),
         ],
@@ -136,25 +163,14 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     );
     if (nom == null || nom.isEmpty) return;
 
-    // Bounds depuis les coins du cadre carré affiché à l'écran
-    final camera = _mapController.camera;
-    final camSize = camera.nonRotatedSize;
-    final mapW = camSize.x;
-    final mapH = camSize.y;
-    final sqSide = math.min(mapW, mapH) - 80.0;
-    final sqLeft = (mapW - sqSide) / 2;
-    final sqTop  = (mapH - sqSide) / 2;
-    final tl = camera.pointToLatLng(math.Point(sqLeft, sqTop));
-    final br = camera.pointToLatLng(math.Point(sqLeft + sqSide, sqTop + sqSide));
-    final minLat = br.latitude;
-    final maxLat = tl.latitude;
-    final minLon = tl.longitude;
-    final maxLon = br.longitude;
+    final bounds = _squareBounds();
+    final minLat = bounds.minLat, maxLat = bounds.maxLat;
+    final minLon = bounds.minLon, maxLon = bounds.maxLon;
 
     setState(() { _downloading = true; _status = 'Démarrage…'; _progress = null; });
 
     try {
-      // 1. Carte écoforestière (toujours incluse)
+      // 1. Carte écoforestière (toujours)
       setState(() => _status = 'Carte écoforestière…');
       final ecoCount = TerritoireService.estimateTileCount(minLat, minLon, maxLat, maxLon);
       if (ecoCount <= 4) {
@@ -166,29 +182,57 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         );
       }
 
-      // 2. Tuiles satellite/topo selon sélection
-      final sources = <Map<String, String>>[
-        if (_selSat) {'label': 'Satellite ESRI (1/4)',    'url': _satUrl('esri')},
-        if (_selSat) {'label': 'Satellite Mapbox (2/4)',  'url': _satUrl('mapbox')},
-        if (_selSat) {'label': 'Satellite MRNF QC (3/4)', 'url': 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'},
-        if (_selSat) {'label': 'Satellite Sentinel (4/4)', 'url': 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'},
-        if (_selTopo) {'label': 'Relief et sentiers',      'url': _satUrl('topo')},
-      ];
-      final satCount = SatelliteCacheService.estimateTileCount(
-          minLat, minLon, maxLat, maxLon, maxZoom: _maxZoom);
-      if (satCount <= _tileLimit) {
-        for (int i = 0; i < sources.length; i++) {
-          final src = sources[i];
-          if (src['url']!.isEmpty) continue;
-          if (mounted) setState(() { _progress = 0; _status = '${src['label']} (${i + 1}/${sources.length})…'; });
+      // 2. Tuiles satellite → fichier .mbtiles (toutes sources fusionnées)
+      if (_selSat) {
+        final sources = [
+          ('Satellite ESRI',     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
+          ('Satellite Mapbox',   _satUrl('mapbox')),
+          ('Satellite MRNF QC',  'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'),
+          ('Satellite Sentinel', 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'),
+        ];
+        final satCount = MbtilesService.estimateTileCount(minLat, minLon, maxLat, maxLon, maxZoom: _maxZoom);
+        if (satCount <= _tileLimit) {
+          for (int i = 0; i < sources.length; i++) {
+            final (label, url) = sources[i];
+            if (url.isEmpty) continue;
+            if (mounted) setState(() { _progress = 0; _status = '$label (${i + 1}/${sources.length})…'; });
+            try {
+              await MbtilesService.downloadZone(
+                name: nom,
+                urlTemplate: url,
+                minLat: minLat, minLon: minLon,
+                maxLat: maxLat, maxLon: maxLon,
+                maxZoom: _maxZoom,
+                onProgress: (done, total, s) {
+                  if (mounted) setState(() {
+                    _progress = total > 0 ? done / total : null;
+                    _status = '$label · $s';
+                  });
+                },
+              );
+            } catch (_) {}
+          }
+        }
+      }
+
+      // 3. Relief/sentiers → URL cache existant (SatelliteCacheService)
+      if (_selTopo) {
+        final topoUrl = _satUrl('topo');
+        final topoCount = SatelliteCacheService.estimateTileCount(
+            minLat, minLon, maxLat, maxLon, maxZoom: _maxZoom);
+        if (topoCount <= _tileLimit) {
+          if (mounted) setState(() { _progress = 0; _status = 'Relief et sentiers…'; });
           try {
             await SatelliteCacheService.downloadTiles(
-              urlTemplate: src['url']!,
+              urlTemplate: topoUrl,
               minLat: minLat, minLon: minLon,
               maxLat: maxLat, maxLon: maxLon,
               maxZoom: _maxZoom,
               onProgress: (done, total, s) {
-                if (mounted) setState(() { _progress = total > 0 ? done / total : null; _status = '${src['label']} · $s'; });
+                if (mounted) setState(() {
+                  _progress = total > 0 ? done / total : null;
+                  _status = 'Topo · $s';
+                });
               },
             );
           } catch (_) {}
@@ -196,6 +240,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       }
 
       await TerritoireService.setActiveTerritoire(nom);
+      await MbtilesService.setActiveZone(nom);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('offline_max_zoom', _maxZoom);
       await _loadZones();
@@ -212,26 +257,34 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     }
   }
 
-  Future<void> _activate(String id) async {
-    await TerritoireService.setActiveTerritoire(id);
-    setState(() => _activeId = id);
+  Future<void> _activate(String name) async {
+    await MbtilesService.setActiveZone(name);
+    await TerritoireService.setActiveTerritoire(name);
+    setState(() => _activeZoneName = name);
   }
 
-  Future<void> _delete(String id) async {
+  Future<void> _delete(String name) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF2A2A2A),
         title: const Text('Supprimer ?', style: TextStyle(color: Colors.white)),
-        content: Text('« $id » sera supprimée.', style: const TextStyle(color: Colors.white60)),
+        content: Text('« $name » sera supprimée.', style: const TextStyle(color: Colors.white60)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler', style: TextStyle(color: Colors.white54))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Supprimer', style: TextStyle(color: Colors.redAccent))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.redAccent)),
+          ),
         ],
       ),
     );
     if (ok != true) return;
-    await TerritoireService.deleteTerritoire(id);
+    await MbtilesService.deleteZone(name);
+    await TerritoireService.deleteTerritoire(name);
     await _loadZones();
   }
 
@@ -265,7 +318,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                 ),
               ],
             ),
-            // Cadre de sélection — toujours carré
+            // Cadre carré de sélection
             IgnorePointer(child: LayoutBuilder(
               builder: (ctx, constraints) {
                 final side = math.min(constraints.maxWidth, constraints.maxHeight) - 80.0;
@@ -279,7 +332,6 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                 ));
               },
             )),
-            // Indication zoom
             Positioned(top: 10, left: 0, right: 0, child: Center(child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
@@ -292,20 +344,24 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
           ]),
         ),
 
-        // ── Sélection des couches ──
+        // ── Options ──
         Container(
           color: const Color(0xFF202020),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Couches à télécharger', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+            const Text('Couches à télécharger',
+                style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
               _chip('🌿 Carte éco', true, null, subtitle: 'obligatoire'),
-              if (!widget.ecoOnly) _chip('🛰️ Photos satellite', _selSat, (v) => setState(() => _selSat = v), subtitle: 'vue aérienne'),
-              if (!widget.ecoOnly) _chip('⛰️ Relief et sentiers', _selTopo, (v) => setState(() => _selTopo = v), subtitle: 'topographie'),
+              if (!widget.ecoOnly) _chip('🛰️ Photos satellite', _selSat,
+                  (v) => setState(() => _selSat = v), subtitle: 'fichier .mbtiles'),
+              if (!widget.ecoOnly) _chip('⛰️ Relief et sentiers', _selTopo,
+                  (v) => setState(() => _selTopo = v), subtitle: 'topographie'),
             ]),
             const SizedBox(height: 12),
-            const Text('Précision', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+            const Text('Précision',
+                style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
             const SizedBox(height: 6),
             Row(children: [
               _zoomChip('Bon',         14, 'rapide'),
@@ -315,14 +371,16 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               _zoomChip('Très précis', 17, 'long'),
             ]),
             const SizedBox(height: 8),
-            if (_estTilesPerSource > 0)
+            if (_estTiles > 0)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: _zoneTooLarge ? const Color(0xFF3A1A00) : const Color(0xFF1E2A1E),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: _zoneTooLarge ? Colors.orange.withOpacity(0.5) : const Color(0xFF4CAF50).withOpacity(0.3),
+                    color: _zoneTooLarge
+                        ? Colors.orange.withOpacity(0.5)
+                        : const Color(0xFF4CAF50).withOpacity(0.3),
                   ),
                 ),
                 child: Row(children: [
@@ -335,7 +393,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                   Expanded(child: Text(
                     _zoneTooLarge
                         ? 'Zone trop grande — dézoom ou réduis la précision'
-                        : '~$_estTilesPerSource tuiles/source · Dézoom pour agrandir la zone',
+                        : '~$_estTiles tuiles · format MBTiles · Dézoom pour agrandir',
                     style: TextStyle(
                       color: _zoneTooLarge ? Colors.orange : Colors.white54,
                       fontSize: 11,
@@ -390,9 +448,9 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         // ── Zones téléchargées ──
         if (_zones.isNotEmpty) ...[
           const Divider(height: 1, color: Colors.white12),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-            child: const Text('Mes zones', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: Text('Mes zones', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
           ),
           Expanded(
             flex: 3,
@@ -401,33 +459,40 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               itemCount: _zones.length,
               itemBuilder: (_, i) {
                 final z = _zones[i];
-                final isActive = z['id'] == _activeId;
+                final isActive = z.name == _activeZoneName;
                 return ListTile(
                   dense: true,
-                  onTap: () => _activate(z['id'] as String),
+                  onTap: () => _activate(z.name),
                   leading: Icon(
                     isActive ? Icons.check_circle_rounded : Icons.map_outlined,
                     color: isActive ? const Color(0xFF4CAF50) : Colors.white38,
                     size: 20,
                   ),
-                  title: Text(z['id'] as String,
-                      style: TextStyle(color: isActive ? Colors.white : Colors.white70,
-                          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                          fontSize: 14)),
-                  subtitle: Text('${z['taille_mb']} MB${isActive ? ' · Active' : ''}',
-                      style: TextStyle(color: isActive ? const Color(0xFF4CAF50) : Colors.white38, fontSize: 11)),
+                  title: Text(z.name,
+                      style: TextStyle(
+                        color: isActive ? Colors.white : Colors.white70,
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                        fontSize: 14,
+                      )),
+                  subtitle: Text(
+                    '${z.sizeMb.toStringAsFixed(1)} MB · zoom ${z.maxZoom}${isActive ? ' · Active' : ''}',
+                    style: TextStyle(
+                      color: isActive ? const Color(0xFF4CAF50) : Colors.white38,
+                      fontSize: 11,
+                    ),
+                  ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline, color: Colors.white24, size: 18),
-                    onPressed: () => _delete(z['id'] as String),
+                    onPressed: () => _delete(z.name),
                   ),
                 );
               },
             ),
           ),
         ] else
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: const Text('Aucune zone téléchargée.', style: TextStyle(color: Colors.white38, fontSize: 13)),
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Aucune zone téléchargée.', style: TextStyle(color: Colors.white38, fontSize: 13)),
           ),
       ]),
     );
@@ -477,8 +542,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           Row(mainAxisSize: MainAxisSize.min, children: [
-            if (active)
-              const Icon(Icons.check_rounded, color: Color(0xFF4CAF50), size: 13),
+            if (active) const Icon(Icons.check_rounded, color: Color(0xFF4CAF50), size: 13),
             if (active) const SizedBox(width: 4),
             Text(label, style: TextStyle(
               color: active ? Colors.white : Colors.white38,
