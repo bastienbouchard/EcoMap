@@ -247,7 +247,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   // ── Connectivité ──
   bool _isOnline = true;
   int _offlineMaxZoom = 16;
-  String? _activeZonePath; // chemin .mbtiles de la zone active
+  String? _activeZonePath;     // chemin .mbtiles satellite de la zone active
+  String? _activeTopoPath;     // chemin .mbtiles topo de la zone active
   bool _showOfflineBanner = true;
   bool _showDownloadTip = true;
   StreamSubscription<bool>? _connectivitySub;
@@ -269,8 +270,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     });
     MbtilesService.getActiveZone().then((name) async {
       if (name == null) return;
-      final path = await MbtilesService.pathFor(name);
-      if (File(path).existsSync() && mounted) setState(() => _activeZonePath = path);
+      final satPath  = await MbtilesService.pathFor(name);
+      final topoPath = await MbtilesService.pathFor('${name}_topo');
+      if (mounted) setState(() {
+        if (File(satPath).existsSync())  _activeZonePath = satPath;
+        if (File(topoPath).existsSync()) _activeTopoPath = topoPath;
+      });
     });
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
       if (mounted) setState(() { _isOnline = online; if (!online) _showOfflineBanner = true; });
@@ -2769,12 +2774,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         },
       ),
       children: [
-        if (!_isOnline && _activeZonePath != null)
+        if (!_isOnline && (_activeZonePath != null || _activeTopoPath != null))
           TileLayer(
-            key: ValueKey('mbtiles-$_activeZonePath-$_tileEpoch'),
+            key: ValueKey('mbtiles-${_satSource == 'topo' ? _activeTopoPath : _activeZonePath}-$_tileEpoch'),
             maxNativeZoom: _offlineMaxZoom,
             maxZoom: 22,
-            tileProvider: MbtilesZoneTileProvider(_activeZonePath!),
+            tileProvider: MbtilesZoneTileProvider(
+              (_satSource == 'topo' && _activeTopoPath != null)
+                  ? _activeTopoPath!
+                  : _activeZonePath ?? _activeTopoPath!,
+            ),
             tileBuilder: (context, child, tile) {
               if (tile.readyToDisplay) {
                 _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
@@ -4152,8 +4161,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   });
                   MbtilesService.getActiveZone().then((name) async {
                     if (name == null || !mounted) return;
-                    final path = await MbtilesService.pathFor(name);
-                    if (File(path).existsSync() && mounted) setState(() => _activeZonePath = path);
+                    final satPath  = await MbtilesService.pathFor(name);
+                    final topoPath = await MbtilesService.pathFor('${name}_topo');
+                    if (mounted) setState(() {
+                      if (File(satPath).existsSync())  _activeZonePath = satPath;
+                      if (File(topoPath).existsSync()) _activeTopoPath = topoPath;
+                    });
                   });
                 },
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -4900,8 +4913,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   });
                   MbtilesService.getActiveZone().then((name) async {
                     if (name == null || !mounted) return;
-                    final path = await MbtilesService.pathFor(name);
-                    if (File(path).existsSync() && mounted) setState(() => _activeZonePath = path);
+                    final satPath  = await MbtilesService.pathFor(name);
+                    final topoPath = await MbtilesService.pathFor('${name}_topo');
+                    if (mounted) setState(() {
+                      if (File(satPath).existsSync())  _activeZonePath = satPath;
+                      if (File(topoPath).existsSync()) _activeTopoPath = topoPath;
+                    });
                   });
                 }, active: false),
                 mapDividerV(),

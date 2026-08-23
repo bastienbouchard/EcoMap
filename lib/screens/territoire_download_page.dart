@@ -33,7 +33,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   final MapController _mapController = MapController();
 
   bool _selSat = true;
-  bool _selTopo = false;
+  bool _selTopo = true;
 
   // Précision : 14 = Bon, 16 = Précis, 17 = Très précis
   int _maxZoom = 16;
@@ -215,16 +215,16 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         }
       }
 
-      // 3. Relief/sentiers → URL cache existant (SatelliteCacheService)
+      // 3. Relief/sentiers → fichier .mbtiles séparé
       if (_selTopo) {
-        final topoUrl = _satUrl('topo');
-        final topoCount = SatelliteCacheService.estimateTileCount(
+        final topoCount = MbtilesService.estimateTileCount(
             minLat, minLon, maxLat, maxLon, maxZoom: _maxZoom);
         if (topoCount <= _tileLimit) {
           if (mounted) setState(() { _progress = 0; _status = 'Relief et sentiers…'; });
           try {
-            await SatelliteCacheService.downloadTiles(
-              urlTemplate: topoUrl,
+            await MbtilesService.downloadZone(
+              name: '${nom}_topo',
+              urlTemplate: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
               minLat: minLat, minLon: minLon,
               maxLat: maxLat, maxLon: maxLon,
               maxZoom: _maxZoom,
