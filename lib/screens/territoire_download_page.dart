@@ -11,6 +11,7 @@ class TerritoireDownloadPage extends StatefulWidget {
   final String? satUrlTemplate;
   final String? satSource;
   final String? mapboxToken;
+  final bool ecoOnly;
   const TerritoireDownloadPage({
     super.key,
     required this.initialCenter,
@@ -18,6 +19,7 @@ class TerritoireDownloadPage extends StatefulWidget {
     this.satUrlTemplate,
     this.satSource,
     this.mapboxToken,
+    this.ecoOnly = false,
   });
 
   @override
@@ -29,11 +31,12 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
   // Sélection des couches à télécharger
   bool _selEco = true; // obligatoire
-  bool _selSat = true;  // ESRI + Mapbox
+  bool _selSat = true;
   bool _selTopo = true;
 
   // Progression
   bool _downloading = false;
+  bool _downloadDone = false;
   String _status = '';
   double? _progress;
 
@@ -44,6 +47,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.ecoOnly) { _selSat = false; _selTopo = false; }
     _loadZones();
   }
 
@@ -141,18 +145,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
       await TerritoireService.setActiveTerritoire(nom);
       await _loadZones();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('« $nom » disponible hors réseau !', style: const TextStyle(color: Colors.white)),
-          backgroundColor: const Color(0xFF1C1C1C),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: const Color(0xFF4CAF50).withOpacity(0.5))),
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-          duration: const Duration(seconds: 5),
-        ));
-      }
+      if (mounted) setState(() => _downloadDone = true);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Erreur : $e', style: const TextStyle(color: Colors.white)),
@@ -248,8 +241,8 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
               _chip('🌿 Carte éco', true, null, subtitle: 'obligatoire'),
-              _chip('🛰️ Photos satellite', _selSat, (v) => setState(() => _selSat = v), subtitle: 'vue aérienne'),
-              _chip('⛰️ Relief et sentiers', _selTopo, (v) => setState(() => _selTopo = v), subtitle: 'topographie'),
+              if (!widget.ecoOnly) _chip('🛰️ Photos satellite', _selSat, (v) => setState(() => _selSat = v), subtitle: 'vue aérienne'),
+              if (!widget.ecoOnly) _chip('⛰️ Relief et sentiers', _selTopo, (v) => setState(() => _selTopo = v), subtitle: 'topographie'),
             ]),
             const SizedBox(height: 12),
             _downloading
@@ -263,20 +256,35 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                     const SizedBox(height: 6),
                     Text(_status, style: const TextStyle(color: Colors.white54, fontSize: 11)),
                   ])
-                : SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _download,
-                      icon: const Icon(Icons.download_rounded, size: 18),
-                      label: const Text('Télécharger cette zone'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF6B35),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                : _downloadDone
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.check_rounded, size: 18),
+                          label: const Text('Retourner sur la carte'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4CAF50),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      )
+                    : SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _download,
+                          icon: const Icon(Icons.download_rounded, size: 18),
+                          label: const Text('Télécharger cette zone'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF6B35),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
           ]),
         ),
 

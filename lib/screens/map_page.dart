@@ -4115,6 +4115,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       satUrlTemplate: null,
                       satSource: null,
                       mapboxToken: _mapboxToken,
+                      ecoOnly: true,
                     ),
                   ));
                   _reloadTerritoire();
