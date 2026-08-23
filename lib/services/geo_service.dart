@@ -354,8 +354,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
           }
         } catch (_) {}
       }
-      // Gap entre polygones = rivière, route ou découvert → obstacle
-      if (!inAnyPolygon) return true;
+      // Les gaps entre polygones (routes forestières, zones tampon) sont traversables
     }
     return false;
   }
@@ -372,8 +371,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
                 type: habitatType(props), blocked: false);
       }
     }
-    // Hors de tout polygone = zone sans couverture éco (eau, route, découvert) → bloqué
-    return (score: 0, habitat: '', type: 'X', blocked: true);
+    // Hors de tout polygone = route, clairière ou zone tampon → traversable, score neutre
+    return (score: 0, habitat: '', type: 'X', blocked: false);
   }
 
   final startEval = evalPoint(lat, lon);
