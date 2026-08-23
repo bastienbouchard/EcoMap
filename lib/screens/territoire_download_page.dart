@@ -170,16 +170,20 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     setState(() { _downloading = true; _status = 'Démarrage…'; _progress = null; });
 
     try {
-      // 1. Carte écoforestière (toujours)
+      // 1. Carte écoforestière (optionnelle — pas de données dans tous les secteurs)
       setState(() => _status = 'Carte écoforestière…');
       final ecoCount = TerritoireService.estimateTileCount(minLat, minLon, maxLat, maxLon);
       if (ecoCount <= 4) {
-        await TerritoireService.downloadTerritoire(
-          nom: nom,
-          minLat: minLat, minLon: minLon,
-          maxLat: maxLat, maxLon: maxLon,
-          onStatus: (s) { if (mounted) setState(() => _status = 'Éco · $s'); },
-        );
+        try {
+          await TerritoireService.downloadTerritoire(
+            nom: nom,
+            minLat: minLat, minLon: minLon,
+            maxLat: maxLat, maxLon: maxLon,
+            onStatus: (s) { if (mounted) setState(() => _status = 'Éco · $s'); },
+          );
+        } catch (_) {
+          // Pas de données éco dans ce secteur (lac, zone urbaine…) — on continue
+        }
       }
 
       // 2. Tuiles satellite → fichier .mbtiles (toutes sources fusionnées)
