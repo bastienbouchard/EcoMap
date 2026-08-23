@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/territoire_service.dart';
 import '../services/satellite_cache_service.dart';
 
@@ -136,8 +137,14 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     if (nom == null || nom.isEmpty) return;
 
     final bounds = _mapController.camera.visibleBounds;
-    final minLat = bounds.south; final maxLat = bounds.north;
-    final minLon = bounds.west;  final maxLon = bounds.east;
+    // Extension de 50% sur lat (N-S) pour compenser le rapport portrait du map principal
+    // et 20% sur lon (E-O) pour la navigation latérale
+    final latPad = (bounds.north - bounds.south) * 0.5;
+    final lonPad = (bounds.east - bounds.west) * 0.2;
+    final minLat = bounds.south - latPad;
+    final maxLat = bounds.north + latPad;
+    final minLon = bounds.west - lonPad;
+    final maxLon = bounds.east + lonPad;
 
     setState(() { _downloading = true; _status = 'Démarrage…'; _progress = null; });
 
@@ -184,6 +191,8 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
       }
 
       await TerritoireService.setActiveTerritoire(nom);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('offline_max_zoom', _maxZoom);
       await _loadZones();
       if (mounted) setState(() => _downloadDone = true);
     } catch (e) {

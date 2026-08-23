@@ -244,6 +244,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   // ── Connectivité ──
   bool _isOnline = true;
+  int _offlineMaxZoom = 16; // zoom max téléchargé, chargé depuis SharedPreferences
   bool _showOfflineBanner = true;
   bool _showDownloadTip = true;
   StreamSubscription<bool>? _connectivitySub;
@@ -259,6 +260,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
     _isOnline = ConnectivityService.isOnline;
     SatelliteCacheService.isOnline = _isOnline;
+    SharedPreferences.getInstance().then((p) {
+      final z = p.getInt('offline_max_zoom');
+      if (z != null && mounted) setState(() => _offlineMaxZoom = z);
+    });
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
       if (mounted) setState(() { _isOnline = online; if (!online) _showOfflineBanner = true; });
       SatelliteCacheService.isOnline = online;
@@ -2770,7 +2775,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                               : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
-          maxNativeZoom: 19,
+          maxNativeZoom: _isOnline ? 19 : _offlineMaxZoom,
           maxZoom: 22,
           tileProvider: SatelliteTileProvider(),
           tileBuilder: (context, child, tile) {
