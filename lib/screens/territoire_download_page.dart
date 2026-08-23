@@ -34,6 +34,10 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   bool _selSat = true;
   bool _selTopo = true;
 
+  // Précision : 14 = Bon, 16 = Précis, 17 = Très précis
+  int _maxZoom = 16;
+  int get _tileLimit => _maxZoom <= 14 ? 5000 : _maxZoom <= 16 ? 20000 : 80000;
+
   // Progression
   bool _downloading = false;
   bool _downloadDone = false;
@@ -124,8 +128,9 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         if (_selSat) {'label': 'Satellite Sentinel (4/4)', 'url': 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'},
         if (_selTopo) {'label': 'Relief et sentiers',      'url': _satUrl('topo')},
       ];
-      final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
-      if (satCount <= 15000) {
+      final satCount = SatelliteCacheService.estimateTileCount(
+          minLat, minLon, maxLat, maxLon, maxZoom: _maxZoom);
+      if (satCount <= _tileLimit) {
         for (int i = 0; i < sources.length; i++) {
           final src = sources[i];
           if (src['url']!.isEmpty) continue;
@@ -135,6 +140,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               urlTemplate: src['url']!,
               minLat: minLat, minLon: minLon,
               maxLat: maxLat, maxLon: maxLon,
+              maxZoom: _maxZoom,
               onProgress: (done, total, s) {
                 if (mounted) setState(() { _progress = total > 0 ? done / total : null; _status = '${src['label']} · $s'; });
               },
@@ -245,6 +251,16 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               if (!widget.ecoOnly) _chip('⛰️ Relief et sentiers', _selTopo, (v) => setState(() => _selTopo = v), subtitle: 'topographie'),
             ]),
             const SizedBox(height: 12),
+            const Text('Précision', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+            const SizedBox(height: 6),
+            Row(children: [
+              _zoomChip('Bon',         14, 'rapide'),
+              const SizedBox(width: 8),
+              _zoomChip('Précis',      16, 'recommandé'),
+              const SizedBox(width: 8),
+              _zoomChip('Très précis', 17, 'long'),
+            ]),
+            const SizedBox(height: 12),
             _downloading
                 ? Column(children: [
                     LinearProgressIndicator(
@@ -331,6 +347,36 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
             child: const Text('Aucune zone téléchargée.', style: TextStyle(color: Colors.white38, fontSize: 13)),
           ),
       ]),
+    );
+  }
+
+  Widget _zoomChip(String label, int zoom, String subtitle) {
+    final active = _maxZoom == zoom;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _maxZoom = zoom),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF2A3550) : const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: active ? const Color(0xFF4A90E2).withOpacity(0.8) : Colors.white12,
+            ),
+          ),
+          child: Column(children: [
+            Text(label, style: TextStyle(
+              color: active ? Colors.white : Colors.white54,
+              fontSize: 12,
+              fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+            )),
+            Text(subtitle, style: TextStyle(
+              color: active ? const Color(0xFF4A90E2) : Colors.white24,
+              fontSize: 10,
+            )),
+          ]),
+        ),
+      ),
     );
   }
 
