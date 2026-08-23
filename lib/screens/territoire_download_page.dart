@@ -114,9 +114,11 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
       // 2. Tuiles satellite/topo selon sélection
       final sources = <Map<String, String>>[
-        if (_selSat) {'label': 'Photos satellite (1/2)', 'url': _satUrl('esri')},
-        if (_selSat) {'label': 'Photos satellite (2/2)', 'url': _satUrl('mapbox')},
-        if (_selTopo) {'label': 'Relief et sentiers',    'url': _satUrl('topo')},
+        if (_selSat) {'label': 'Satellite ESRI (1/4)',    'url': _satUrl('esri')},
+        if (_selSat) {'label': 'Satellite Mapbox (2/4)',  'url': _satUrl('mapbox')},
+        if (_selSat) {'label': 'Satellite MRNF QC (3/4)', 'url': 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'},
+        if (_selSat) {'label': 'Satellite Sentinel (4/4)', 'url': 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg'},
+        if (_selTopo) {'label': 'Relief et sentiers',      'url': _satUrl('topo')},
       ];
       final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
       if (satCount <= 3000) {
