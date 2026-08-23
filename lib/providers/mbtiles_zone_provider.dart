@@ -53,7 +53,10 @@ class _MbtilesZoneImageProvider extends ImageProvider<_MbtilesZoneImageProvider>
         final buf = await ui.ImmutableBuffer.fromUint8List(bytes);
         return decode(buf);
       }
-    } catch (_) {}
+      debugPrint('MBTiles MISS z=${coords.z} x=${coords.x} y=${coords.y}');
+    } catch (e) {
+      debugPrint('MBTiles ERROR z=${coords.z} x=${coords.x} y=${coords.y}: $e');
+    }
     return _emptyCodec();
   }
 

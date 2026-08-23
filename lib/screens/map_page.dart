@@ -2683,6 +2683,18 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           _buildNavPanel(),
           if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
           if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
+          // DEBUG — à retirer avant release
+          Positioned(
+            top: 100, left: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4)),
+              child: Text(
+                '${_isOnline ? "🟢 ONLINE" : "🔴 OFFLINE"}  path:${_currentOfflinePath != null ? "OK" : "NULL"}  maxZ:$_currentOfflineMaxZoom',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontFamily: 'monospace'),
+              ),
+            ),
+          ),
           if (_showLayerPanel) _buildLayerPanel(),
           if (_downloadingZone) Positioned(
             bottom: 130,
