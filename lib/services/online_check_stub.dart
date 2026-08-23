@@ -3,24 +3,27 @@ import 'dart:io';
 
 bool _lastOnline = true;
 
+// DNS lookup peut retourner un résultat caché par iOS même en mode avion.
+// On utilise une connexion TCP réelle : impossible de satisfaire depuis le cache.
 Future<bool> _checkOnline() async {
   try {
-    final result = await InternetAddress.lookup('google.com')
-        .timeout(const Duration(seconds: 3));
-    return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    final socket = await Socket.connect(
+      '8.8.8.8', 53,
+      timeout: const Duration(seconds: 3),
+    );
+    socket.destroy();
+    return true;
   } catch (_) {
     return false;
   }
 }
 
 void listenToConnectivity(void Function(bool) callback) {
-  // Vérification immédiate au démarrage
   _checkOnline().then((online) {
     _lastOnline = online;
     callback(online);
   });
 
-  // Sondage toutes les 5 secondes
   Timer.periodic(const Duration(seconds: 5), (_) async {
     final online = await _checkOnline();
     if (online != _lastOnline) {
