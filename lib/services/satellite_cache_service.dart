@@ -169,13 +169,30 @@ class SatelliteTileProvider extends TileProvider {
 
   @override
   ImageProvider<Object> getImage(TileCoordinates coordinates, TileLayer options) {
-    return _CachedTileImageProvider(getTileUrl(coordinates, options));
+    return _CachedTileImageProvider(
+      url: getTileUrl(coordinates, options),
+      template: options.urlTemplate ?? '',
+      z: coordinates.z,
+      x: coordinates.x,
+      y: coordinates.y,
+    );
   }
 }
 
 class _CachedTileImageProvider extends ImageProvider<_CachedTileImageProvider> {
   final String url;
-  const _CachedTileImageProvider(this.url);
+  final String template;
+  final int z;
+  final int x;
+  final int y;
+
+  const _CachedTileImageProvider({
+    required this.url,
+    required this.template,
+    required this.z,
+    required this.x,
+    required this.y,
+  });
 
   static final _sem = _Semaphore(6);
 
@@ -211,8 +228,30 @@ class _CachedTileImageProvider extends ImageProvider<_CachedTileImageProvider> {
         final buffer = await ui.ImmutableBuffer.fromUint8List(cached);
         return decode(buffer);
       }
-      // Hors réseau : tuile non cachée → transparent immédiatement, aucune requête
-      if (!SatelliteCacheService.isOnline) return _emptyCodec();
+      // Hors réseau : chercher dans les tuiles parentes (z-1, z-2, …) avant de rendre transparent
+      if (!SatelliteCacheService.isOnline) {
+        if (template.isNotEmpty) {
+          var pz = z - 1;
+          var px = x >> 1;
+          var py = y >> 1;
+          while (pz >= 0) {
+            final parentUrl = template
+                .replaceAll('{z}', '$pz')
+                .replaceAll('{x}', '$px')
+                .replaceAll('{y}', '$py');
+            final parentData = await SatelliteCacheService.getTile(parentUrl);
+            if (parentData != null) {
+              final buffer = await ui.ImmutableBuffer.fromUint8List(parentData);
+              return decode(buffer);
+            }
+            if (pz == 0) break;
+            pz--;
+            px >>= 1;
+            py >>= 1;
+          }
+        }
+        return _emptyCodec();
+      }
       await _sem.acquire();
       Uint8List? tileData;
       try {

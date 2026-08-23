@@ -28,6 +28,7 @@ class TerritoireDownloadPage extends StatefulWidget {
 
 class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   final MapController _mapController = MapController();
+  final GlobalKey _mapKey = GlobalKey();
 
   // Sélection des couches à télécharger
   bool _selEco = true; // obligatoire
@@ -97,9 +98,17 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     );
     if (nom == null || nom.isEmpty) return;
 
-    final bounds = _mapController.camera.visibleBounds;
-    final minLat = bounds.south; final maxLat = bounds.north;
-    final minLon = bounds.west;  final maxLon = bounds.east;
+    // Calculer les bounds du carré orange (marge 40px de chaque côté)
+    final renderBox = _mapKey.currentContext!.findRenderObject() as RenderBox;
+    final mapSize = renderBox.size;
+    final allBounds = _mapController.camera.visibleBounds;
+    const margin = 40.0;
+    final latPerPixel = (allBounds.north - allBounds.south) / mapSize.height;
+    final lonPerPixel = (allBounds.east - allBounds.west) / mapSize.width;
+    final maxLat = allBounds.north - latPerPixel * margin;
+    final minLat = allBounds.south + latPerPixel * margin;
+    final minLon = allBounds.west  + lonPerPixel * margin;
+    final maxLon = allBounds.east  - lonPerPixel * margin;
 
     setState(() { _downloading = true; _status = 'Démarrage…'; _progress = null; });
 
@@ -196,7 +205,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         // ── Carte de cadrage ──
         Expanded(
           flex: 5,
-          child: Stack(children: [
+          child: Stack(key: _mapKey, children: [
             FlutterMap(
               mapController: _mapController,
               options: MapOptions(
