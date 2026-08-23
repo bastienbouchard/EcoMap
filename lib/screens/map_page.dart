@@ -4124,6 +4124,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     ),
                   ));
                   _reloadTerritoire();
+                  SharedPreferences.getInstance().then((p) {
+                    final z = p.getInt('offline_max_zoom');
+                    if (z != null && mounted) setState(() => _offlineMaxZoom = z);
+                  });
                 },
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   if (_ecoOpacity > 0) Text('${(_ecoOpacity * 100).round()}%',
@@ -4863,6 +4867,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     ),
                   ));
                   _reloadTerritoire();
+                  SharedPreferences.getInstance().then((p) {
+                    final z = p.getInt('offline_max_zoom');
+                    if (z != null && mounted) setState(() => _offlineMaxZoom = z);
+                  });
                 }, active: false),
                 mapDividerV(),
                 AnimatedBuilder(

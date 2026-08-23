@@ -136,15 +136,20 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     );
     if (nom == null || nom.isEmpty) return;
 
-    final bounds = _mapController.camera.visibleBounds;
-    // Extension de 50% sur lat (N-S) pour compenser le rapport portrait du map principal
-    // et 20% sur lon (E-O) pour la navigation latérale
-    final latPad = (bounds.north - bounds.south) * 0.5;
-    final lonPad = (bounds.east - bounds.west) * 0.2;
-    final minLat = bounds.south - latPad;
-    final maxLat = bounds.north + latPad;
-    final minLon = bounds.west - lonPad;
-    final maxLon = bounds.east + lonPad;
+    // Bounds depuis les coins du cadre carré affiché à l'écran
+    final camera = _mapController.camera;
+    final camSize = camera.nonRotatedSize;
+    final mapW = camSize.x;
+    final mapH = camSize.y;
+    final sqSide = math.min(mapW, mapH) - 80.0;
+    final sqLeft = (mapW - sqSide) / 2;
+    final sqTop  = (mapH - sqSide) / 2;
+    final tl = camera.pointToLatLng(math.Point(sqLeft, sqTop));
+    final br = camera.pointToLatLng(math.Point(sqLeft + sqSide, sqTop + sqSide));
+    final minLat = br.latitude;
+    final maxLat = tl.latitude;
+    final minLon = tl.longitude;
+    final maxLon = br.longitude;
 
     setState(() { _downloading = true; _status = 'Démarrage…'; _progress = null; });
 
@@ -250,7 +255,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               mapController: _mapController,
               options: MapOptions(
                 initialCenter: widget.initialCenter,
-                initialZoom: widget.initialZoom,
+                initialZoom: widget.initialZoom.clamp(5.0, 13.0),
               ),
               children: [
                 TileLayer(
@@ -260,14 +265,20 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                 ),
               ],
             ),
-            // Cadre de sélection
-            IgnorePointer(child: Center(child: Container(
-              margin: const EdgeInsets.all(40),
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFFF6B35), width: 2),
-              ),
-              child: Container(color: const Color(0xFFFF6B35).withOpacity(0.06)),
-            ))),
+            // Cadre de sélection — toujours carré
+            IgnorePointer(child: LayoutBuilder(
+              builder: (ctx, constraints) {
+                final side = math.min(constraints.maxWidth, constraints.maxHeight) - 80.0;
+                return Center(child: Container(
+                  width: side,
+                  height: side,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFFF6B35), width: 2),
+                    color: const Color(0xFFFF6B35).withOpacity(0.06),
+                  ),
+                ));
+              },
+            )),
             // Indication zoom
             Positioned(top: 10, left: 0, right: 0, child: Center(child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
