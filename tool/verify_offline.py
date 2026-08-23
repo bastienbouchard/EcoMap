@@ -158,10 +158,10 @@ def make_html(has_eco):
 body{{margin:0;font-family:-apple-system,sans-serif}}
 #map{{height:100vh}}
 .panel{{
-  position:absolute;top:10px;right:50px;
+  position:absolute;top:10px;left:10px;
   background:rgba(20,20,20,.88);color:#fff;
   padding:12px 16px;border-radius:10px;z-index:1000;
-  font-size:13px;min-width:230px;
+  font-size:13px;min-width:210px;
   box-shadow:0 4px 16px rgba(0,0,0,.5);
 }}
 .panel b{{color:#FF6B35}}
@@ -199,7 +199,8 @@ const baseLayers = {{
 {eco_control}
 
 baseLayer.addTo(map);
-L.control.layers(baseLayers).addTo(map);
+// collapsed:false = toujours visible, pas besoin de survoler
+L.control.layers(baseLayers, null, {{collapsed: false}}).addTo(map);
 
 // Cadre de la zone téléchargée
 L.rectangle([[{MIN_LAT},{MIN_LON}],[{MAX_LAT},{MAX_LON}]], {{
