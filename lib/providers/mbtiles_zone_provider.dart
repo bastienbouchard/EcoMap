@@ -47,16 +47,23 @@ class _MbtilesZoneImageProvider extends ImageProvider<_MbtilesZoneImageProvider>
 
   Future<ui.Codec> _load(ImageDecoderCallback decode) async {
     try {
-      final bytes =
-          await MbtilesService.readTile(dbPath, coords.z, coords.x, coords.y);
-      if (bytes != null && bytes.isNotEmpty) {
-        final buf = await ui.ImmutableBuffer.fromUint8List(bytes);
-        return decode(buf);
+      // Si la tuile exacte est absente (erreur de téléchargement, zoom trop haut),
+      // on remonte vers la tuile parente jusqu'à en trouver une valide.
+      var z = coords.z;
+      var x = coords.x;
+      var y = coords.y;
+      while (z >= 0) {
+        final bytes = await MbtilesService.readTile(dbPath, z, x, y);
+        if (bytes != null && bytes.isNotEmpty) {
+          final buf = await ui.ImmutableBuffer.fromUint8List(bytes);
+          return decode(buf);
+        }
+        if (z == 0) break;
+        z--;
+        x >>= 1;
+        y >>= 1;
       }
-      debugPrint('MBTiles MISS z=${coords.z} x=${coords.x} y=${coords.y}');
-    } catch (e) {
-      debugPrint('MBTiles ERROR z=${coords.z} x=${coords.x} y=${coords.y}: $e');
-    }
+    } catch (_) {}
     return _emptyCodec();
   }
 
