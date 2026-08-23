@@ -76,15 +76,9 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   void _updateEstimate() {
     if (!mounted) return;
     try {
-      final camera = _mapController.camera;
-      final camSize = camera.nonRotatedSize;
-      final sqSide = math.min(camSize.width, camSize.height) - 80.0;
-      final sqLeft = (camSize.width - sqSide) / 2;
-      final sqTop  = (camSize.height - sqSide) / 2;
-      final tl = camera.screenOffsetToLatLng(Offset(sqLeft, sqTop));
-      final br = camera.screenOffsetToLatLng(Offset(sqLeft + sqSide, sqTop + sqSide));
+      final bounds = _squareBounds();
       final count = MbtilesService.estimateTileCount(
-        br.latitude, tl.longitude, tl.latitude, br.longitude,
+        bounds.minLat, bounds.minLon, bounds.maxLat, bounds.maxLon,
         maxZoom: _maxZoom,
       );
       setState(() {
@@ -110,20 +104,23 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     }
   }
 
-  // Calcule les bounds du cadre carré affiché
+  // Calcule les bounds du cadre carré à partir de visibleBounds + ratio du cadre
   ({double minLat, double minLon, double maxLat, double maxLon}) _squareBounds() {
     final camera = _mapController.camera;
     final camSize = camera.nonRotatedSize;
     final sqSide = math.min(camSize.width, camSize.height) - 80.0;
-    final sqLeft = (camSize.width - sqSide) / 2;
-    final sqTop  = (camSize.height - sqSide) / 2;
-    final tl = camera.screenOffsetToLatLng(Offset(sqLeft, sqTop));
-    final br = camera.screenOffsetToLatLng(Offset(sqLeft + sqSide, sqTop + sqSide));
+    final fracW = camSize.width  > 0 ? sqSide / camSize.width  : 0.8;
+    final fracH = camSize.height > 0 ? sqSide / camSize.height : 0.8;
+    final b = camera.visibleBounds;
+    final halfLat = (b.north - b.south) * fracH / 2;
+    final halfLon = (b.east  - b.west)  * fracW / 2;
+    final cLat = camera.center.latitude;
+    final cLon = camera.center.longitude;
     return (
-      minLat: br.latitude,
-      maxLat: tl.latitude,
-      minLon: tl.longitude,
-      maxLon: br.longitude,
+      minLat: cLat - halfLat,
+      maxLat: cLat + halfLat,
+      minLon: cLon - halfLon,
+      maxLon: cLon + halfLon,
     );
   }
 
