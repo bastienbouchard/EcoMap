@@ -10,7 +10,24 @@ class MbtilesZoneTileProvider extends TileProvider {
 
   @override
   ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {
-    return _MbtilesZoneImageProvider(dbPath: dbPath, coords: coordinates);
+    var z = coordinates.z;
+    var x = coordinates.x;
+    var y = coordinates.y;
+
+    // flutter_map peut passer z > maxNativeZoom (zoom d'affichage, pas de tuile).
+    // On recalcule x/y pour la tuile parente au bon niveau de zoom.
+    final maxZ = options.maxNativeZoom;
+    if (maxZ != null && z > maxZ) {
+      final diff = z - maxZ;
+      z = maxZ;
+      x = x >> diff;
+      y = y >> diff;
+    }
+
+    return _MbtilesZoneImageProvider(
+      dbPath: dbPath,
+      coords: TileCoordinates(x, y, z),
+    );
   }
 }
 

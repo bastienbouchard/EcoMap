@@ -2,6 +2,13 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ecomap/services/mbtiles_service.dart';
 
+// Miroir de la logique de clamping dans MbtilesZoneTileProvider.getImage()
+({int z, int x, int y}) clampToNativeZoom(int z, int x, int y, int maxZ) {
+  if (z <= maxZ) return (z: z, x: x, y: y);
+  final diff = z - maxZ;
+  return (z: maxZ, x: x >> diff, y: y >> diff);
+}
+
 // Miroir des fonctions privées de MbtilesService pour les tester directement
 int _tmsY(int xyzY, int z) => (1 << z) - 1 - xyzY;
 int _lonToX(double lon, int z) => ((lon + 180) / 360 * (1 << z)).floor();
@@ -122,6 +129,52 @@ void main() {
       final c17 = MbtilesService.estimateTileCount(args.$1, args.$2, args.$3, args.$4, maxZoom: 17);
       expect(c14, lessThan(c16));
       expect(c16, lessThan(c17));
+    });
+  });
+
+  group('clampToNativeZoom (MbtilesZoneTileProvider)', () {
+    test('z == maxNativeZoom → aucun changement', () {
+      final r = clampToNativeZoom(16, 100, 200, 16);
+      expect(r.z, 16); expect(r.x, 100); expect(r.y, 200);
+    });
+
+    test('z < maxNativeZoom → aucun changement', () {
+      final r = clampToNativeZoom(12, 50, 80, 16);
+      expect(r.z, 12); expect(r.x, 50); expect(r.y, 80);
+    });
+
+    test('z = maxNativeZoom + 1 → tuile parente correcte', () {
+      // z=17 → z=16 : x/y divisés par 2
+      final r = clampToNativeZoom(17, 100, 200, 16);
+      expect(r.z, 16);
+      expect(r.x, 50);   // 100 >> 1
+      expect(r.y, 100);  // 200 >> 1
+    });
+
+    test('z = maxNativeZoom + 2 → x/y divisés par 4', () {
+      final r = clampToNativeZoom(18, 200, 400, 16);
+      expect(r.z, 16);
+      expect(r.x, 50);   // 200 >> 2
+      expect(r.y, 100);  // 400 >> 2
+    });
+
+    test('couvre bien zoom 17–22 avec maxNativeZoom=16', () {
+      // Pour chaque zoom d'affichage > 16, la tuile clamée doit être dans
+      // la plage valide de z=16 (0 à 2^16-1)
+      const maxZ = 16;
+      final maxTile = (1 << maxZ) - 1;
+      for (int displayZ = 17; displayZ <= 22; displayZ++) {
+        final diff = displayZ - maxZ;
+        // Tuile au coin bas-droit du niveau displayZ
+        final bigX = (1 << displayZ) - 1;
+        final bigY = (1 << displayZ) - 1;
+        final r = clampToNativeZoom(displayZ, bigX, bigY, maxZ);
+        expect(r.z, maxZ);
+        expect(r.x, inInclusiveRange(0, maxTile),
+            reason: 'x hors plage à displayZ=$displayZ');
+        expect(r.y, inInclusiveRange(0, maxTile),
+            reason: 'y hors plage à displayZ=$displayZ');
+      }
     });
   });
 
