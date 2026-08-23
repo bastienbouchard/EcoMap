@@ -29,8 +29,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
   // Sélection des couches à télécharger
   bool _selEco = true; // obligatoire
-  bool _selEsri = true;
-  bool _selMapbox = true;
+  bool _selSat = true;  // ESRI + Mapbox
   bool _selTopo = true;
 
   // Progression
@@ -115,9 +114,9 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
 
       // 2. Tuiles satellite/topo selon sélection
       final sources = <Map<String, String>>[
-        if (_selEsri)   {'label': 'Satellite ESRI',    'url': _satUrl('esri')},
-        if (_selMapbox) {'label': 'Satellite Mapbox',  'url': _satUrl('mapbox')},
-        if (_selTopo)   {'label': 'Relief topo',       'url': _satUrl('topo')},
+        if (_selSat) {'label': 'Photos satellite (1/2)', 'url': _satUrl('esri')},
+        if (_selSat) {'label': 'Photos satellite (2/2)', 'url': _satUrl('mapbox')},
+        if (_selTopo) {'label': 'Relief et sentiers',    'url': _satUrl('topo')},
       ];
       final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
       if (satCount <= 3000) {
@@ -245,14 +244,10 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Couches à télécharger', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
             const SizedBox(height: 8),
-            Row(children: [
-              _chip('🌿 Carte éco', true, null), // obligatoire
-              const SizedBox(width: 8),
-              _chip('🛰️ ESRI', _selEsri, (v) => setState(() => _selEsri = v)),
-              const SizedBox(width: 8),
-              _chip('🛰️ Mapbox', _selMapbox, (v) => setState(() => _selMapbox = v)),
-              const SizedBox(width: 8),
-              _chip('⛰️ Relief', _selTopo, (v) => setState(() => _selTopo = v)),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              _chip('🌿 Carte éco', true, null, subtitle: 'obligatoire'),
+              _chip('🛰️ Photos satellite', _selSat, (v) => setState(() => _selSat = v), subtitle: 'vue aérienne'),
+              _chip('⛰️ Relief et sentiers', _selTopo, (v) => setState(() => _selTopo = v), subtitle: 'topographie'),
             ]),
             const SizedBox(height: 12),
             _downloading
@@ -329,24 +324,35 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     );
   }
 
-  Widget _chip(String label, bool active, ValueChanged<bool>? onChanged) {
+  Widget _chip(String label, bool active, ValueChanged<bool>? onChanged, {String? subtitle}) {
     return GestureDetector(
       onTap: onChanged == null ? null : () => onChanged(!active),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: active ? const Color(0xFF2D3A2D) : const Color(0xFF2A2A2A),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: active ? const Color(0xFF4CAF50).withOpacity(0.7) : Colors.white12,
           ),
         ),
-        child: Text(label,
-            style: TextStyle(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            if (active)
+              const Icon(Icons.check_rounded, color: Color(0xFF4CAF50), size: 13),
+            if (active) const SizedBox(width: 4),
+            Text(label, style: TextStyle(
               color: active ? Colors.white : Colors.white38,
               fontSize: 12,
               fontWeight: active ? FontWeight.w600 : FontWeight.normal,
             )),
+          ]),
+          if (subtitle != null)
+            Text(subtitle, style: TextStyle(
+              color: active ? Colors.white38 : Colors.white24,
+              fontSize: 10,
+            )),
+        ]),
       ),
     );
   }
