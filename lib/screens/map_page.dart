@@ -249,6 +249,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   int _offlineMaxZoom = 16;
   String? _activeZonePath;     // chemin .mbtiles satellite de la zone active
   String? _activeTopoPath;     // chemin .mbtiles topo de la zone active
+  String? _activeBasePath;     // chemin .mbtiles carte de base OSM de la zone active
+
+  // Quel fichier .mbtiles afficher selon le mode courant
+  String? get _currentOfflinePath {
+    if (!_satellite && _activeBasePath != null) return _activeBasePath;
+    if (_satSource == 'topo' && _activeTopoPath != null) return _activeTopoPath;
+    return _activeZonePath ?? _activeTopoPath ?? _activeBasePath;
+  }
   bool _showOfflineBanner = true;
   bool _showDownloadTip = true;
   StreamSubscription<bool>? _connectivitySub;
@@ -273,9 +281,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       if (name == null) return;
       final satPath  = await MbtilesService.pathFor(name);
       final topoPath = await MbtilesService.pathFor('${name}_topo');
+      final basePath = await MbtilesService.pathFor('${name}_base');
       if (mounted) setState(() {
         if (File(satPath).existsSync())  _activeZonePath = satPath;
         if (File(topoPath).existsSync()) _activeTopoPath = topoPath;
+        if (File(basePath).existsSync()) _activeBasePath = basePath;
       });
     });
     _connectivitySub = ConnectivityService.onStatusChange.listen((online) {
@@ -2775,16 +2785,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         },
       ),
       children: [
-        if (!_isOnline && (_activeZonePath != null || _activeTopoPath != null))
+        if (!_isOnline && _currentOfflinePath != null)
           TileLayer(
-            key: ValueKey('mbtiles-${_satSource == 'topo' ? _activeTopoPath : _activeZonePath}-$_tileEpoch'),
+            key: ValueKey('mbtiles-$_currentOfflinePath-$_tileEpoch'),
             maxNativeZoom: _offlineMaxZoom,
             maxZoom: 22,
-            tileProvider: MbtilesZoneTileProvider(
-              (_satSource == 'topo' && _activeTopoPath != null)
-                  ? _activeTopoPath!
-                  : _activeZonePath ?? _activeTopoPath!,
-            ),
+            tileProvider: MbtilesZoneTileProvider(_currentOfflinePath!),
             tileBuilder: (context, child, tile) {
               if (tile.readyToDisplay) {
                 _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
@@ -4164,9 +4170,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     if (name == null || !mounted) return;
                     final satPath  = await MbtilesService.pathFor(name);
                     final topoPath = await MbtilesService.pathFor('${name}_topo');
+                    final basePath = await MbtilesService.pathFor('${name}_base');
                     if (mounted) setState(() {
                       if (File(satPath).existsSync())  _activeZonePath = satPath;
                       if (File(topoPath).existsSync()) _activeTopoPath = topoPath;
+                      if (File(basePath).existsSync()) _activeBasePath = basePath;
                     });
                   });
                 },
@@ -4916,9 +4924,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     if (name == null || !mounted) return;
                     final satPath  = await MbtilesService.pathFor(name);
                     final topoPath = await MbtilesService.pathFor('${name}_topo');
+                    final basePath = await MbtilesService.pathFor('${name}_base');
                     if (mounted) setState(() {
                       if (File(satPath).existsSync())  _activeZonePath = satPath;
                       if (File(topoPath).existsSync()) _activeTopoPath = topoPath;
+                      if (File(basePath).existsSync()) _activeBasePath = basePath;
                     });
                   });
                 }, active: false),

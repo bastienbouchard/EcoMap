@@ -240,6 +240,30 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         }
       }
 
+      // 4. Carte de base (OSM) — obligatoire pour la navigation hors réseau
+      {
+        final baseCount = MbtilesService.estimateTileCount(
+            minLat, minLon, maxLat, maxLon, maxZoom: _maxZoom);
+        if (baseCount <= _tileLimit) {
+          if (mounted) setState(() { _progress = 0; _status = 'Carte de base (OSM)…'; });
+          try {
+            await MbtilesService.downloadZone(
+              name: '${nom}_base',
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              minLat: minLat, minLon: minLon,
+              maxLat: maxLat, maxLon: maxLon,
+              maxZoom: _maxZoom,
+              onProgress: (done, total, s) {
+                if (mounted) setState(() {
+                  _progress = total > 0 ? done / total : null;
+                  _status = 'Base OSM · $s';
+                });
+              },
+            );
+          } catch (_) {}
+        }
+      }
+
       await TerritoireService.setActiveTerritoire(nom);
       await MbtilesService.setActiveZone(nom);
       final prefs = await SharedPreferences.getInstance();
@@ -285,6 +309,8 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     );
     if (ok != true) return;
     await MbtilesService.deleteZone(name);
+    await MbtilesService.deleteZone('${name}_topo');
+    await MbtilesService.deleteZone('${name}_base');
     await TerritoireService.deleteTerritoire(name);
     await _loadZones();
   }
@@ -355,6 +381,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
               _chip('🌿 Carte éco', true, null, subtitle: 'obligatoire'),
+              if (!widget.ecoOnly) _chip('🗺️ Carte de base', true, null, subtitle: 'OSM offline'),
               if (!widget.ecoOnly) _chip('🛰️ Photos satellite', _selSat,
                   (v) => setState(() => _selSat = v), subtitle: 'fichier .mbtiles'),
               if (!widget.ecoOnly) _chip('⛰️ Relief et sentiers', _selTopo,

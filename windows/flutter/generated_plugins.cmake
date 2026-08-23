@@ -7,6 +7,8 @@ list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
   firebase_core
   geolocator_windows
+  pdfx
+  permission_handler_windows
   url_launcher_windows
 )
 

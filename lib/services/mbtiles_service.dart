@@ -196,7 +196,11 @@ class MbtilesService {
   static Future<List<MbtilesZone>> listZones() async {
     final d = await _dir();
     if (!d.existsSync()) return [];
-    final files = d.listSync().whereType<File>().where((f) => f.path.endsWith('.mbtiles'));
+    // Exclure les variantes _topo et _base — elles appartiennent à leur zone principale
+    final files = d.listSync().whereType<File>().where((f) =>
+        f.path.endsWith('.mbtiles') &&
+        !f.path.endsWith('_topo.mbtiles') &&
+        !f.path.endsWith('_base.mbtiles'));
     final zones = <MbtilesZone>[];
     for (final f in files) {
       final name = f.path.split('/').last.replaceAll('.mbtiles', '');
