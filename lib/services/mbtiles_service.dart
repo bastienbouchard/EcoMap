@@ -228,6 +228,18 @@ class MbtilesService {
     if (prefs.getString(_kActiveZone) == name) await prefs.remove(_kActiveZone);
   }
 
+  static Future<int> getMaxZoom(String path) async {
+    if (!File(path).existsSync()) return 16;
+    try {
+      final db = await _openDb(path);
+      final rows = await db.query('metadata', where: 'name=?', whereArgs: ['maxzoom']);
+      if (rows.isNotEmpty) {
+        return int.tryParse(rows.first['value'] as String? ?? '') ?? 16;
+      }
+    } catch (_) {}
+    return 16;
+  }
+
   static Future<void> setActiveZone(String name) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kActiveZone, name);
