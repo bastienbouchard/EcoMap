@@ -301,7 +301,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   double totalDist = 0;
   int totalScore = 0, nbPoints = 0, blockedAttempts = 0;
   int waterBlockCount = 0, terrainBlockCount = 0;
-  final stepDist = targetDist / 28;
+  final stepDist = targetDist / 14;
 
   String habitatKey(Map props) =>
       '${props['type_couv'] ?? ''}_${props['gr_ess'] ?? ''}_${props['cl_age'] ?? ''}';
@@ -382,17 +382,9 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   // Direction face au vent — contrainte principale (jamais dans le dos du vent)
   final upwindRad = windRad;
 
-  // État d'ondulation — alterne gauche/droite, se retourne aux transitions
-  int oscillationDir = 1;
-  int stepsInDir = 0;
-  const phaseSteps = 3;
+  double? prevAngle;
 
-  for (int step = 0; step < 80 && totalDist < targetDist; step++) {
-    stepsInDir++;
-    if (stepsInDir >= phaseSteps) {
-      oscillationDir = -oscillationDir;
-      stepsInDir = 0;
-    }
+  for (int step = 0; step < 30 && totalDist < targetDist; step++) {
 
     // Direction vers le hotspot le plus proche, pour bonus secondaire
     double? hotspotRad;
@@ -474,8 +466,13 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
         else if (hotNorm.abs() < 90) hotspotBonus = 5;
       }
 
-      // 4. Bonus ondulation — zigzag marqué pour longer les lisières
-      final oscBonus = (angleDelta * oscillationDir > 10) ? 8 : 0;
+      // 4. Bonus momentum — préfère continuer dans la direction précédente
+      int oscBonus = 0;
+      if (prevAngle != null) {
+        final md = ((angle - prevAngle!) * 180 / pi + 540) % 360 - 180;
+        if (md.abs() < 20) oscBonus = 10;
+        else if (md.abs() < 45) oscBonus = 5;
+      }
 
       // 5. Bonus lisière F↔B — dominant (transitions feuillu↔résineux/humide)
       int transBonus = 0;
@@ -537,13 +534,12 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
           LengthUnit.Meter, LatLng(curLat, curLon), LatLng(bestLat, bestLon));
       totalDist += dist;
       points.add([bestLat, bestLon]);
+      prevAngle = atan2(
+        (bestLon! - curLon) / cos(curLat * pi / 180),
+        bestLat! - curLat,
+      );
       curLat = bestLat;
       curLon = bestLon;
-      // Retourne l'oscillation à chaque croisement de lisière (zigzag organique)
-      if (bestHabitat.isNotEmpty && bestHabitat != currentHabitat && stepsInDir >= 2) {
-        oscillationDir = -oscillationDir;
-        stepsInDir = 0;
-      }
       currentHabitat = bestHabitat;
       currentType = bestType;
       totalScore += bestScore.clamp(0, 999);
