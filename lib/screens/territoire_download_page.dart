@@ -125,7 +125,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         if (_selTopo) {'label': 'Relief et sentiers',      'url': _satUrl('topo')},
       ];
       final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
-      if (satCount <= 3000) {
+      if (satCount <= 15000) {
         for (int i = 0; i < sources.length; i++) {
           final src = sources[i];
           if (src['url']!.isEmpty) continue;
