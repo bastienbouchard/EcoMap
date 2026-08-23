@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -48,11 +49,44 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   List<Map<String, dynamic>> _zones = [];
   String? _activeId;
 
+  // Estimation de la zone visible
+  StreamSubscription<MapEvent>? _mapSub;
+  Timer? _estimateDebounce;
+  int _estTilesPerSource = 0;
+  bool _zoneTooLarge = false;
+
   @override
   void initState() {
     super.initState();
     if (widget.ecoOnly) { _selSat = false; _selTopo = false; }
     _loadZones();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateEstimate();
+      _mapSub = _mapController.mapEventStream.listen((_) {
+        _estimateDebounce?.cancel();
+        _estimateDebounce = Timer(const Duration(milliseconds: 300), _updateEstimate);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _mapSub?.cancel();
+    _estimateDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _updateEstimate() {
+    if (!mounted) return;
+    try {
+      final b = _mapController.camera.visibleBounds;
+      final count = SatelliteCacheService.estimateTileCount(
+          b.south, b.west, b.north, b.east, maxZoom: _maxZoom);
+      setState(() {
+        _estTilesPerSource = count;
+        _zoneTooLarge = count > _tileLimit;
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadZones() async {
@@ -260,7 +294,36 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               const SizedBox(width: 8),
               _zoomChip('Très précis', 17, 'long'),
             ]),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            if (_estTilesPerSource > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _zoneTooLarge ? const Color(0xFF3A1A00) : const Color(0xFF1E2A1E),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _zoneTooLarge ? Colors.orange.withOpacity(0.5) : const Color(0xFF4CAF50).withOpacity(0.3),
+                  ),
+                ),
+                child: Row(children: [
+                  Icon(
+                    _zoneTooLarge ? Icons.warning_amber_rounded : Icons.info_outline_rounded,
+                    size: 14,
+                    color: _zoneTooLarge ? Colors.orange : const Color(0xFF4CAF50),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(
+                    _zoneTooLarge
+                        ? 'Zone trop grande — dézoom ou réduis la précision'
+                        : '~$_estTilesPerSource tuiles/source · Dézoom pour agrandir la zone',
+                    style: TextStyle(
+                      color: _zoneTooLarge ? Colors.orange : Colors.white54,
+                      fontSize: 11,
+                    ),
+                  )),
+                ]),
+              ),
+            const SizedBox(height: 10),
             _downloading
                 ? Column(children: [
                     LinearProgressIndicator(
@@ -354,7 +417,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     final active = _maxZoom == zoom;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _maxZoom = zoom),
+        onTap: () { setState(() => _maxZoom = zoom); _updateEstimate(); },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 7),
           decoration: BoxDecoration(
