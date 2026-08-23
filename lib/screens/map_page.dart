@@ -262,6 +262,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     WidgetsBinding.instance.addObserver(this);
     _layersGlowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
     _layersGlowAnim = Tween<double>(begin: 0, end: 1).animate(_layersGlowCtrl);
+    // La valeur initiale sera corrigée rapidement par le premier callback de listenToConnectivity
     _isOnline = ConnectivityService.isOnline;
     SatelliteCacheService.isOnline = _isOnline;
     SharedPreferences.getInstance().then((p) {
