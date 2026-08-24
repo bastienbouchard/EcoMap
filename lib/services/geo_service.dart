@@ -371,8 +371,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
                 type: habitatType(props), blocked: false);
       }
     }
-    // Hors de tout polygone = zone sans couverture éco (route, découvert) → destination invalide
-    return (score: 0, habitat: '', type: 'X', blocked: true);
+    // Hors polygone = route/découvert → traversable, score nul
+    return (score: 0, habitat: '', type: 'X', blocked: false);
   }
 
   final startEval = evalPoint(lat, lon);
