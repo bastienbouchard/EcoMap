@@ -416,17 +416,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
     }
 
-    // Direction de référence : direction précédente + attraction douce vers le vent (15%/pas)
-    final double preferredDir;
-    if (prevAngle != null) {
-      double diff = (upwindRad - prevAngle!) % (2 * pi);
-      if (diff > pi) diff -= 2 * pi;
-      if (diff < -pi) diff += 2 * pi;
-      preferredDir = prevAngle! + diff * 0.15;
-    } else {
-      preferredDir = upwindRad;
-    }
-    // Sans vent : explore 360°. Avec vent : ±60° autour direction précédente (±80° sur lisière).
+    // Sans vent : explore 360°. Avec vent : ±60° face au vent (±80° sur lisière).
     final maxDelta = hasWind ? (nearStrongEdge ? 80.0 : 60.0) : 180.0;
 
     int bestScore = -1;
@@ -436,7 +426,14 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     String bestType = 'X';
 
     for (double angleDelta = -maxDelta; angleDelta <= maxDelta; angleDelta += 7.5) {
-      final angle = preferredDir + angleDelta * pi / 180;
+      final angle = upwindRad + angleDelta * pi / 180;
+
+      // Anti-demi-tour : rejette tout candidat à plus de 90° de la direction précédente
+      if (prevAngle != null) {
+        final chg = ((angle - prevAngle!) * 180 / pi + 540) % 360 - 180;
+        if (chg.abs() > 90) continue;
+      }
+
       final sLat = (stepDist / 111000) * cos(angle);
       final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
       final cLat = curLat + sLat;
@@ -519,7 +516,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     // Fallback: si aucune direction dans ±maxDelta n'est passable, cherche dans ±180°
     if (bestLat == null) {
       for (double ad = -180; ad <= 180; ad += 15) {
-        final angle = preferredDir + ad * pi / 180;
+        final angle = upwindRad + ad * pi / 180;
         final sLat = (stepDist / 111000) * cos(angle);
         final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
         final cLat = curLat + sLat;
