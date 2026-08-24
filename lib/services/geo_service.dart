@@ -416,8 +416,18 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
     }
 
-    // Sans données de vent : explore 360°. Avec vent : ±60° face au vent (±80° sur lisière).
-    final maxDelta = hasWind ? (nearStrongEdge ? 80.0 : 60.0) : 180.0;
+    // Direction de référence : direction précédente + attraction douce vers le vent (15%/pas)
+    final double preferredDir;
+    if (prevAngle != null) {
+      double diff = (upwindRad - prevAngle!) % (2 * pi);
+      if (diff > pi) diff -= 2 * pi;
+      if (diff < -pi) diff += 2 * pi;
+      preferredDir = prevAngle! + diff * 0.15;
+    } else {
+      preferredDir = upwindRad;
+    }
+    // Sans vent : explore 360°. Avec vent : ±35° autour direction précédente (±50° sur lisière).
+    final maxDelta = hasWind ? (nearStrongEdge ? 50.0 : 35.0) : 180.0;
 
     int bestScore = -1;
     double? bestLat, bestLon;
@@ -426,7 +436,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     String bestType = 'X';
 
     for (double angleDelta = -maxDelta; angleDelta <= maxDelta; angleDelta += 7.5) {
-      final angle = upwindRad + angleDelta * pi / 180;
+      final angle = preferredDir + angleDelta * pi / 180;
       final sLat = (stepDist / 111000) * cos(angle);
       final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
       final cLat = curLat + sLat;
@@ -466,13 +476,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
         else if (hotNorm.abs() < 90) hotspotBonus = 5;
       }
 
-      // 4. Bonus momentum — préfère continuer dans la direction précédente
-      int oscBonus = 0;
-      if (prevAngle != null) {
-        final md = ((angle - prevAngle!) * 180 / pi + 540) % 360 - 180;
-        if (md.abs() < 20) oscBonus = 10;
-        else if (md.abs() < 45) oscBonus = 5;
-      }
+      const oscBonus = 0;
 
       // 5. Bonus lisière F↔B — dominant (transitions feuillu↔résineux/humide)
       int transBonus = 0;
@@ -515,7 +519,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     // Fallback: si aucune direction dans ±maxDelta n'est passable, cherche dans ±180°
     if (bestLat == null) {
       for (double ad = -180; ad <= 180; ad += 15) {
-        final angle = upwindRad + ad * pi / 180;
+        final angle = preferredDir + ad * pi / 180;
         final sLat = (stepDist / 111000) * cos(angle);
         final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
         final cLat = curLat + sLat;
