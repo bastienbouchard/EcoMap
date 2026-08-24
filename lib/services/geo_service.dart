@@ -426,8 +426,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     } else {
       preferredDir = upwindRad;
     }
-    // Sans vent : explore 360°. Avec vent : ±35° autour direction précédente (±50° sur lisière).
-    final maxDelta = hasWind ? (nearStrongEdge ? 50.0 : 35.0) : 180.0;
+    // Sans vent : explore 360°. Avec vent : ±60° autour direction précédente (±80° sur lisière).
+    final maxDelta = hasWind ? (nearStrongEdge ? 80.0 : 60.0) : 180.0;
 
     int bestScore = -1;
     double? bestLat, bestLon;
