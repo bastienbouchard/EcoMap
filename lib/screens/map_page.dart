@@ -4180,30 +4180,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               active: _ecoOpacity > 0,
               color: const Color(0xFFFF6B35),
               opacity: _ecoOpacity,
-              onToggle: () => setState(() => _ecoOpacity = _ecoOpacity > 0 ? 0 : 0.5),
+              onToggle: () {
+                setState(() => _showLayerPanel = false);
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => TerritoireDownloadPage(
+                    initialCenter: _mapController.camera.center,
+                    initialZoom: _mapController.camera.zoom,
+                    satUrlTemplate: null,
+                    satSource: null,
+                    mapboxToken: _mapboxToken,
+                    ecoOnly: true,
+                  ),
+                )).then((_) => _reloadTerritoire());
+              },
               onSlider: (v) => setState(() => _ecoOpacity = v),
-              trailing: GestureDetector(
-                onTap: () async {
-                  setState(() => _showLayerPanel = false);
-                  await Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => TerritoireDownloadPage(
-                      initialCenter: _mapController.camera.center,
-                      initialZoom: _mapController.camera.zoom,
-                      satUrlTemplate: null,
-                      satSource: null,
-                      mapboxToken: _mapboxToken,
-                      ecoOnly: true,
-                    ),
-                  ));
-                  _reloadTerritoire();
-                },
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (_ecoOpacity > 0) Text('${(_ecoOpacity * 100).round()}%',
-                      style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                  const SizedBox(width: 6),
-                  const Icon(Icons.download_outlined, color: Colors.white38, size: 15),
-                ]),
-              ),
             ),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
