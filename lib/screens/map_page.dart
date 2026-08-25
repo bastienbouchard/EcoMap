@@ -665,16 +665,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   void _handleMapTap(LatLng point) {
-    if (_measuringMode) {
-      setState(() => _measurePoints.add(point));
-      return;
-    }
     if (_showActionPanel || _showNavPanel || _showLayerPanel) {
       setState(() {
         _showActionPanel = false;
         _showNavPanel = false;
         _showLayerPanel = false;
       });
+      return;
+    }
+    if (_measuringMode) {
+      setState(() => _measurePoints.add(point));
       return;
     }
     if (!_showTerresPrivees || _cadastreRings.isEmpty) return;
@@ -2659,7 +2659,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
           if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
           if (_measuringMode) Positioned(
-            top: 56, left: 16, right: 16,
+            top: MediaQuery.of(context).padding.top + 64,
+            left: 16, right: 16,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
