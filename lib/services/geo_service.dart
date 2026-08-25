@@ -560,6 +560,11 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       ? (totalScore / nbPoints / scoreMaxPossible * 100).clamp(0.0, 100.0)
       : 0.0;
 
+  // Détecte si la zone n'est pas couverte par la carte éco (tout hors-polygone)
+  if (totalScore == 0 && features.isNotEmpty) {
+    return {'points': <List<double>>[], 'scorePct': 0.0, 'blockReason': 'no_eco'};
+  }
+
   String blockReason = '';
   if (points.length < 5) {
     if (waterBlockCount > terrainBlockCount) {

@@ -845,12 +845,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         _parcoursBlocked = points.length < 5;
         _loadingParcours = false;
       });
-      if (points.length < 5) {
+      if (blockReason == 'no_eco') {
+        _snack('Télécharge une carte écoforestière pour cette zone avant de générer un parcours', error: true);
+      } else if (points.length < 5) {
         final msg = blockReason == 'eau'
             ? 'Parcours bloqué par un cours d\'eau — essaie une autre position de départ'
-            : blockReason == 'terrain'
-                ? 'Parcours bloqué par le terrain — essaie une zone avec plus de forêt'
-                : 'Parcours limité — télécharge une carte écoforestière plus large';
+            : 'Parcours bloqué par le terrain — essaie une zone avec plus de forêt';
         _snack(msg, error: true);
       }
     } catch (e) {
