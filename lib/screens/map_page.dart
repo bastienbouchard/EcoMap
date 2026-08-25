@@ -807,7 +807,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Future<void> _genererParcours() async {
     final features = (geoJson['features'] as List?) ?? [];
     if (features.isEmpty) {
-      _snack('Télécharge d\'abord une carte écoforestière via "Carte éco"', error: true);
+      _snack('Désolé, impossible de créer un parcours — Carte éco manquante', error: true);
       return;
     }
     setState(() => _loadingParcours = true);
@@ -846,17 +846,17 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         _loadingParcours = false;
       });
       if (blockReason == 'no_eco') {
-        _snack('Télécharge une carte écoforestière pour cette zone avant de générer un parcours', error: true);
+        _snack('Désolé, impossible de créer un parcours — Carte éco manquante pour cette zone', error: true);
       } else if (points.length < 5) {
         final msg = blockReason == 'eau'
-            ? 'Parcours bloqué par un cours d\'eau — essaie une autre position de départ'
-            : 'Parcours bloqué par le terrain — essaie une zone avec plus de forêt';
+            ? 'Désolé, impossible de créer un parcours — Cours d\'eau en travers'
+            : 'Désolé, impossible de créer un parcours — Terrain trop restrictif';
         _snack(msg, error: true);
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingParcours = false);
-      _snack('Télécharge d\'abord une carte écoforestière via "Carte éco"', error: true);
+      _snack('Désolé, impossible de créer un parcours — Erreur inattendue', error: true);
     }
   }
 
