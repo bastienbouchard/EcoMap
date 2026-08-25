@@ -413,12 +413,25 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
     }
 
-    // Ondulation sinusoïdale douce — S-curve naturelle, période 8 étapes (≈ ~560m pour 1km)
-    final swingRad = hasWind ? 18.0 * sin(step * pi / 4) * pi / 180 : 0.0;
-    final sweepCenter = upwindRad + swingRad;
+    // Ondulation sinusoïdale douce — S-curve naturelle, période 8 étapes
+    final swingRad = 18.0 * sin(step * pi / 4) * pi / 180;
 
-    // Sans vent : explore 360°. Avec vent : ±60° autour du centre oscillant (±80° sur lisière).
-    final maxDelta = hasWind ? (nearStrongEdge ? 80.0 : 60.0) : 180.0;
+    // Centre du sweep et amplitude selon le mode
+    final double sweepCenter;
+    final double maxDelta;
+    if (hasWind) {
+      // En ligne : centré face au vent + ondulation
+      sweepCenter = upwindRad + swingRad;
+      maxDelta = nearStrongEdge ? 80.0 : 60.0;
+    } else if (prevAngle != null) {
+      // Hors réseau : momentum (direction précédente) + ondulation, ±80°
+      sweepCenter = prevAngle! + swingRad;
+      maxDelta = nearStrongEdge ? 100.0 : 80.0;
+    } else {
+      // Premier pas hors réseau : explore tout pour trouver le meilleur peuplement
+      sweepCenter = 0;
+      maxDelta = 180.0;
+    }
 
     int bestScore = -1;
     double? bestLat, bestLon;
