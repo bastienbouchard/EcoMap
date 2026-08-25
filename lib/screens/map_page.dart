@@ -189,6 +189,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   StreamSubscription? _groupePinsSub;
   LatLng? _coordPreview;
 
+  // ── Mesure de distance ──
+  bool _measuringMode = false;
+  List<LatLng> _measurePoints = [];
+
   // ── Affût (pinch points) ──
   bool _showPinchPoints = false;
   bool _loadingPinch = false;
@@ -661,6 +665,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   void _handleMapTap(LatLng point) {
+    if (_measuringMode) {
+      setState(() => _measurePoints.add(point));
+      return;
+    }
     if (_showActionPanel || _showNavPanel || _showLayerPanel) {
       setState(() {
         _showActionPanel = false;
@@ -2285,6 +2293,17 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     );
   }
 
+  String _measureDistanceText() {
+    if (_measurePoints.length < 2) return '— m';
+    double total = 0;
+    for (int i = 0; i < _measurePoints.length - 1; i++) {
+      total += const Distance().as(LengthUnit.Meter, _measurePoints[i], _measurePoints[i + 1]);
+    }
+    return total >= 1000
+        ? '${(total / 1000).toStringAsFixed(2)} km'
+        : '${total.round()} m';
+  }
+
   double _trackDistanceM(List<LatLng> pts) {
     double total = 0;
     for (int i = 0; i < pts.length - 1; i++) {
@@ -2639,6 +2658,38 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           _buildNavPanel(),
           if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
           if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
+          if (_measuringMode) Positioned(
+            top: 56, left: 16, right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A).withOpacity(0.92),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFFEB3B).withOpacity(0.6)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.straighten, color: Color(0xFFFFEB3B), size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  _measurePoints.length < 2
+                      ? 'Touche la carte pour placer des points'
+                      : _measureDistanceText(),
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                if (_measurePoints.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => setState(() => _measurePoints.clear()),
+                    child: const Icon(Icons.refresh, color: Colors.white54, size: 20),
+                  ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => setState(() { _measuringMode = false; _measurePoints.clear(); }),
+                  child: const Icon(Icons.close, color: Colors.white54, size: 20),
+                ),
+              ]),
+            ),
+          ),
           if (_showLayerPanel) _buildLayerPanel(),
           if (_downloadingZone) Positioned(
             bottom: 130,
@@ -2969,6 +3020,32 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           ]),
         if (_observations.isNotEmpty) _buildObservationMarkers(),
         if (_pinnedPoints.isNotEmpty || _groupePins.isNotEmpty) _buildPinnedLayer(),
+        if (_measuringMode && _measurePoints.length >= 2)
+          PolylineLayer(polylines: [
+            Polyline(
+              points: _measurePoints,
+              color: const Color(0xFFFFEB3B),
+              strokeWidth: 2.5,
+              borderColor: Colors.black45,
+              borderStrokeWidth: 1,
+            ),
+          ]),
+        if (_measuringMode && _measurePoints.isNotEmpty)
+          MarkerLayer(markers: _measurePoints.asMap().entries.map((e) => Marker(
+            point: e.value,
+            width: 18, height: 18,
+            child: Container(
+              decoration: BoxDecoration(
+                color: e.key == 0
+                    ? const Color(0xFF4CAF50)
+                    : e.key == _measurePoints.length - 1
+                        ? const Color(0xFFFFEB3B)
+                        : Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black54, width: 2),
+              ),
+            ),
+          )).toList()),
         if (_coordPreview != null) MarkerLayer(markers: [
           Marker(
             point: _coordPreview!,
@@ -4845,6 +4922,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     loading: _loading),
                 mapDividerV(),
                 mapIconBtn(Icons.search_rounded, _showCoordsSearch),
+                mapDividerV(),
+                mapIconBtn(
+                  Icons.straighten,
+                  () => setState(() {
+                    if (_measuringMode) {
+                      _measuringMode = false;
+                      _measurePoints.clear();
+                    } else {
+                      _measuringMode = true;
+                    }
+                  }),
+                  active: _measuringMode,
+                  activeColor: const Color(0xFFFFEB3B),
+                ),
                 mapDividerV(),
                 mapIconBtn(Icons.download_for_offline_outlined, () async {
                   setState(() => _showLayerPanel = false);
