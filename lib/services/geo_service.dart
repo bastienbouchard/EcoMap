@@ -329,12 +329,9 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     final grEss    = (props['gr_ess']   ?? '').toString().toUpperCase();
     final clAge    = (props['cl_age']   ?? '').toString().toUpperCase();
     if (typeEco.contains('EAU') || typeEco.contains('RIV') ||
-        typeEco.contains('LAC') || typeEco.startsWith('RE') ||
+        typeEco.contains('LAC') ||
         codeCouv == 'EE' || codeCouv.contains('EAU') ||
-        typeCouv == 'EAU' || typeCouv == 'IN' ||
-        depSur.startsWith('7') || depSur.startsWith('8')) return true;
-    // Polygone sans aucun attribut végétal = eau / roc / non-classifié → obstacle
-    if (typeEco.isEmpty && typeCouv.isEmpty && grEss.isEmpty && clAge.isEmpty) return true;
+        typeCouv == 'EAU') return true;
     return false;
   }
 
@@ -416,7 +413,11 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
     }
 
-    // Sans vent : explore 360°. Avec vent : ±60° face au vent (±80° sur lisière).
+    // Ondulation sinusoïdale douce — S-curve naturelle, période 8 étapes (≈ ~560m pour 1km)
+    final swingRad = hasWind ? 18.0 * sin(step * pi / 4) * pi / 180 : 0.0;
+    final sweepCenter = upwindRad + swingRad;
+
+    // Sans vent : explore 360°. Avec vent : ±60° autour du centre oscillant (±80° sur lisière).
     final maxDelta = hasWind ? (nearStrongEdge ? 80.0 : 60.0) : 180.0;
 
     int bestScore = -1;
@@ -426,13 +427,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     String bestType = 'X';
 
     for (double angleDelta = -maxDelta; angleDelta <= maxDelta; angleDelta += 7.5) {
-      final angle = upwindRad + angleDelta * pi / 180;
-
-      // Anti-demi-tour : rejette tout candidat à plus de 90° de la direction précédente
-      if (prevAngle != null) {
-        final chg = ((angle - prevAngle!) * 180 / pi + 540) % 360 - 180;
-        if (chg.abs() > 90) continue;
-      }
+      final angle = sweepCenter + angleDelta * pi / 180;
 
       final sLat = (stepDist / 111000) * cos(angle);
       final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
@@ -460,8 +455,11 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
         else if (degDist < 800.0 / 111000) waterBonus = 2;
       }
 
-      // 2. Bonus vent : face au vent = max, perpendiculaire = 0 (ignoré sans données vent)
-      final windBonus = hasWind ? ((60 - angleDelta.abs()) / 60 * 5).round().clamp(0, 5) : 0;
+      // 2. Bonus vent : face au vent = max (mesuré depuis upwindRad, pas le centre oscillant)
+      final windDevDeg = hasWind
+          ? (((angle - upwindRad) * 180 / pi + 540) % 360 - 180).abs()
+          : 0.0;
+      final windBonus = hasWind ? ((60 - windDevDeg) / 60 * 5).round().clamp(0, 5) : 0;
 
       // 3. Bonus hotspot : attire fortement la route vers les zones actives
       int hotspotBonus = 0;
@@ -473,7 +471,13 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
         else if (hotNorm.abs() < 90) hotspotBonus = 5;
       }
 
-      const oscBonus = 0;
+      // 4. Bonus momentum — continuité douce (pas de filtre dur, juste une préférence)
+      int oscBonus = 0;
+      if (prevAngle != null) {
+        final chg = ((angle - prevAngle!) * 180 / pi + 540) % 360 - 180;
+        if (chg.abs() < 30) oscBonus = 8;
+        else if (chg.abs() < 60) oscBonus = 4;
+      }
 
       // 5. Bonus lisière F↔B — dominant (transitions feuillu↔résineux/humide)
       int transBonus = 0;
