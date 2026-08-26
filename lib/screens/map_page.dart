@@ -685,7 +685,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         return;
       }
     }
-    setState(() => _selectedCadastreLot = null);
   }
 
   Future<void> _downloadLotTerritoire() async {
@@ -3936,7 +3935,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         ? _cadastreNoLots[idx]
         : 'Lot sélectionné';
     return Positioned(
-      bottom: 60, left: 16,
+      bottom: 140, left: 16,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 240),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
