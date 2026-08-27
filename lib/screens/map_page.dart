@@ -32,6 +32,7 @@ import '../services/groupe_service.dart';
 import '../services/premium_service.dart';
 import '../services/territoire_service.dart';
 import '../services/satellite_cache_service.dart';
+import '../services/road_service.dart';
 import 'aide_page.dart';
 import '../widgets/hotspot_detail_sheet.dart';
 import '../widgets/map_controls.dart';
@@ -172,6 +173,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   // ── Carte écoforestière ──
   double _ecoOpacity = 0.7;
+
+  // ── Chemins forestiers ──
+  bool _showRoads = false;
+  double _roadsOpacity = 0.7;
+  List<Polyline> _roadPolylines = [];
+  bool _roadsLoading = false;
 
   // ── Parcours ──
   bool _showParcours = false;
@@ -586,6 +593,52 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       _rawHotspots = parsedHS;
       if (_showHotspots) _hotspots = _computeHotspots();
     });
+  }
+
+  Future<void> _loadRoads() async {
+    if (_roadPolylines.isNotEmpty) {
+      setState(() => _showRoads = true);
+      return;
+    }
+    setState(() { _roadsLoading = true; _showLayerPanel = false; });
+    try {
+      if (!await RoadService.isDownloaded()) {
+        await RoadService.download(
+          onStatus: (s) { if (mounted) setState(() {}); },
+        );
+      }
+      final segments = await RoadService.loadSegments();
+      if (!mounted) return;
+      const clColors = {
+        '02': Color(0xFFFF3B30),
+        '03': Color(0xFFFF9500),
+        '04': Color(0xFFFFD60A),
+        '05': Color(0xFFFFFFFF),
+        'HI': Color(0xFF8E8E93),
+      };
+      const clWidths = {
+        '02': 3.5,
+        '03': 2.5,
+        '04': 1.8,
+        '05': 1.2,
+        'HI': 1.0,
+      };
+      final polylines = segments.map((seg) => Polyline(
+        points: seg.points.map((p) => LatLng(p[0], p[1])).toList(),
+        color: clColors[seg.cl] ?? const Color(0xFFFFFFFF),
+        strokeWidth: clWidths[seg.cl] ?? 1.2,
+      )).toList();
+      setState(() {
+        _roadPolylines = polylines;
+        _showRoads = true;
+        _roadsLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _roadsLoading = false);
+        _snack('Erreur chemins forestiers: $e', error: true);
+      }
+    }
   }
 
   Future<void> _fetchCadastre() async {
@@ -2957,6 +3010,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       ))
                   .toList()),
           ),
+        if (_showRoads && _roadPolylines.isNotEmpty && _mapZoom >= 10)
+          Opacity(
+            opacity: _roadsOpacity,
+            child: PolylineLayer(polylines: _roadPolylines),
+          ),
         if (_showParcours && _parcours.isNotEmpty)
           PolylineLayer(polylines: [
             Polyline(
@@ -4201,6 +4259,27 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   setState(() { _showTerresPrivees = !_showTerresPrivees; _showLayerPanel = false; });
                   _fetchCadastre();
                 }),
+            _overlayRow(
+              icon: Icons.route_rounded,
+              label: 'Chemins forestiers',
+              active: _showRoads,
+              color: const Color(0xFFFF9500),
+              opacity: _roadsOpacity,
+              onToggle: () {
+                if (_roadsLoading) return;
+                if (!_showRoads && _roadPolylines.isEmpty) {
+                  _loadRoads();
+                } else {
+                  setState(() { _showRoads = !_showRoads; _showLayerPanel = false; });
+                }
+              },
+              onSlider: (v) => setState(() => _roadsOpacity = v),
+              trailing: _roadsLoading
+                  ? const SizedBox(
+                      width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white38))
+                  : null,
+            ),
             for (final pdfLayer in _pdfLayers) ...[
               _overlayRow(
                 icon: Icons.picture_as_pdf_rounded,
