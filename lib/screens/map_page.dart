@@ -177,8 +177,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   // ── Chemins forestiers ──
   bool _showRoads = false;
   double _roadsOpacity = 0.7;
+  List<_RoadSeg> _rawRoadSegs = [];
   List<Polyline> _roadPolylines = [];
   bool _roadsLoading = false;
+  Timer? _roadsDebounce;
 
   // ── Parcours ──
   bool _showParcours = false;
@@ -596,49 +598,79 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   Future<void> _loadRoads() async {
-    if (_roadPolylines.isNotEmpty) {
+    if (_rawRoadSegs.isNotEmpty) {
       setState(() => _showRoads = true);
+      _rebuildRoadPolylines();
       return;
     }
     setState(() { _roadsLoading = true; _showLayerPanel = false; });
     try {
       if (!await RoadService.isDownloaded()) {
-        await RoadService.download(
-          onStatus: (s) { if (mounted) setState(() {}); },
-        );
+        await RoadService.download(onStatus: (s) { if (mounted) setState(() {}); });
       }
       final segments = await RoadService.loadSegments();
       if (!mounted) return;
-      const clColors = {
-        '02': Color(0xFFFF3B30),
-        '03': Color(0xFFFF9500),
-        '04': Color(0xFFFFD60A),
-        '05': Color(0xFFFFFFFF),
-        'HI': Color(0xFF8E8E93),
-      };
-      const clWidths = {
-        '02': 3.5,
-        '03': 2.5,
-        '04': 1.8,
-        '05': 1.2,
-        'HI': 1.0,
-      };
-      final polylines = segments.map((seg) => Polyline(
-        points: seg.points.map((p) => LatLng(p[0], p[1])).toList(),
-        color: clColors[seg.cl] ?? const Color(0xFFFFFFFF),
-        strokeWidth: clWidths[seg.cl] ?? 1.2,
-      )).toList();
+      final raw = segments.map((seg) {
+        double minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+        final pts = seg.points.map((p) {
+          if (p[0] < minLat) minLat = p[0];
+          if (p[0] > maxLat) maxLat = p[0];
+          if (p[1] < minLon) minLon = p[1];
+          if (p[1] > maxLon) maxLon = p[1];
+          return LatLng(p[0], p[1]);
+        }).toList();
+        return _RoadSeg(cl: seg.cl, points: pts,
+            minLat: minLat, maxLat: maxLat, minLon: minLon, maxLon: maxLon);
+      }).toList();
       setState(() {
-        _roadPolylines = polylines;
+        _rawRoadSegs = raw;
         _showRoads = true;
         _roadsLoading = false;
       });
+      _rebuildRoadPolylines();
     } catch (e) {
       if (mounted) {
         setState(() => _roadsLoading = false);
         _snack('Erreur chemins forestiers: $e', error: true);
       }
     }
+  }
+
+  static const _clColors = {
+    '02': Color(0xFFFF3B30),
+    '03': Color(0xFFFF9500),
+    '04': Color(0xFFFFD60A),
+    '05': Color(0xFFFFFFFF),
+    'HI': Color(0xFF8E8E93),
+  };
+  static const _clWidths = {
+    '02': 3.5, '03': 2.5, '04': 1.8, '05': 1.2, 'HI': 1.0,
+  };
+
+  void _rebuildRoadPolylines() {
+    if (_rawRoadSegs.isEmpty) return;
+    final cam = _mapController.camera;
+    final b = cam.visibleBounds;
+    final dLat = (b.north - b.south) * 0.25;
+    final dLon = (b.east - b.west) * 0.25;
+    final minLat = b.south - dLat;
+    final maxLat = b.north + dLat;
+    final minLon = b.west - dLon;
+    final maxLon = b.east + dLon;
+    final alpha = (_roadsOpacity * 255).round();
+
+    final polylines = <Polyline>[];
+    for (final seg in _rawRoadSegs) {
+      if (seg.maxLat < minLat || seg.minLat > maxLat ||
+          seg.maxLon < minLon || seg.minLon > maxLon) continue;
+      final base = _clColors[seg.cl] ?? const Color(0xFFFFFFFF);
+      polylines.add(Polyline(
+        points: seg.points,
+        color: base.withAlpha(alpha),
+        strokeWidth: _clWidths[seg.cl] ?? 1.2,
+      ));
+    }
+    if (mounted) setState(() => _roadPolylines = polylines);
   }
 
   Future<void> _fetchCadastre() async {
@@ -2840,6 +2872,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             _salineDebounce?.cancel();
             _salineDebounce = Timer(const Duration(milliseconds: 800), _refreshSalines);
           }
+          if (_showRoads && _rawRoadSegs.isNotEmpty) {
+            _roadsDebounce?.cancel();
+            _roadsDebounce = Timer(const Duration(milliseconds: 400), _rebuildRoadPolylines);
+          }
           if (_showTerresPrivees) {
             if (newZoom < 14.1 && _cadastreRings.isNotEmpty) {
               setState(() { _cadastreRings = []; _cadastreNoLots = []; });
@@ -3011,10 +3047,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   .toList()),
           ),
         if (_showRoads && _roadPolylines.isNotEmpty && _mapZoom >= 10)
-          Opacity(
-            opacity: _roadsOpacity,
-            child: PolylineLayer(polylines: _roadPolylines),
-          ),
+          PolylineLayer(polylines: _roadPolylines),
         if (_showParcours && _parcours.isNotEmpty)
           PolylineLayer(polylines: [
             Polyline(
@@ -4273,7 +4306,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   setState(() { _showRoads = !_showRoads; _showLayerPanel = false; });
                 }
               },
-              onSlider: (v) => setState(() => _roadsOpacity = v),
+              onSlider: (v) { setState(() => _roadsOpacity = v); _rebuildRoadPolylines(); },
               trailing: _roadsLoading
                   ? const SizedBox(
                       width: 14, height: 14,
@@ -5282,4 +5315,15 @@ class _HeadingHaloPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HeadingHaloPainter old) => false;
+}
+
+class _RoadSeg {
+  final String cl;
+  final List<LatLng> points;
+  final double minLat, maxLat, minLon, maxLon;
+  const _RoadSeg({
+    required this.cl, required this.points,
+    required this.minLat, required this.maxLat,
+    required this.minLon, required this.maxLon,
+  });
 }
