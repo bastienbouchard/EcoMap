@@ -648,9 +648,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   };
 
   void _rebuildRoadPolylines() {
-    if (_rawRoadSegs.isEmpty) return;
-    final cam = _mapController.camera;
-    final b = cam.visibleBounds;
+    if (_rawRoadSegs.isEmpty || !mounted) return;
+    late LatLngBounds b;
+    try {
+      b = _mapController.camera.visibleBounds;
+    } catch (_) { return; }  // caméra pas encore initialisée
     final dLat = (b.north - b.south) * 0.25;
     final dLon = (b.east - b.west) * 0.25;
     final minLat = b.south - dLat;
@@ -1642,11 +1644,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     // Supprime aussi la copie dans le groupe si elle est partagée
     if (_obsPartagees && _groupeId != null && _monNom != null) {
       try {
+        final note = obs['note'] as String? ?? '';
         final snap = await FirebaseFirestore.instance
             .collection('groupes').doc(_groupeId!).collection('observations')
             .where('nom', isEqualTo: _monNom)
             .where('lat', isEqualTo: pos.latitude)
             .where('lon', isEqualTo: pos.longitude)
+            .where('note', isEqualTo: note)
             .get();
         for (final doc in snap.docs) { await doc.reference.delete(); }
       } catch (_) {}
