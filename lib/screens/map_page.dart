@@ -1627,15 +1627,30 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Future<void> _deleteObservation(int idx) async {
     final obs = _observations[idx];
     final id = obs['id'] as String?;
+    final pos = obs['pos'] as LatLng;
     setState(() => _observations.removeAt(idx));
     final uid = AuthService.uid;
     if (uid != null) await _persistObsCache(uid);
-    if (id == null || obs['pending'] == true) return;
-    try {
-      await FirebaseFirestore.instance
-          .collection('users').doc(uid!).collection('observations')
-          .doc(id).delete();
-    } catch (_) {}
+    // Supprime la copie personnelle
+    if (id != null && obs['pending'] != true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('users').doc(uid!).collection('observations')
+            .doc(id).delete();
+      } catch (_) {}
+    }
+    // Supprime aussi la copie dans le groupe si elle est partagée
+    if (_obsPartagees && _groupeId != null && _monNom != null) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('groupes').doc(_groupeId!).collection('observations')
+            .where('nom', isEqualTo: _monNom)
+            .where('lat', isEqualTo: pos.latitude)
+            .where('lon', isEqualTo: pos.longitude)
+            .get();
+        for (final doc in snap.docs) { await doc.reference.delete(); }
+      } catch (_) {}
+    }
   }
 
   // ── Cache local tracés ────────────────────────────────────────────────────
