@@ -122,7 +122,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   double _mapZoom = 13.0;
   double _mapLat = 48.2917;
   bool _satellite = false;
-  String _satSource = 'mapbox'; // 'mapbox' | 'mern' | 'esri' | 'sentinel' | 'topo'
+  String _satSource = 'esri'; // 'mern' | 'esri' | 'sentinel' | 'topo'
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
 
@@ -4267,12 +4267,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             _layerRadio('Carte', Icons.map_rounded, !_satellite,
                 () => setState(() { _satellite = false; })),
             _layerRadio('Satellite', Icons.satellite_alt_rounded, _satellite && _satSource != 'topo',
-                () => setState(() { _satellite = true; if (_satSource == 'topo') _satSource = 'mapbox'; if (_ecoOpacity > 0.5) _ecoOpacity = 0.4; })),
+                () => setState(() { _satellite = true; if (_satSource == 'topo') _satSource = 'esri'; if (_ecoOpacity > 0.5) _ecoOpacity = 0.4; })),
             if (_satellite && _satSource != 'topo')
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
                 child: Wrap(spacing: 6, runSpacing: 6, children: [
-                  _satChip('Mapbox', 'mapbox'),
                   _satChip('MRNF QC', 'mern'),
                   _satChip('ESRI', 'esri'),
                   _satChip('Sentinel', 'sentinel'),
