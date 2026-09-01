@@ -17,7 +17,7 @@ class RoadSegment {
 class RoadService {
   static Future<String> _localPath() async {
     final dir = await getApplicationDocumentsDirectory();
-    return '${dir.path}/chemins/chemins_prov.geojson.gz';
+    return '${dir.path}/chemins/chemins_prov_v2.geojson.gz';
   }
 
   static Future<bool> isDownloaded() async {
