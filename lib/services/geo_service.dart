@@ -271,16 +271,15 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   final geoJsonData = params['geoJson'] as Map<String, dynamic>;
   final features = geoJsonData['features'] as List;
 
-  // Pre-compute water body centroids for cheap proximity checks during route eval
+  // Pre-compute water geometries + centroids for fast water detection
+  final List<Map> waterGeometries = [];
   final List<List<double>> waterCentroids = [];
   for (final feat in features) {
     try {
       final props = feat['properties'] as Map;
-      final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
-      final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
-      if (!(typeEco.contains('EAU') || codeCouv.contains('EAU') ||
-            typeEco.contains('RIV') || codeCouv == 'EE')) continue;
+      if (!_isWaterFeature(props)) continue;
       final geom = feat['geometry'] as Map;
+      waterGeometries.add(geom);
       final gType = geom['type'];
       List<dynamic> ring;
       if (gType == 'Polygon') ring = geom['coordinates'][0] as List;
@@ -335,23 +334,19 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     return false;
   }
 
-  // Vérifie si le segment entre deux points traverse de l'eau ou un gap (13 échantillons)
+  // Vérifie si le segment traverse de l'eau (vérifie uniquement les géométries d'eau précalculées)
   bool segmentCrossesWater(double fromLat, double fromLon, double toLat, double toLon) {
+    if (waterGeometries.isEmpty) return false;
     for (int s = 1; s <= 13; s++) {
       final t = s / 14.0;
       final sLat = fromLat + (toLat - fromLat) * t;
       final sLon = fromLon + (toLon - fromLon) * t;
-      bool inAnyPolygon = false;
-      for (final feat in features) {
+      final pt = LatLng(sLat, sLon);
+      for (final geom in waterGeometries) {
         try {
-          if (pointInGeometry(LatLng(sLat, sLon), feat['geometry'] as Map)) {
-            inAnyPolygon = true;
-            if (_isWaterFeature(feat['properties'] as Map)) return true;
-            break;
-          }
+          if (pointInGeometry(pt, geom)) return true;
         } catch (_) {}
       }
-      // Les gaps entre polygones (routes forestières, zones tampon) sont traversables
     }
     return false;
   }
@@ -530,20 +525,24 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       }
     }
 
-    // Fallback: si aucune direction dans ±maxDelta n'est passable, cherche dans ±180°
+    // Fallback: toutes directions bloquées → cherche dans ±180° centré sur la direction précédente
     if (bestLat == null) {
-      for (double ad = -180; ad <= 180; ad += 15) {
-        final angle = upwindRad + ad * pi / 180;
-        final sLat = (stepDist / 111000) * cos(angle);
-        final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
-        final cLat = curLat + sLat;
-        final cLon = curLon + sLon;
-        final eval = evalPoint(cLat, cLon);
-        if (!eval.blocked && !segmentCrossesWater(curLat, curLon, cLat, cLon)) {
-          bestLat = cLat; bestLon = cLon;
-          bestHabitat = eval.habitat; bestType = eval.type;
-          break;
+      final fallbackCenter = prevAngle ?? upwindRad;
+      for (double ad = 0; ad <= 180; ad += 10) {
+        for (final sign in [1.0, -1.0]) {
+          final angle = fallbackCenter + sign * ad * pi / 180;
+          final sLat = (stepDist / 111000) * cos(angle);
+          final sLon = (stepDist / 111000) * sin(angle) / cos(curLat * pi / 180);
+          final cLat = curLat + sLat;
+          final cLon = curLon + sLon;
+          final eval = evalPoint(cLat, cLon);
+          if (!eval.blocked && !segmentCrossesWater(curLat, curLon, cLat, cLon)) {
+            bestLat = cLat; bestLon = cLon;
+            bestHabitat = eval.habitat; bestType = eval.type;
+            break;
+          }
         }
+        if (bestLat != null) break;
       }
     }
 
