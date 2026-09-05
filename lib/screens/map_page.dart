@@ -173,6 +173,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   // ── Carte écoforestière ──
   double _ecoOpacity = 0.7;
+  bool _showPolygonLabels = true;
 
   // ── Chemins forestiers ──
   bool _showRoads = false;
@@ -3013,7 +3014,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 polygons: _polygonsCache,
                 simplificationTolerance: 0.5),
           ),
-        if (_polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0 && !_isGesturing)
+        if (_showPolygonLabels && _polygonLabels.isNotEmpty && _mapZoom >= 14 && _ecoOpacity > 0 && !_isGesturing)
           Opacity(
             opacity: _ecoOpacity,
             child: MarkerLayer(
@@ -4304,6 +4305,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               },
               onSlider: (v) => setState(() => _ecoOpacity = v),
             ),
+            _layerToggle('Codes de peuplements', Icons.label_rounded,
+                _showPolygonLabels, () {
+                  setState(() { _showPolygonLabels = !_showPolygonLabels; });
+                }),
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
                   if (!_showTerresPrivees && !_requirePremium()) return;
