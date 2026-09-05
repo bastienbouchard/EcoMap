@@ -271,6 +271,17 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   final geoJsonData = params['geoJson'] as Map<String, dynamic>;
   final features = geoJsonData['features'] as List;
 
+  bool _isWaterFeature(Map props) {
+    final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
+    final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
+    final typeCouv = (props['type_couv'] ?? '').toString().toUpperCase();
+    if (typeEco.contains('EAU') || typeEco.contains('RIV') ||
+        typeEco.contains('LAC') ||
+        codeCouv == 'EE' || codeCouv.contains('EAU') ||
+        typeCouv == 'EAU') return true;
+    return false;
+  }
+
   // Pre-compute water geometries + centroids for fast water detection
   final List<Map> waterGeometries = [];
   final List<List<double>> waterCentroids = [];
@@ -317,21 +328,6 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     if (couv == 'F') return 'F';
     if (couv == 'M') return 'M';
     return 'X';
-  }
-
-  // Détecte si un ensemble de propriétés représente un obstacle (eau, roc, découvert)
-  bool _isWaterFeature(Map props) {
-    final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
-    final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
-    final typeCouv = (props['type_couv'] ?? '').toString().toUpperCase();
-    final depSur   = (props['dep_sur']  ?? '').toString().toUpperCase();
-    final grEss    = (props['gr_ess']   ?? '').toString().toUpperCase();
-    final clAge    = (props['cl_age']   ?? '').toString().toUpperCase();
-    if (typeEco.contains('EAU') || typeEco.contains('RIV') ||
-        typeEco.contains('LAC') ||
-        codeCouv == 'EE' || codeCouv.contains('EAU') ||
-        typeCouv == 'EAU') return true;
-    return false;
   }
 
   // Vérifie si le segment traverse de l'eau (vérifie uniquement les géométries d'eau précalculées)
