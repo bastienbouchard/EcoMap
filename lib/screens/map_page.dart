@@ -4310,13 +4310,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   setState(() { _showTerresPrivees = !_showTerresPrivees; _showLayerPanel = false; });
                   _fetchCadastre();
                 }),
-            _overlayRow(
-              icon: Icons.route_rounded,
-              label: 'Chemins forestiers',
-              active: _showRoads,
-              color: const Color(0xFFFF9500),
-              opacity: _roadsOpacity,
-              onToggle: () {
+            _layerToggle(
+              'Chemins forestiers', Icons.route_rounded,
+              _showRoads, () {
                 if (_roadsLoading) return;
                 if (!_showRoads && _roadPolylines.isEmpty) {
                   _loadRoads();
@@ -4324,7 +4320,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   setState(() { _showRoads = !_showRoads; _showLayerPanel = false; });
                 }
               },
-              onSlider: (v) { setState(() => _roadsOpacity = v); _rebuildRoadPolylines(); },
               trailing: _roadsLoading
                   ? const SizedBox(
                       width: 14, height: 14,
@@ -4470,7 +4465,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     );
   }
 
-  Widget _layerToggle(String label, IconData icon, bool active, VoidCallback onTap) {
+  Widget _layerToggle(String label, IconData icon, bool active, VoidCallback onTap, {Widget? trailing}) {
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -4480,6 +4475,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           const SizedBox(width: 10),
           Expanded(child: Text(label,
               style: TextStyle(color: active ? Colors.white : Colors.white60, fontSize: 13))),
+          if (trailing != null) ...[trailing, const SizedBox(width: 6)],
           Icon(active ? Icons.check_box : Icons.check_box_outline_blank,
               color: active ? const Color(0xFFFF6B35) : Colors.white24, size: 18),
         ]),
