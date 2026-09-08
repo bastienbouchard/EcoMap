@@ -4273,9 +4273,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
                 child: Wrap(spacing: 6, runSpacing: 6, children: [
-                  _satChip('MRNF QC', 'mern'),
                   _satChip('ESRI', 'esri'),
                   _satChip('Sentinel', 'sentinel'),
+                  _satChip('MRNF QC', 'mern'),
                 ]),
               ),
             _layerRadio('Topographique', Icons.terrain_rounded, _satellite && _satSource == 'topo',
