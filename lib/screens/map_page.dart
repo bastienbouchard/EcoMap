@@ -123,6 +123,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   double _mapLat = 48.2917;
   bool _satellite = false;
   String _satSource = 'esri'; // 'mern' | 'esri' | 'sentinel' | 'topo'
+  int _mernTileErrors = 0;
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
 
@@ -2937,6 +2938,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             if (tile.readyToDisplay) {
               _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
             }
+            if (tile.loadError && _satSource == 'mern') {
+              _mernTileErrors++;
+              if (_mernTileErrors >= 4) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _satSource == 'mern') {
+                    setState(() { _satSource = 'esri'; _mernTileErrors = 0; });
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('MRNF QC indisponible — basculé vers ESRI'),
+                      duration: Duration(seconds: 3),
+                    ));
+                  }
+                });
+              }
+            }
             return child;
           },
         ),
@@ -4387,7 +4402,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Widget _satChip(String label, String source) {
     final active = _satSource == source;
     return GestureDetector(
-      onTap: () => setState(() => _satSource = source),
+      onTap: () => setState(() { _satSource = source; _mernTileErrors = 0; }),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
