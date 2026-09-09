@@ -256,6 +256,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   int _tileEpoch = 0;
   int _lastTileVisibleMs = 0;
   bool _isGesturing = false;
+  final _satelliteTileProvider = SatelliteTileProvider();
+  final _mbtilesTileProvider = MBTilesProvider();
 
   // ── Connectivité ──
   bool _isOnline = true;
@@ -2933,7 +2935,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _isOnline ? 19 : 14,
           maxZoom: 22,
-          tileProvider: SatelliteTileProvider(),
+          tileProvider: _satelliteTileProvider,
           tileBuilder: (context, child, tile) {
             if (tile.readyToDisplay) {
               _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
@@ -2958,7 +2960,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         Opacity(
           opacity: _ecoOpacity,
           child: TileLayer(
-            tileProvider: MBTilesProvider(),
+            tileProvider: _mbtilesTileProvider,
             minNativeZoom: mbtilesMinZoom,
             maxNativeZoom: mbtilesMaxZoom,
           ),
