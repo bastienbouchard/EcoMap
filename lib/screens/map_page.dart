@@ -2923,6 +2923,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _isOnline ? 19 : 14,
           maxZoom: 22,
+          keepBuffer: 5,
+          panBuffer: 2,
           tileProvider: _satelliteTileProvider,
           tileBuilder: (context, child, tile) {
             if (tile.loadError && _satSource == 'mern') {
