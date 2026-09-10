@@ -252,9 +252,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Timer? _salineDebounce;
   Timer? _zoomDebounce;
   Timer? _gestureEndTimer;
-  Timer? _tileResetTimer;
-  int _tileEpoch = 0;
-  int _lastTileVisibleMs = 0;
   bool _isGesturing = false;
   final _satelliteTileProvider = SatelliteTileProvider();
   final _mbtilesTileProvider = MBTilesProvider();
@@ -344,7 +341,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _salineDebounce?.cancel();
     _zoomDebounce?.cancel();
     _gestureEndTimer?.cancel();
-    _tileResetTimer?.cancel();
     _compassSub?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
@@ -2906,21 +2902,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               _fetchCadastre();
             }
           }
-          _tileResetTimer?.cancel();
-          _tileResetTimer = Timer(const Duration(milliseconds: 800), () {
-            final nowMs = DateTime.now().millisecondsSinceEpoch;
-            if (mounted && nowMs - _lastTileVisibleMs > 600) {
-              setState(() {
-                _tileEpoch++;
-                _lastTileVisibleMs = nowMs;
-              });
-            }
-          });
         },
       ),
       children: [
         TileLayer(
-          key: ValueKey('$_satellite-$_satSource-$_tileEpoch-${_isOnline ? 1 : 0}'),
+          key: ValueKey('$_satellite-$_satSource-${_isOnline ? 1 : 0}'),
           urlTemplate: _satellite
               ? (_satSource == 'mern'
                   ? 'https://servicesmatriciels.mern.gouv.qc.ca/erdas-iws/ogc/wmts/Imagerie_Continue?layer=Imagerie_GQ&style=default&tilematrixset=GoogleMapsCompatibleExt2:epsg:3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/jpeg&TileMatrix={z}&TileCol={x}&TileRow={y}'
@@ -2937,9 +2923,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           maxZoom: 22,
           tileProvider: _satelliteTileProvider,
           tileBuilder: (context, child, tile) {
-            if (tile.readyToDisplay) {
-              _lastTileVisibleMs = DateTime.now().millisecondsSinceEpoch;
-            }
             if (tile.loadError && _satSource == 'mern') {
               _mernTileErrors++;
               if (_mernTileErrors >= 4) {
