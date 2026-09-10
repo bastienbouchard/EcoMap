@@ -403,9 +403,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.high,
             distanceFilter: 3,
+            intervalDuration: const Duration(seconds: 2),
             foregroundNotificationConfig: const ForegroundNotificationConfig(
               notificationTitle: 'OrignalScan',
               notificationText: 'Suivi GPS actif',
+              notificationChannelName: 'GPS OrignalScan',
               enableWakeLock: true,
             ),
           ),
