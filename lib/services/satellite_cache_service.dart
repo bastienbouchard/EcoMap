@@ -222,6 +222,7 @@ class _CachedTileImageProvider extends ImageProvider<_CachedTileImageProvider> {
       );
 
   Future<ui.Codec> _loadAsync(ImageDecoderCallback decode) async {
+    final isMern = url.contains('mern.gouv.qc.ca');
     try {
       final cached = await SatelliteCacheService.getTile(url);
       if (cached != null) {
@@ -235,9 +236,8 @@ class _CachedTileImageProvider extends ImageProvider<_CachedTileImageProvider> {
       try {
         final client = http.Client();
         try {
-          final resp = await client
-              .get(Uri.parse(url))
-              .timeout(const Duration(seconds: 6));
+          final timeout = isMern ? const Duration(seconds: 4) : const Duration(seconds: 6);
+          final resp = await client.get(Uri.parse(url)).timeout(timeout);
           if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
             tileData = resp.bodyBytes;
           }
@@ -252,7 +252,11 @@ class _CachedTileImageProvider extends ImageProvider<_CachedTileImageProvider> {
         final buffer = await ui.ImmutableBuffer.fromUint8List(tileData);
         return decode(buffer);
       }
-    } catch (_) {}
+      // Tuile MRNF manquante → erreur pour déclencher le fallback ESRI
+      if (isMern) throw Exception('MRNF tile unavailable');
+    } catch (_) {
+      if (isMern) rethrow;
+    }
     return _emptyCodec();
   }
 
