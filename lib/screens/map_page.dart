@@ -938,6 +938,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       }).toList();
 
       if (!mounted) return;
+      if (blockReason == 'no_eco') {
+        setState(() => _loadingParcours = false);
+        _snack('Aucune carte écoforestière dans cette zone — télécharge-la d\'abord', error: true);
+        return;
+      }
       setState(() {
         _parcours = points;
         _showParcours = true;
@@ -945,9 +950,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         _parcoursBlocked = points.length < 5;
         _loadingParcours = false;
       });
-      if (blockReason == 'no_eco') {
-        _snack('Désolé, impossible de créer un parcours — Carte éco manquante pour cette zone', error: true);
-      } else if (points.length < 5) {
+      if (points.length < 5) {
         final msg = blockReason == 'eau'
             ? 'Désolé, impossible de créer un parcours — Cours d\'eau en travers'
             : 'Désolé, impossible de créer un parcours — Terrain trop restrictif';
@@ -2371,7 +2374,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       style: TextStyle(color: Colors.white38, fontSize: 11)),
                 ],
               ),
-              if (_windDeg == null) ...[
+              if (!_isOnline || _windDeg == null) ...[
                 const SizedBox(height: 16),
                 const Text('Direction du vent (d\'où il vient)',
                     style: TextStyle(color: Colors.white60, fontSize: 13)),
