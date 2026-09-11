@@ -311,6 +311,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   double totalDist = 0;
   int totalScore = 0, nbPoints = 0, blockedAttempts = 0;
   int waterBlockCount = 0, terrainBlockCount = 0;
+  int nbInEco = 0; // points actually inside an eco polygon
   final stepDist = targetDist / 14;
 
   String habitatKey(Map props) =>
@@ -562,6 +563,7 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       currentHabitat = bestHabitat;
       currentType = bestType;
       totalScore += bestScore.clamp(0, 999);
+      if (bestHabitat.isNotEmpty) nbInEco++;
       nbPoints++;
     } else {
       blockedAttempts++;
@@ -574,8 +576,8 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       ? (totalScore / nbPoints / scoreMaxPossible * 100).clamp(0.0, 100.0)
       : 0.0;
 
-  // Détecte si la zone n'est pas couverte par la carte éco (tout hors-polygone)
-  if (totalScore == 0 && features.isNotEmpty) {
+  // Détecte si la zone n'est pas couverte par la carte éco (aucun point dans un polygone)
+  if (nbInEco == 0 && features.isNotEmpty) {
     return {'points': <List<double>>[], 'scorePct': 0.0, 'blockReason': 'no_eco'};
   }
 
