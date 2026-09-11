@@ -3171,6 +3171,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             ),
           ),
         ]),
+        if (_showHotspots && _hotspots.isNotEmpty) _buildHotspotHalos(),
         if (_showHotspots && _hotspots.isNotEmpty) _buildHotspotMarkers(),
         if (_showPinchPoints && _pinchPoints.isNotEmpty)
           _buildPinchMarkers(),
@@ -3313,6 +3314,32 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         );
       }).toList(),
     );
+  }
+
+  CircleLayer _buildHotspotHalos() {
+    final circles = <CircleMarker>[];
+    for (int i = 0; i < _hotspots.length; i++) {
+      final pos = _hotspots[i];
+      final score = i < _hotspotInfos.length ? _hotspotInfos[i].score : 0;
+      final t = (score / 25.0).clamp(0.0, 1.0);
+      final color = score >= 18
+          ? const Color(0xFFFF3D00)
+          : score >= 13
+              ? const Color(0xFFFF6B35)
+              : const Color(0xFFFFB347);
+      final outerR = 150.0 + t * 250.0;
+      final midR   = outerR * 0.56;
+      final innerR = outerR * 0.23;
+      circles.addAll([
+        CircleMarker(point: pos, radius: outerR, useRadiusInMeter: true,
+            color: color.withOpacity(0.05 + t * 0.04), borderStrokeWidth: 0),
+        CircleMarker(point: pos, radius: midR, useRadiusInMeter: true,
+            color: color.withOpacity(0.12 + t * 0.08), borderStrokeWidth: 0),
+        CircleMarker(point: pos, radius: innerR, useRadiusInMeter: true,
+            color: color.withOpacity(0.22 + t * 0.15), borderStrokeWidth: 0),
+      ]);
+    }
+    return CircleLayer(circles: circles);
   }
 
   MarkerLayer _buildHotspotMarkers() {
