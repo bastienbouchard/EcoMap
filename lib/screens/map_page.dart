@@ -904,7 +904,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   // ─────────────────────────────────────────────────────────────────────────
   // Parcours
   // ─────────────────────────────────────────────────────────────────────────
-  Future<void> _genererParcours() async {
+  Future<void> _genererParcours({double? manualWindDeg}) async {
     final features = (geoJson['features'] as List?) ?? [];
     if (features.isEmpty) {
       _snack('Désolé, impossible de créer un parcours — Carte éco manquante', error: true);
@@ -922,8 +922,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       final result = await compute(buildParcoursIsolate, {
         'lat': startPos.latitude,
         'lon': startPos.longitude,
-        'windRad': (_windDeg ?? 0) * pi / 180,
-        'hasWind': _isOnline && _windDeg != null,
+        'windRad': (manualWindDeg ?? _windDeg ?? 0) * pi / 180,
+        'hasWind': manualWindDeg != null || (_isOnline && _windDeg != null),
         'hotspots': topHotspots,
         'targetDist': _distanceParcours * 1000,
         'geoJson': geoJson,
@@ -2308,6 +2308,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     if (!_requirePremium()) return;
     if (!_requireEcoMap()) return;
     double localDist = _distanceParcours;
+    double? localWindDeg = _windDeg;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF2D2D2D),
@@ -2370,6 +2371,47 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       style: TextStyle(color: Colors.white38, fontSize: 11)),
                 ],
               ),
+              if (_windDeg == null) ...[
+                const SizedBox(height: 16),
+                const Text('Direction du vent (d\'où il vient)',
+                    style: TextStyle(color: Colors.white60, fontSize: 13)),
+                const SizedBox(height: 10),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final dir in [
+                    ('N', 0.0), ('NE', 45.0), ('E', 90.0), ('SE', 135.0),
+                    ('S', 180.0), ('SO', 225.0), ('O', 270.0), ('NO', 315.0),
+                  ])
+                    GestureDetector(
+                      onTap: () => setSheet(() => localWindDeg = dir.$2),
+                      child: Container(
+                        width: 52, height: 36,
+                        decoration: BoxDecoration(
+                          color: localWindDeg == dir.$2
+                              ? const Color(0xFF5A8A1E)
+                              : const Color(0xFF3A3A3A),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: localWindDeg == dir.$2
+                                ? const Color(0xFF7DC95E)
+                                : Colors.white24,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(dir.$1,
+                              style: TextStyle(
+                                color: localWindDeg == dir.$2
+                                    ? Colors.white
+                                    : Colors.white54,
+                                fontSize: 13,
+                                fontWeight: localWindDeg == dir.$2
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              )),
+                        ),
+                      ),
+                    ),
+                ]),
+              ],
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -2386,7 +2428,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       _distanceParcours = localDist;
                       _showParcours = false;
                     });
-                    _genererParcours();
+                    _genererParcours(manualWindDeg: localWindDeg);
                   },
                   child: const Text('Générer le parcours',
                       style: TextStyle(
