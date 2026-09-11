@@ -3393,10 +3393,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1A1A),
                     shape: BoxShape.circle,
-                    border: Border.all(color: flameColor, width: 3),
+                    border: Border.all(
+                      color: _isPinned(pos) ? const Color(0xFFFFD700) : flameColor,
+                      width: _isPinned(pos) ? 3.5 : 3,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                          color: flameColor.withOpacity(0.7),
+                          color: (_isPinned(pos) ? const Color(0xFFFFD700) : flameColor).withOpacity(0.7),
                           blurRadius: 12,
                           spreadRadius: 2),
                     ],
@@ -3974,7 +3977,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   MarkerLayer _buildPinnedLayer() {
-    final myMarkers = _pinnedPoints.map((p) {
+    final myMarkers = _pinnedPoints.where((p) {
+      // Ne pas afficher de punaise séparée pour les hotspots déjà affichés
+      if ((p['type'] as String?) == 'hotspot' && _showHotspots) {
+        final pos = LatLng(p['lat'] as double, p['lon'] as double);
+        return !_hotspots.any((h) =>
+            h.latitude.toStringAsFixed(5) == pos.latitude.toStringAsFixed(5) &&
+            h.longitude.toStringAsFixed(5) == pos.longitude.toStringAsFixed(5));
+      }
+      return true;
+    }).map((p) {
       final pos = LatLng(p['lat'] as double, p['lon'] as double);
       final type = p['type'] as String? ?? 'hotspot';
       return Marker(
