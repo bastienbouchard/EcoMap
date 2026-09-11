@@ -894,7 +894,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     final infraPoints = await _fetchOsmInfra(center, radiusM);
     final spots = _computeHotspots(infraPoints: infraPoints);
     setState(() { _hotspots = spots; _showHotspots = true; });
-    _snack('Zoomer l\'entièreté de votre territoire à analyser');
+    if (spots.isEmpty) {
+      _snack('Aucune carte écoforestière téléchargée pour cette zone', error: true);
+    } else {
+      _snack('Zoomer l\'entièreté de votre territoire à analyser');
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
