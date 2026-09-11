@@ -333,9 +333,14 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
   // Vérifie si le segment traverse de l'eau (30 échantillons ~10m sur 300m pour attraper les petits lacs)
   bool segmentCrossesWater(double fromLat, double fromLon, double toLat, double toLon) {
     if (waterGeometries.isEmpty) return false;
-    const n = 30;
-    for (int s = 1; s <= n; s++) {
-      final t = s / (n + 1.0);
+    // Adaptive sampling: 1 point per ~4m to catch narrow water bodies
+    final distM = sqrt(
+      pow((toLat - fromLat) * 111000, 2) +
+      pow((toLon - fromLon) * 111000 * cos(fromLat * pi / 180), 2),
+    );
+    final n = (distM / 4).ceil().clamp(20, 120);
+    for (int s = 0; s <= n; s++) {
+      final t = s / n.toDouble();
       final sLat = fromLat + (toLat - fromLat) * t;
       final sLon = fromLon + (toLon - fromLon) * t;
       final pt = LatLng(sLat, sLon);
