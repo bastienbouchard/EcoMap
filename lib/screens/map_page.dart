@@ -4566,56 +4566,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               ),
             ),
 
-            // ══ PARCOURS SAUVEGARDÉS ══
-            if (_savedParcoursList.isNotEmpty) ...[
-              const Divider(color: Colors.white12, height: 1),
-              _panelHeader('Mes parcours'),
-              for (final saved in _savedParcoursList)
-                InkWell(
-                  onTap: () => _loadSavedParcoursOnMap(saved),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: Row(children: [
-                      Icon(Icons.route_rounded,
-                          size: 16,
-                          color: _activeSavedParcoursId == saved['id']
-                              ? const Color(0xFFFFD700)
-                              : Colors.white54),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              saved['nom'] as String? ?? '—',
-                              style: TextStyle(
-                                color: _activeSavedParcoursId == saved['id']
-                                    ? const Color(0xFFFFD700)
-                                    : Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '${((saved['distanceKm'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)} km · ${((saved['score'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}%',
-                              style: const TextStyle(color: Colors.white38, fontSize: 10),
-                            ),
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _deleteSavedParcours(saved['id'] as String),
-                        child: const Padding(
-                          padding: EdgeInsets.only(left: 6),
-                          child: Icon(Icons.close, color: Colors.white24, size: 14),
-                        ),
-                      ),
-                    ]),
-                  ),
-                ),
-            ],
-
             const SizedBox(height: 4),
           ],
         ),
@@ -5096,6 +5046,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                               onCenterMap: (idx) {
                                 _centerOnTrack(idx);
                               },
+                              savedParcours: List.unmodifiable(_savedParcoursList),
+                              onLoadParcours: _loadSavedParcoursOnMap,
+                              onDeleteParcours: _deleteSavedParcours,
                             ),
                           ),
                         );
