@@ -1172,42 +1172,74 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   Future<Map<String, List<dynamic>>> _fetchOsmWater(LatLng center, double radiusM) async {
-    // Offline: load cached data for this territory
     if (!_isOnline) return _loadOsmWaterCache();
 
-    final r = radiusM.round().clamp(0, 8000);
+    final pad = radiusM / 111000;
+    final minLat = center.latitude - pad;
+    final maxLat = center.latitude + pad;
+    final minLon = center.longitude - pad / cos(center.latitude * pi / 180);
+    final maxLon = center.longitude + pad / cos(center.latitude * pi / 180);
+    final bbox = '${minLat.toStringAsFixed(5)},${minLon.toStringAsFixed(5)},${maxLat.toStringAsFixed(5)},${maxLon.toStringAsFixed(5)}';
+
     final query =
-        '[out:json][timeout:25];'
+        '[out:json][timeout:40][bbox:$bbox];'
         '('
-        'way["natural"="water"](around:$r,${center.latitude},${center.longitude});'
-        'way["waterway"~"^(river|stream|canal|drain)\$"](around:$r,${center.latitude},${center.longitude});'
+        'way["natural"="water"];'
+        'relation["natural"="water"];'
+        'way["waterway"~"^(river|stream|canal|drain)\$"];'
         ');'
         'out geom;';
+
+    Future<http.Response?> tryFetch(String url) async {
+      try {
+        return await http.post(Uri.parse(url), body: query)
+            .timeout(const Duration(seconds: 40));
+      } catch (_) { return null; }
+    }
+
+    http.Response? resp = await tryFetch('https://overpass-api.de/api/interpreter');
+    if (resp == null || resp.statusCode != 200) {
+      resp = await tryFetch('https://overpass.kumi.systems/api/interpreter');
+    }
+    if (resp == null || resp.statusCode != 200) return _loadOsmWaterCache();
+
     try {
-      final resp = await http
-          .post(Uri.parse('https://overpass-api.de/api/interpreter'), body: query)
-          .timeout(const Duration(seconds: 25));
-      if (resp.statusCode != 200) return _loadOsmWaterCache();
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final elements = data['elements'] as List;
       final polys = <List<List<double>>>[];
       final lines = <List<List<double>>>[];
+
+      List<List<double>> parseNodes(List geom) => geom.map((n) => [
+        (n['lat'] as num).toDouble(),
+        (n['lon'] as num).toDouble(),
+      ]).toList();
+
       for (final el in elements) {
-        final geom = el['geometry'] as List?;
-        if (geom == null || geom.length < 2) continue;
-        final nodes = geom.map((n) => [
-          (n['lat'] as num).toDouble(),
-          (n['lon'] as num).toDouble(),
-        ]).toList();
         final tags = (el['tags'] as Map?) ?? {};
-        if (tags['natural'] == 'water' && nodes.length >= 3) {
-          polys.add(nodes);
+        final isWaterArea = tags['natural'] == 'water';
+        final elType = el['type'] as String?;
+
+        if (elType == 'relation') {
+          final members = el['members'] as List? ?? [];
+          for (final member in members) {
+            if ((member['role'] as String?) != 'outer') continue;
+            final geom = member['geometry'] as List?;
+            if (geom == null || geom.length < 3) continue;
+            polys.add(parseNodes(geom));
+          }
         } else {
-          lines.add(nodes);
+          final geom = el['geometry'] as List?;
+          if (geom == null || geom.length < 2) continue;
+          final nodes = parseNodes(geom);
+          if (isWaterArea && nodes.length >= 3) {
+            polys.add(nodes);
+          } else {
+            lines.add(nodes);
+          }
         }
       }
       final result = {'polys': polys, 'lines': lines};
-      _saveOsmWaterCache(result); // persist for offline use
+      if (polys.isNotEmpty || lines.isNotEmpty) _saveOsmWaterCache(result);
       return result;
     } catch (_) {
       return _loadOsmWaterCache();
