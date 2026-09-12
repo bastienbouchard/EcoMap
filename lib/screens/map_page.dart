@@ -404,6 +404,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         );
       } else {
         await Permission.notification.request();
+        // Android 10+ : demander "Toujours autoriser" pour éviter coupures
+        // GPS sur Samsung A-series quand l'écran s'éteint
+        final locStatus = await Permission.location.status;
+        if (locStatus.isGranted) {
+          final bgStatus = await Permission.locationAlways.status;
+          if (!bgStatus.isGranted) await Permission.locationAlways.request();
+        }
         _positionStream = Geolocator.getPositionStream(
           locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.high,
