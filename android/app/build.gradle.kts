@@ -11,17 +11,16 @@ plugins {
 
 // Génère key.properties depuis les variables d'environnement Codemagic
 val keystoreB64 = System.getenv("CM_KEYSTORE_B64")
+    ?: error("CM_KEYSTORE_B64 manquant — ajoute la variable dans le groupe BB de Codemagic")
 val keystorePath = "/tmp/ecomap-keystore.p12"
-if (keystoreB64 != null) {
-    val keystoreBytes = Base64.getDecoder().decode(keystoreB64)
-    JavaFile(keystorePath).writeBytes(keystoreBytes)
-    JavaFile(rootDir, "app/key.properties").writeText(
-        "storeFile=$keystorePath\n" +
-        "storePassword=${System.getenv("MY_STORE_PASSWORD") ?: ""}\n" +
-        "keyAlias=${System.getenv("MY_KEY_ALIAS") ?: "ecomap"}\n" +
-        "keyPassword=${System.getenv("MY_KEY_PASSWORD") ?: ""}\n"
-    )
-}
+val keystoreBytes = Base64.getDecoder().decode(keystoreB64)
+JavaFile(keystorePath).writeBytes(keystoreBytes)
+JavaFile(rootDir, "app/key.properties").writeText(
+    "storeFile=$keystorePath\n" +
+    "storePassword=${System.getenv("MY_STORE_PASSWORD") ?: error("MY_STORE_PASSWORD manquant dans BB")}\n" +
+    "keyAlias=${System.getenv("MY_KEY_ALIAS") ?: "ecomap"}\n" +
+    "keyPassword=${System.getenv("MY_KEY_PASSWORD") ?: error("MY_KEY_PASSWORD manquant dans BB")}\n"
+)
 
 val keyProps = Properties()
 val keyPropsFile = JavaFile(rootDir, "app/key.properties")
