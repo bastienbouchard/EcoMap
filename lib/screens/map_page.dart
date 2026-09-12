@@ -193,6 +193,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   List<LatLng> _parcours = [];
   double _distanceParcours = 2.0;
   double _parcoursScore = 0;
+  List<Map<String, dynamic>> _savedParcoursList = [];
+  String? _activeSavedParcoursId;
 
   // ── Points épinglés ──
   List<Map<String, dynamic>> _pinnedPoints = [];
@@ -291,6 +293,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _loadGroupePrefs();
     _loadPins();
     _loadPdfLayers();
+    _loadSavedParcours();
     requestPersistentStorage();
   }
 
@@ -949,6 +952,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         _parcoursScore = scorePct;
         _parcoursBlocked = points.length < 5;
         _loadingParcours = false;
+        _activeSavedParcoursId = null;
       });
       if (points.length < 5) {
         final msg = blockReason == 'eau'
@@ -960,6 +964,118 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       if (!mounted) return;
       setState(() => _loadingParcours = false);
       _snack('Désolé, impossible de créer un parcours — Erreur inattendue', error: true);
+    }
+  }
+
+  Future<void> _loadSavedParcours() async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('parcours')
+          .orderBy('date', descending: true)
+          .limit(30)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _savedParcoursList = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveParcours() async {
+    final uid = AuthService.uid;
+    if (uid == null) { _snack('Connexion requise', error: true); return; }
+    if (_parcours.isEmpty) return;
+
+    String nom = '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController();
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Sauvegarder le parcours',
+              style: TextStyle(color: Colors.white, fontSize: 16)),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'Nom (optionnel)',
+              hintStyle: TextStyle(color: Colors.white38),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+            ),
+            onChanged: (v) => nom = v.trim(),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler', style: TextStyle(color: Colors.white38))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Sauvegarder', style: TextStyle(color: Color(0xFFFF6B35)))),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+
+    try {
+      final data = {
+        'nom': nom.isEmpty ? 'Parcours du ${DateTime.now().day}/${DateTime.now().month}' : nom,
+        'points': _parcours.map((p) => [p.latitude, p.longitude]).toList(),
+        'score': _parcoursScore,
+        'windDeg': _windDeg,
+        'distanceKm': _distanceParcours,
+        'date': FieldValue.serverTimestamp(),
+      };
+      final ref = await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('parcours')
+          .add(data);
+      setState(() {
+        _savedParcoursList.insert(0, {'id': ref.id, ...data, 'date': DateTime.now()});
+        _activeSavedParcoursId = ref.id;
+      });
+      _snack('Parcours sauvegardé');
+    } catch (_) {
+      _snack('Erreur lors de la sauvegarde', error: true);
+    }
+  }
+
+  Future<void> _deleteSavedParcours(String id) async {
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users').doc(uid).collection('parcours').doc(id).delete();
+      setState(() {
+        _savedParcoursList.removeWhere((p) => p['id'] == id);
+        if (_activeSavedParcoursId == id) {
+          _activeSavedParcoursId = null;
+          _showParcours = false;
+          _parcours = [];
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _loadSavedParcoursOnMap(Map<String, dynamic> saved) {
+    final raw = saved['points'] as List;
+    final points = raw.map((p) {
+      final pair = p as List;
+      return LatLng((pair[0] as num).toDouble(), (pair[1] as num).toDouble());
+    }).toList();
+    setState(() {
+      _parcours = points;
+      _parcoursScore = (saved['score'] as num?)?.toDouble() ?? 0;
+      _showParcours = true;
+      _parcoursBlocked = false;
+      _activeSavedParcoursId = saved['id'] as String?;
+      _showLayerPanel = false;
+    });
+    if (points.isNotEmpty) {
+      _mapController.move(points.first, _mapController.camera.zoom);
     }
   }
 
@@ -4449,6 +4565,57 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 ]),
               ),
             ),
+
+            // ══ PARCOURS SAUVEGARDÉS ══
+            if (_savedParcoursList.isNotEmpty) ...[
+              const Divider(color: Colors.white12, height: 1),
+              _panelHeader('Mes parcours'),
+              for (final saved in _savedParcoursList)
+                InkWell(
+                  onTap: () => _loadSavedParcoursOnMap(saved),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Row(children: [
+                      Icon(Icons.route_rounded,
+                          size: 16,
+                          color: _activeSavedParcoursId == saved['id']
+                              ? const Color(0xFFFFD700)
+                              : Colors.white54),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              saved['nom'] as String? ?? '—',
+                              style: TextStyle(
+                                color: _activeSavedParcoursId == saved['id']
+                                    ? const Color(0xFFFFD700)
+                                    : Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '${((saved['distanceKm'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)} km · ${((saved['score'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}%',
+                              style: const TextStyle(color: Colors.white38, fontSize: 10),
+                            ),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => _deleteSavedParcours(saved['id'] as String),
+                        child: const Padding(
+                          padding: EdgeInsets.only(left: 6),
+                          child: Icon(Icons.close, color: Colors.white24, size: 14),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+            ],
+
             const SizedBox(height: 4),
           ],
         ),
@@ -4786,10 +4953,19 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       fontSize: 13)),
             ]),
           ),
-          ],
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           GestureDetector(
-            onTap: () => setState(() { _showParcours = false; _parcoursBlocked = false; }),
+            onTap: _saveParcours,
+            child: Icon(
+              _activeSavedParcoursId != null ? Icons.bookmark : Icons.bookmark_border,
+              color: _activeSavedParcoursId != null ? const Color(0xFFFFD700) : Colors.white70,
+              size: 20,
+            ),
+          ),
+          ],
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () => setState(() { _showParcours = false; _parcoursBlocked = false; _activeSavedParcoursId = null; }),
             child: const Icon(Icons.close,
                 color: Color(0xFFFF6B35), size: 20),
           ),
