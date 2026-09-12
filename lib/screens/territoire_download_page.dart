@@ -129,24 +129,17 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
           maxLat: ecoMaxLat, maxLon: ecoMaxLon,
           onStatus: (s) { if (mounted) setState(() => _status = 'Éco · $s'); },
         );
-        // 1b. Données hydrographiques OSM (lacs, rivières) pour l'algorithme de parcours
-        try {
-          setState(() => _status = 'Données hydrographiques OSM…');
-          await TerritoireService.fetchAndSaveWater(
-            nom,
-            ecoMinLat, ecoMinLon, ecoMaxLat, ecoMaxLon,
-            onStatus: (s) { if (mounted) setState(() => _status = s); },
-          );
-          // Vérifier si les données ont été sauvegardées
-          final waterCheck = await TerritoireService.loadWater(nom);
-          final wPolys = (waterCheck?['polys'] as List?)?.length ?? 0;
-          final wLines = (waterCheck?['lines'] as List?)?.length ?? 0;
-          if (mounted) setState(() => _status = wPolys > 0 || wLines > 0
-              ? '✓ Hydrographie: $wPolys lacs/étangs, $wLines cours d\'eau'
-              : '⚠️ Données hydrographiques non disponibles (sera retenté au démarrage)');
-        } catch (_) {
-          if (mounted) setState(() => _status = '⚠️ Hydrographie non disponible');
-        }
+        // 1b. Données hydrographiques OSM — en arrière-plan, ne bloque pas le téléchargement
+        if (mounted) setState(() => _status = 'Hydrographie OSM en cours (arrière-plan)…');
+        // Centre du territoire, rayon limité à ~25 km pour éviter timeout Overpass
+        final cLat = (ecoMinLat + ecoMaxLat) / 2;
+        final cLon = (ecoMinLon + ecoMaxLon) / 2;
+        const maxDeg = 0.22; // ~24 km — couvre n'importe quel parcours
+        TerritoireService.fetchAndSaveWater(
+          nom,
+          cLat - maxDeg, cLon - maxDeg,
+          cLat + maxDeg, cLon + maxDeg,
+        );
       }
 
       // 2. Tuiles satellite/topo selon sélection (bounds carré orange)

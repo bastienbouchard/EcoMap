@@ -324,7 +324,7 @@ class TerritoireService {
     onStatus?.call('Données hydrographiques (OSM)…');
     final bbox = '${minLat.toStringAsFixed(5)},${minLon.toStringAsFixed(5)},${maxLat.toStringAsFixed(5)},${maxLon.toStringAsFixed(5)}';
     final query =
-        '[out:json][timeout:60][bbox:$bbox];'
+        '[out:json][timeout:25][maxsize:8000000][bbox:$bbox];'
         '('
         'way["natural"="water"];'
         'relation["natural"="water"];'
@@ -335,7 +335,7 @@ class TerritoireService {
     Future<http.Response?> tryFetch(String url) async {
       try {
         return await http.post(Uri.parse(url), body: query)
-            .timeout(const Duration(seconds: 60));
+            .timeout(const Duration(seconds: 28));
       } catch (_) { return null; }
     }
 

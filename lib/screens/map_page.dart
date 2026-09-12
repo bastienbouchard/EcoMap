@@ -652,8 +652,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       } catch (_) {}
     }
     if (minLat == double.infinity) return;
+    // Limiter le bbox à ~25 km de rayon pour éviter timeout Overpass sur grands territoires
+    const maxDeg = 0.22;
+    final cLat = (minLat + maxLat) / 2;
+    final cLon = (minLon + maxLon) / 2;
     TerritoireService.fetchAndSaveWater(
-      territoireId, minLat, minLon, maxLat, maxLon,
+      territoireId,
+      cLat - maxDeg, cLon - maxDeg,
+      cLat + maxDeg, cLon + maxDeg,
     ).then((_) async {
       final w = await TerritoireService.loadWater(territoireId);
       if (w != null && mounted) setState(() => _territoireWater = w);
@@ -992,7 +998,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           setState(() => _territoireWater = osmWater);
         } else {
           // Données eau introuvables — avertir l'utilisateur
-          _snack('⚠️ Données hydrographiques non chargées — re-télécharge le territoire', error: true);
+          _snack('⚠️ Données hydrographiques non chargées — les lacs pourraient être traversés', error: true);
         }
       }
       debugPrint('OSM water: ${(osmWater['polys'] as List?)?.length ?? 0} polygones, ${(osmWater['lines'] as List?)?.length ?? 0} lignes');
@@ -1254,7 +1260,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     final bbox = '${minLat.toStringAsFixed(5)},${minLon.toStringAsFixed(5)},${maxLat.toStringAsFixed(5)},${maxLon.toStringAsFixed(5)}';
 
     final query =
-        '[out:json][timeout:40][bbox:$bbox];'
+        '[out:json][timeout:25][maxsize:8000000][bbox:$bbox];'
         '('
         'way["natural"="water"];'
         'relation["natural"="water"];'
@@ -1265,7 +1271,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     Future<http.Response?> tryFetch(String url) async {
       try {
         return await http.post(Uri.parse(url), body: query)
-            .timeout(const Duration(seconds: 40));
+            .timeout(const Duration(seconds: 28));
       } catch (_) { return null; }
     }
 
