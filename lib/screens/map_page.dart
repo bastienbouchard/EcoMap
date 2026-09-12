@@ -607,8 +607,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     final water = await TerritoireService.loadWater(activeId);
     if (water != null) {
       if (mounted) setState(() => _territoireWater = water);
+      // Re-fetch en arrière-plan si données vides (fetch précédent a échoué)
+      final polyCount = (water['polys'] as List?)?.length ?? 0;
+      final lineCount = (water['lines'] as List?)?.length ?? 0;
+      if (polyCount == 0 && lineCount == 0 && _isOnline) {
+        _fetchAndCacheWaterForTerritoire(activeId);
+      }
     } else if (_isOnline) {
-      // Pas de fichier eau (vieux territoire) → fetch en arrière-plan
+      // Pas de fichier eau (vieux territoire ou fetch échoué) → fetch en arrière-plan
       _fetchAndCacheWaterForTerritoire(activeId);
     }
   }
@@ -982,11 +988,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       } else {
         osmWater = await (_osmWaterFuture ?? _fetchOsmWater(startPos, _distanceParcours * 1200 + 3000));
         _osmWaterFuture = null;
-        // Sauvegarder pour les prochaines fois
         if ((osmWater['polys']?.isNotEmpty ?? false) || (osmWater['lines']?.isNotEmpty ?? false)) {
           setState(() => _territoireWater = osmWater);
+        } else {
+          // Données eau introuvables — avertir l'utilisateur
+          _snack('⚠️ Données hydrographiques non chargées — re-télécharge le territoire', error: true);
         }
       }
+      debugPrint('OSM water: ${(osmWater['polys'] as List?)?.length ?? 0} polygones, ${(osmWater['lines'] as List?)?.length ?? 0} lignes');
 
       final result = await compute(buildParcoursIsolate, {
         'lat': startPos.latitude,
@@ -1263,6 +1272,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     http.Response? resp = await tryFetch('https://overpass-api.de/api/interpreter');
     if (resp == null || resp.statusCode != 200) {
       resp = await tryFetch('https://overpass.kumi.systems/api/interpreter');
+    }
+    if (resp == null || resp.statusCode != 200) {
+      resp = await tryFetch('https://lz4.overpass-api.de/api/interpreter');
     }
     if (resp == null || resp.statusCode != 200) return _loadOsmWaterCache();
 

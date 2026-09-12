@@ -343,6 +343,9 @@ class TerritoireService {
     if (resp == null || resp.statusCode != 200) {
       resp = await tryFetch('https://overpass.kumi.systems/api/interpreter');
     }
+    if (resp == null || resp.statusCode != 200) {
+      resp = await tryFetch('https://lz4.overpass-api.de/api/interpreter');
+    }
     if (resp == null || resp.statusCode != 200) return;
 
     try {

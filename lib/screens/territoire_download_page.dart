@@ -131,12 +131,22 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         );
         // 1b. Données hydrographiques OSM (lacs, rivières) pour l'algorithme de parcours
         try {
+          setState(() => _status = 'Données hydrographiques OSM…');
           await TerritoireService.fetchAndSaveWater(
             nom,
             ecoMinLat, ecoMinLon, ecoMaxLat, ecoMaxLon,
             onStatus: (s) { if (mounted) setState(() => _status = s); },
           );
-        } catch (_) {}
+          // Vérifier si les données ont été sauvegardées
+          final waterCheck = await TerritoireService.loadWater(nom);
+          final wPolys = (waterCheck?['polys'] as List?)?.length ?? 0;
+          final wLines = (waterCheck?['lines'] as List?)?.length ?? 0;
+          if (mounted) setState(() => _status = wPolys > 0 || wLines > 0
+              ? '✓ Hydrographie: $wPolys lacs/étangs, $wLines cours d\'eau'
+              : '⚠️ Données hydrographiques non disponibles (sera retenté au démarrage)');
+        } catch (_) {
+          if (mounted) setState(() => _status = '⚠️ Hydrographie non disponible');
+        }
       }
 
       // 2. Tuiles satellite/topo selon sélection (bounds carré orange)
