@@ -284,6 +284,38 @@ class TerritoireService {
     } catch (_) {}
   }
 
+  // Assemble OSM relation outer member arcs into closed rings.
+  // Each arc is [lat, lon] pairs; adjacent arcs share endpoints.
+  static List<List<List<double>>> assembleOsmRings(List<List<List<double>>> ways) {
+    final rings = <List<List<double>>>[];
+    if (ways.isEmpty) return rings;
+    final remaining = List<List<List<double>>>.from(ways);
+    while (remaining.isNotEmpty) {
+      final ring = List<List<double>>.from(remaining.removeAt(0));
+      bool changed = true;
+      while (changed) {
+        final last = ring.last;
+        final first = ring.first;
+        // Ring is closed
+        if ((first[0] - last[0]).abs() < 1e-5 && (first[1] - last[1]).abs() < 1e-5) break;
+        changed = false;
+        for (int i = 0; i < remaining.length; i++) {
+          final way = remaining[i];
+          final wFirst = way.first, wLast = way.last;
+          if ((last[0] - wFirst[0]).abs() < 1e-5 && (last[1] - wFirst[1]).abs() < 1e-5) {
+            ring.addAll(way.skip(1));
+            remaining.removeAt(i); changed = true; break;
+          } else if ((last[0] - wLast[0]).abs() < 1e-5 && (last[1] - wLast[1]).abs() < 1e-5) {
+            ring.addAll(way.reversed.toList().skip(1));
+            remaining.removeAt(i); changed = true; break;
+          }
+        }
+      }
+      if (ring.length >= 3) rings.add(ring);
+    }
+    return rings;
+  }
+
   static Future<void> fetchAndSaveWater(
     String nom,
     double minLat, double minLon, double maxLat, double maxLon, {
@@ -330,12 +362,17 @@ class TerritoireService {
         final elType = el['type'] as String?;
 
         if (elType == 'relation') {
+          // Collect outer member arcs, then assemble into closed ring(s)
           final members = el['members'] as List? ?? [];
+          final outerWays = <List<List<double>>>[];
           for (final member in members) {
             if ((member['role'] as String?) != 'outer') continue;
             final geom = member['geometry'] as List?;
-            if (geom == null || geom.length < 3) continue;
-            polys.add(parseNodes(geom));
+            if (geom == null || geom.length < 2) continue;
+            outerWays.add(parseNodes(geom));
+          }
+          for (final ring in assembleOsmRings(outerWays)) {
+            polys.add(ring);
           }
         } else {
           final geom = el['geometry'] as List?;

@@ -1283,12 +1283,17 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         final elType = el['type'] as String?;
 
         if (elType == 'relation') {
+          // Assemble outer arcs into closed rings (large lakes are multipolygon relations)
           final members = el['members'] as List? ?? [];
+          final outerWays = <List<List<double>>>[];
           for (final member in members) {
             if ((member['role'] as String?) != 'outer') continue;
             final geom = member['geometry'] as List?;
-            if (geom == null || geom.length < 3) continue;
-            polys.add(parseNodes(geom));
+            if (geom == null || geom.length < 2) continue;
+            outerWays.add(parseNodes(geom));
+          }
+          for (final ring in TerritoireService.assembleOsmRings(outerWays)) {
+            polys.add(ring);
           }
         } else {
           final geom = el['geometry'] as List?;
