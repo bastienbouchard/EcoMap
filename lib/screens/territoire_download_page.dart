@@ -129,6 +129,14 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
           maxLat: ecoMaxLat, maxLon: ecoMaxLon,
           onStatus: (s) { if (mounted) setState(() => _status = 'Éco · $s'); },
         );
+        // 1b. Données hydrographiques OSM (lacs, rivières) pour l'algorithme de parcours
+        try {
+          await TerritoireService.fetchAndSaveWater(
+            nom,
+            ecoMinLat, ecoMinLon, ecoMaxLat, ecoMaxLon,
+            onStatus: (s) { if (mounted) setState(() => _status = s); },
+          );
+        } catch (_) {}
       }
 
       // 2. Tuiles satellite/topo selon sélection (bounds carré orange)

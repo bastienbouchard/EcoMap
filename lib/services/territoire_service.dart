@@ -244,5 +244,114 @@ class TerritoireService {
     final path = await _territoirePath(id);
     final file = File(path);
     if (file.existsSync()) file.deleteSync();
+    await deleteWater(id);
+  }
+
+  // ── Hydrographie OSM ────────────────────────────────────────────────────────
+
+  static Future<String> _waterPath(String id) async {
+    final dir = await getApplicationDocumentsDirectory();
+    return '${dir.path}/territoires/${id}_water.json';
+  }
+
+  static Future<Map<String, List<dynamic>>?> loadWater(String id) async {
+    try {
+      final path = await _waterPath(id);
+      final file = File(path);
+      if (!file.existsSync()) return null;
+      final decoded = json.decode(await file.readAsString()) as Map<String, dynamic>;
+      return {
+        'polys': (decoded['polys'] as List?) ?? [],
+        'lines': (decoded['lines'] as List?) ?? [],
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> saveWater(String id, Map<String, List<dynamic>> data) async {
+    try {
+      final path = await _waterPath(id);
+      await File(path).writeAsString(json.encode(data));
+    } catch (_) {}
+  }
+
+  static Future<void> deleteWater(String id) async {
+    try {
+      final path = await _waterPath(id);
+      final f = File(path);
+      if (f.existsSync()) f.deleteSync();
+    } catch (_) {}
+  }
+
+  static Future<void> fetchAndSaveWater(
+    String nom,
+    double minLat, double minLon, double maxLat, double maxLon, {
+    void Function(String)? onStatus,
+  }) async {
+    onStatus?.call('Données hydrographiques (OSM)…');
+    final bbox = '${minLat.toStringAsFixed(5)},${minLon.toStringAsFixed(5)},${maxLat.toStringAsFixed(5)},${maxLon.toStringAsFixed(5)}';
+    final query =
+        '[out:json][timeout:60][bbox:$bbox];'
+        '('
+        'way["natural"="water"];'
+        'relation["natural"="water"];'
+        'way["waterway"~"^(river|stream|canal|drain)\$"];'
+        ');'
+        'out geom;';
+
+    Future<http.Response?> tryFetch(String url) async {
+      try {
+        return await http.post(Uri.parse(url), body: query)
+            .timeout(const Duration(seconds: 60));
+      } catch (_) { return null; }
+    }
+
+    http.Response? resp = await tryFetch('https://overpass-api.de/api/interpreter');
+    if (resp == null || resp.statusCode != 200) {
+      resp = await tryFetch('https://overpass.kumi.systems/api/interpreter');
+    }
+    if (resp == null || resp.statusCode != 200) return;
+
+    try {
+      final data = json.decode(resp.body) as Map<String, dynamic>;
+      final elements = data['elements'] as List;
+      final polys = <List<List<double>>>[];
+      final lines = <List<List<double>>>[];
+
+      List<List<double>> parseNodes(List geom) => geom.map((n) => [
+        (n['lat'] as num).toDouble(),
+        (n['lon'] as num).toDouble(),
+      ]).toList();
+
+      for (final el in elements) {
+        final tags = (el['tags'] as Map?) ?? {};
+        final isWaterArea = tags['natural'] == 'water';
+        final elType = el['type'] as String?;
+
+        if (elType == 'relation') {
+          final members = el['members'] as List? ?? [];
+          for (final member in members) {
+            if ((member['role'] as String?) != 'outer') continue;
+            final geom = member['geometry'] as List?;
+            if (geom == null || geom.length < 3) continue;
+            polys.add(parseNodes(geom));
+          }
+        } else {
+          final geom = el['geometry'] as List?;
+          if (geom == null || geom.length < 2) continue;
+          final nodes = parseNodes(geom);
+          if (isWaterArea && nodes.length >= 3) {
+            polys.add(nodes);
+          } else {
+            lines.add(nodes);
+          }
+        }
+      }
+
+      if (polys.isEmpty && lines.isEmpty) return;
+      await saveWater(nom, {'polys': polys, 'lines': lines});
+      onStatus?.call('Hydrographie: ${polys.length} plans d\'eau, ${lines.length} cours d\'eau');
+    } catch (_) {}
   }
 }

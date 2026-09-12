@@ -196,6 +196,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   List<Map<String, dynamic>> _savedParcoursList = [];
   String? _activeSavedParcoursId;
   Future<Map<String, List<dynamic>>>? _osmWaterFuture;
+  Map<String, List<dynamic>> _territoireWater = {'polys': [], 'lines': []};
 
   // ── Points épinglés ──
   List<Map<String, dynamic>> _pinnedPoints = [];
@@ -601,6 +602,56 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       _rawHotspots = parsedHS;
       if (_showHotspots) _hotspots = _computeHotspots();
     });
+
+    // Charger les données hydrographiques OSM du territoire
+    final water = await TerritoireService.loadWater(activeId);
+    if (water != null) {
+      if (mounted) setState(() => _territoireWater = water);
+    } else if (_isOnline) {
+      // Pas de fichier eau (vieux territoire) → fetch en arrière-plan
+      _fetchAndCacheWaterForTerritoire(activeId);
+    }
+  }
+
+  void _fetchAndCacheWaterForTerritoire(String territoireId) {
+    final bounds = geoJson['features'] as List;
+    if (bounds.isEmpty) return;
+    // Calculer le bbox à partir des features chargées
+    double minLat = double.infinity, maxLat = double.negativeInfinity;
+    double minLon = double.infinity, maxLon = double.negativeInfinity;
+    for (final feat in bounds) {
+      final geom = (feat as Map)['geometry'];
+      if (geom == null) continue;
+      final coords = geom['coordinates'];
+      if (coords == null) continue;
+      void scanRing(List ring) {
+        for (final c in ring) {
+          final lon = (c[0] as num).toDouble();
+          final lat = (c[1] as num).toDouble();
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+          if (lon < minLon) minLon = lon;
+          if (lon > maxLon) maxLon = lon;
+        }
+      }
+      try {
+        final type = geom['type'] as String?;
+        if (type == 'Polygon') {
+          scanRing((coords as List)[0] as List);
+        } else if (type == 'MultiPolygon') {
+          for (final poly in coords as List) {
+            scanRing((poly as List)[0] as List);
+          }
+        }
+      } catch (_) {}
+    }
+    if (minLat == double.infinity) return;
+    TerritoireService.fetchAndSaveWater(
+      territoireId, minLat, minLon, maxLat, maxLon,
+    ).then((_) async {
+      final w = await TerritoireService.loadWater(territoireId);
+      if (w != null && mounted) setState(() => _territoireWater = w);
+    });
   }
 
   Future<void> _loadRoads() async {
@@ -923,9 +974,19 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           .map((h) => [h.position.latitude, h.position.longitude])
           .toList();
 
-      // Use pre-fetched OSM water (started when dialog opened) or fetch now
-      final osmWater = await (_osmWaterFuture ?? _fetchOsmWater(startPos, _distanceParcours * 1200 + 3000));
-      _osmWaterFuture = null;
+      // Données hydrographiques : fichier du territoire (fiable) ou fetch live (fallback)
+      Map<String, List<dynamic>> osmWater;
+      if (_territoireWater['polys']!.isNotEmpty || _territoireWater['lines']!.isNotEmpty) {
+        osmWater = _territoireWater;
+        _osmWaterFuture = null;
+      } else {
+        osmWater = await (_osmWaterFuture ?? _fetchOsmWater(startPos, _distanceParcours * 1200 + 3000));
+        _osmWaterFuture = null;
+        // Sauvegarder pour les prochaines fois
+        if ((osmWater['polys']?.isNotEmpty ?? false) || (osmWater['lines']?.isNotEmpty ?? false)) {
+          setState(() => _territoireWater = osmWater);
+        }
+      }
 
       final result = await compute(buildParcoursIsolate, {
         'lat': startPos.latitude,
@@ -1241,7 +1302,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         }
       }
       final result = {'polys': polys, 'lines': lines};
-      if (polys.isNotEmpty || lines.isNotEmpty) _saveOsmWaterCache(result);
+      if (polys.isNotEmpty || lines.isNotEmpty) {
+        _saveOsmWaterCache(result);
+        // Aussi sauvegarder dans le fichier du territoire
+        final activeId = await TerritoireService.getActiveTerritoire();
+        if (activeId != null) await TerritoireService.saveWater(activeId, result);
+      }
       return result;
     } catch (_) {
       return _loadOsmWaterCache();
@@ -2536,11 +2602,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   void _showParcoursDialog() {
     if (!_requirePremium()) return;
     if (!_requireEcoMap()) return;
-    // Pre-fetch OSM water while user configures options (head start)
-    _osmWaterFuture = _fetchOsmWater(
-      _mapController.camera.center,
-      _distanceParcours * 1200 + 3000,
-    );
+    // Pre-fetch OSM water uniquement si pas de données eau du territoire
+    if (_territoireWater['polys']!.isEmpty && _territoireWater['lines']!.isEmpty) {
+      _osmWaterFuture = _fetchOsmWater(
+        _mapController.camera.center,
+        _distanceParcours * 1200 + 3000,
+      );
+    }
     double localDist = _distanceParcours;
     double? localWindDeg = _windDeg;
     showModalBottomSheet(
