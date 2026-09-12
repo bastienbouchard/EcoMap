@@ -1260,29 +1260,40 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     final bbox = '${minLat.toStringAsFixed(5)},${minLon.toStringAsFixed(5)},${maxLat.toStringAsFixed(5)},${maxLon.toStringAsFixed(5)}';
 
     final query =
-        '[out:json][timeout:25][maxsize:8000000][bbox:$bbox];'
+        '[out:json][timeout:35][bbox:$bbox];'
         '('
         'way["natural"="water"];'
         'relation["natural"="water"];'
-        'way["waterway"~"^(river|stream|canal|drain)\$"];'
+        'way["waterway"="river"];'
         ');'
         'out geom;';
 
     Future<http.Response?> tryFetch(String url) async {
       try {
         return await http.post(Uri.parse(url), body: query)
-            .timeout(const Duration(seconds: 28));
+            .timeout(const Duration(seconds: 38));
       } catch (_) { return null; }
     }
 
-    http.Response? resp = await tryFetch('https://overpass-api.de/api/interpreter');
-    if (resp == null || resp.statusCode != 200) {
-      resp = await tryFetch('https://overpass.kumi.systems/api/interpreter');
+    bool hasOverpassError(Map data) =>
+        (data['remark'] as String? ?? '').toLowerCase().contains('error') ||
+        (data['remark'] as String? ?? '').toLowerCase().contains('timed out');
+
+    http.Response? resp;
+    for (final url in [
+      'https://overpass-api.de/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+    ]) {
+      resp = await tryFetch(url);
+      if (resp == null || resp.statusCode != 200) continue;
+      try {
+        final check = jsonDecode(resp.body) as Map<String, dynamic>;
+        if (!hasOverpassError(check)) break;
+      } catch (_) {}
+      resp = null;
     }
-    if (resp == null || resp.statusCode != 200) {
-      resp = await tryFetch('https://lz4.overpass-api.de/api/interpreter');
-    }
-    if (resp == null || resp.statusCode != 200) return _loadOsmWaterCache();
+    if (resp == null) return _loadOsmWaterCache();
 
     try {
       final data = jsonDecode(resp.body) as Map<String, dynamic>;

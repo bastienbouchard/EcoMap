@@ -323,30 +323,43 @@ class TerritoireService {
   }) async {
     onStatus?.call('Données hydrographiques (OSM)…');
     final bbox = '${minLat.toStringAsFixed(5)},${minLon.toStringAsFixed(5)},${maxLat.toStringAsFixed(5)},${maxLon.toStringAsFixed(5)}';
+    // Seulement lacs et grandes rivières — exclure stream/canal/drain qui
+    // font exploser la taille de réponse dans les Laurentides
     final query =
-        '[out:json][timeout:25][maxsize:8000000][bbox:$bbox];'
+        '[out:json][timeout:35][bbox:$bbox];'
         '('
         'way["natural"="water"];'
         'relation["natural"="water"];'
-        'way["waterway"~"^(river|stream|canal|drain)\$"];'
+        'way["waterway"="river"];'
         ');'
         'out geom;';
 
     Future<http.Response?> tryFetch(String url) async {
       try {
         return await http.post(Uri.parse(url), body: query)
-            .timeout(const Duration(seconds: 28));
+            .timeout(const Duration(seconds: 38));
       } catch (_) { return null; }
     }
 
-    http.Response? resp = await tryFetch('https://overpass-api.de/api/interpreter');
-    if (resp == null || resp.statusCode != 200) {
-      resp = await tryFetch('https://overpass.kumi.systems/api/interpreter');
+    bool _hasOverpassError(Map data) =>
+        (data['remark'] as String? ?? '').toLowerCase().contains('error') ||
+        (data['remark'] as String? ?? '').toLowerCase().contains('timed out');
+
+    http.Response? resp;
+    for (final url in [
+      'https://overpass-api.de/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+    ]) {
+      resp = await tryFetch(url);
+      if (resp == null || resp.statusCode != 200) continue;
+      try {
+        final check = json.decode(resp.body) as Map<String, dynamic>;
+        if (!_hasOverpassError(check)) break; // bonne réponse
+      } catch (_) {}
+      resp = null; // réponse d'erreur Overpass, essayer le prochain serveur
     }
-    if (resp == null || resp.statusCode != 200) {
-      resp = await tryFetch('https://lz4.overpass-api.de/api/interpreter');
-    }
-    if (resp == null || resp.statusCode != 200) return;
+    if (resp == null) return;
 
     try {
       final data = json.decode(resp.body) as Map<String, dynamic>;
