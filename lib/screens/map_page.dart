@@ -922,6 +922,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           .map((h) => [h.position.latitude, h.position.longitude])
           .toList();
 
+      // Fetch OSM water bodies for reliable water detection (independent of eco map)
+      final osmWater = _isOnline
+          ? await _fetchOsmWater(startPos, _distanceParcours * 1200 + 2000)
+          : {'polys': <dynamic>[], 'lines': <dynamic>[]};
+
       final result = await compute(buildParcoursIsolate, {
         'lat': startPos.latitude,
         'lon': startPos.longitude,
@@ -930,6 +935,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         'hotspots': topHotspots,
         'targetDist': _distanceParcours * 1000,
         'geoJson': geoJson,
+        'osmWaterPolys': osmWater['polys'],
+        'osmWaterLines': osmWater['lines'],
       });
 
       final rawList = result['points'] as List;
@@ -1135,6 +1142,44 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       return points;
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<Map<String, List<dynamic>>> _fetchOsmWater(LatLng center, double radiusM) async {
+    final r = radiusM.round().clamp(0, 8000);
+    final query =
+        '[out:json][timeout:25];'
+        '('
+        'way["natural"="water"](around:$r,${center.latitude},${center.longitude});'
+        'way["waterway"~"^(river|stream|canal|drain)\$"](around:$r,${center.latitude},${center.longitude});'
+        ');'
+        'out geom;';
+    try {
+      final resp = await http
+          .post(Uri.parse('https://overpass-api.de/api/interpreter'), body: query)
+          .timeout(const Duration(seconds: 25));
+      if (resp.statusCode != 200) return {'polys': [], 'lines': []};
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final elements = data['elements'] as List;
+      final polys = <List<List<double>>>[];
+      final lines = <List<List<double>>>[];
+      for (final el in elements) {
+        final geom = el['geometry'] as List?;
+        if (geom == null || geom.length < 2) continue;
+        final nodes = geom.map((n) => [
+          (n['lat'] as num).toDouble(),
+          (n['lon'] as num).toDouble(),
+        ]).toList();
+        final tags = (el['tags'] as Map?) ?? {};
+        if (tags['natural'] == 'water' && nodes.length >= 3) {
+          polys.add(nodes);
+        } else {
+          lines.add(nodes);
+        }
+      }
+      return {'polys': polys, 'lines': lines};
+    } catch (_) {
+      return {'polys': [], 'lines': []};
     }
   }
 

@@ -302,6 +302,42 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     } catch (_) {}
   }
 
+  // OSM water polygons (lacs): add to waterGeometries
+  final osmPolys = (params['osmWaterPolys'] as List?) ?? [];
+  for (final poly in osmPolys) {
+    try {
+      final nodes = poly as List;
+      if (nodes.length < 3) continue;
+      // OSM nodes are [lat, lon]; GeoJSON needs [lon, lat]
+      final coords = nodes.map((n) {
+        final node = n as List;
+        return [(node[1] as num).toDouble(), (node[0] as num).toDouble()];
+      }).toList();
+      waterGeometries.add({'type': 'Polygon', 'coordinates': [coords]});
+      double sLat = 0, sLon = 0;
+      for (final n in nodes) {
+        final node = n as List;
+        sLat += (node[0] as num).toDouble();
+        sLon += (node[1] as num).toDouble();
+      }
+      waterCentroids.add([sLat / nodes.length, sLon / nodes.length]);
+    } catch (_) {}
+  }
+
+  // OSM river/stream lines: stored as list of [lat,lon] segment chains
+  // Used for proximity check in segmentCrossesWater (25m buffer)
+  final osmLines = (params['osmWaterLines'] as List?) ?? [];
+  final List<List<List<double>>> riverSegments = [];
+  for (final line in osmLines) {
+    try {
+      final nodes = (line as List).map((n) {
+        final node = n as List;
+        return [(node[0] as num).toDouble(), (node[1] as num).toDouble()];
+      }).toList();
+      if (nodes.length >= 2) riverSegments.add(nodes);
+    } catch (_) {}
+  }
+
   final rawHotspots = (params['hotspots'] as List?)
       ?.map((e) => (e as List).map((v) => (v as num).toDouble()).toList())
       .toList() ?? [];
@@ -331,9 +367,9 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     return 'X';
   }
 
-  // Vérifie si le segment traverse de l'eau (30 échantillons ~10m sur 300m pour attraper les petits lacs)
+  // Vérifie si le segment traverse de l'eau (eco map polygons + OSM lacs/rivières)
   bool segmentCrossesWater(double fromLat, double fromLon, double toLat, double toLon) {
-    if (waterGeometries.isEmpty) return false;
+    if (waterGeometries.isEmpty && riverSegments.isEmpty) return false;
     // Adaptive sampling: 1 point per ~4m to catch narrow water bodies
     final distM = sqrt(
       pow((toLat - fromLat) * 111000, 2) +
@@ -344,11 +380,41 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
       final t = s / n.toDouble();
       final sLat = fromLat + (toLat - fromLat) * t;
       final sLon = fromLon + (toLon - fromLon) * t;
+      // Check eco map + OSM lake polygons
       final pt = LatLng(sLat, sLon);
       for (final geom in waterGeometries) {
         try {
           if (pointInGeometry(pt, geom)) return true;
         } catch (_) {}
+      }
+      // Check proximity to OSM river/stream segments (25m buffer)
+      if (riverSegments.isNotEmpty) {
+        final cosLat = cos(sLat * pi / 180);
+        for (final line in riverSegments) {
+          for (int i = 0; i < line.length - 1; i++) {
+            final aLat = line[i][0], aLon = line[i][1];
+            final bLat = line[i + 1][0], bLon = line[i + 1][1];
+            // Distance from point to segment [a,b]
+            final dx = (bLon - aLon) * 111000 * cosLat;
+            final dy = (bLat - aLat) * 111000;
+            final lenSq = dx * dx + dy * dy;
+            double distM2;
+            if (lenSq == 0) {
+              final ex = (sLon - aLon) * 111000 * cosLat;
+              final ey = (sLat - aLat) * 111000;
+              distM2 = sqrt(ex * ex + ey * ey);
+            } else {
+              final t2 = ((sLon - aLon) * 111000 * cosLat * dx +
+                          (sLat - aLat) * 111000 * dy) / lenSq;
+              final tc = t2.clamp(0.0, 1.0);
+              final ex = sLon - (aLon + tc * (bLon - aLon));
+              final ey = sLat - (aLat + tc * (bLat - aLat));
+              distM2 = sqrt(ex * ex * 111000 * 111000 * cosLat * cosLat +
+                            ey * ey * 111000 * 111000);
+            }
+            if (distM2 < 25) return true;
+          }
+        }
       }
     }
     return false;
