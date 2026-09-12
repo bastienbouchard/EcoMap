@@ -922,10 +922,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           .map((h) => [h.position.latitude, h.position.longitude])
           .toList();
 
-      // Fetch OSM water bodies for reliable water detection (independent of eco map)
-      final osmWater = _isOnline
-          ? await _fetchOsmWater(startPos, _distanceParcours * 1200 + 2000)
-          : {'polys': <dynamic>[], 'lines': <dynamic>[]};
+      // Fetch OSM water bodies (online = fresh fetch + cache, offline = cached data)
+      final osmWater = await _fetchOsmWater(startPos, _distanceParcours * 1200 + 2000);
 
       final result = await compute(buildParcoursIsolate, {
         'lat': startPos.latitude,
@@ -1145,7 +1143,38 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     }
   }
 
+  static String _osmWaterCacheKey(String territoireId) => 'osm_water_$territoireId';
+
+  Future<Map<String, List<dynamic>>> _loadOsmWaterCache() async {
+    try {
+      final activeId = await TerritoireService.getActiveTerritoire();
+      if (activeId == null) return {'polys': [], 'lines': []};
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_osmWaterCacheKey(activeId));
+      if (raw == null) return {'polys': [], 'lines': []};
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return {
+        'polys': (decoded['polys'] as List?) ?? [],
+        'lines': (decoded['lines'] as List?) ?? [],
+      };
+    } catch (_) {
+      return {'polys': [], 'lines': []};
+    }
+  }
+
+  Future<void> _saveOsmWaterCache(Map<String, List<dynamic>> data) async {
+    try {
+      final activeId = await TerritoireService.getActiveTerritoire();
+      if (activeId == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_osmWaterCacheKey(activeId), jsonEncode(data));
+    } catch (_) {}
+  }
+
   Future<Map<String, List<dynamic>>> _fetchOsmWater(LatLng center, double radiusM) async {
+    // Offline: load cached data for this territory
+    if (!_isOnline) return _loadOsmWaterCache();
+
     final r = radiusM.round().clamp(0, 8000);
     final query =
         '[out:json][timeout:25];'
@@ -1158,7 +1187,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       final resp = await http
           .post(Uri.parse('https://overpass-api.de/api/interpreter'), body: query)
           .timeout(const Duration(seconds: 25));
-      if (resp.statusCode != 200) return {'polys': [], 'lines': []};
+      if (resp.statusCode != 200) return _loadOsmWaterCache();
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final elements = data['elements'] as List;
       final polys = <List<List<double>>>[];
@@ -1177,9 +1206,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           lines.add(nodes);
         }
       }
-      return {'polys': polys, 'lines': lines};
+      final result = {'polys': polys, 'lines': lines};
+      _saveOsmWaterCache(result); // persist for offline use
+      return result;
     } catch (_) {
-      return {'polys': [], 'lines': []};
+      return _loadOsmWaterCache();
     }
   }
 
