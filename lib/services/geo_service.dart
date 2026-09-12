@@ -275,10 +275,15 @@ Map<String, dynamic> buildParcoursIsolate(Map<String, dynamic> params) {
     final typeEco = (props['type_eco'] ?? '').toString().toUpperCase();
     final codeCouv = (props['code_couv'] ?? '').toString().toUpperCase();
     final typeCouv = (props['type_couv'] ?? '').toString().toUpperCase();
-    if (typeEco.contains('EAU') || typeEco.contains('RIV') ||
-        typeEco.contains('LAC') ||
-        codeCouv == 'EE' || codeCouv.contains('EAU') ||
-        typeCouv == 'EAU') return true;
+    final depSur  = (props['dep_sur']   ?? '').toString().toUpperCase();
+    // MRNF codes: EAU/RIV/LAC in type_eco; AL=eau libre, IN=inondé in type_couv/code_couv;
+    // EE=eau en terrain en/exondé; dep_sur O=organique/eau
+    if (typeEco.contains('EAU') || typeEco.contains('RIV') || typeEco.contains('LAC') ||
+        typeEco == 'AL' || typeEco == 'IN' ||
+        codeCouv == 'EE' || codeCouv == 'AL' || codeCouv == 'IN' ||
+        codeCouv.contains('EAU') ||
+        typeCouv == 'EAU' || typeCouv == 'AL' || typeCouv == 'IN' ||
+        depSur.startsWith('O') || depSur == 'EAU') return true;
     return false;
   }
 

@@ -195,6 +195,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   double _parcoursScore = 0;
   List<Map<String, dynamic>> _savedParcoursList = [];
   String? _activeSavedParcoursId;
+  Future<Map<String, List<dynamic>>>? _osmWaterFuture;
 
   // ── Points épinglés ──
   List<Map<String, dynamic>> _pinnedPoints = [];
@@ -922,8 +923,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           .map((h) => [h.position.latitude, h.position.longitude])
           .toList();
 
-      // Fetch OSM water bodies (online = fresh fetch + cache, offline = cached data)
-      final osmWater = await _fetchOsmWater(startPos, _distanceParcours * 1200 + 2000);
+      // Use pre-fetched OSM water (started when dialog opened) or fetch now
+      final osmWater = await (_osmWaterFuture ?? _fetchOsmWater(startPos, _distanceParcours * 1200 + 3000));
+      _osmWaterFuture = null;
 
       final result = await compute(buildParcoursIsolate, {
         'lat': startPos.latitude,
@@ -2534,6 +2536,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   void _showParcoursDialog() {
     if (!_requirePremium()) return;
     if (!_requireEcoMap()) return;
+    // Pre-fetch OSM water while user configures options (head start)
+    _osmWaterFuture = _fetchOsmWater(
+      _mapController.camera.center,
+      _distanceParcours * 1200 + 3000,
+    );
     double localDist = _distanceParcours;
     double? localWindDeg = _windDeg;
     showModalBottomSheet(
