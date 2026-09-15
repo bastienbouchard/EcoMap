@@ -409,7 +409,33 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         final locStatus = await Permission.location.status;
         if (locStatus.isGranted) {
           final bgStatus = await Permission.locationAlways.status;
-          if (!bgStatus.isGranted) await Permission.locationAlways.request();
+          if (!bgStatus.isGranted && mounted) {
+            final confirmed = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Accès à la position en arrière-plan'),
+                content: const Text(
+                  'OrignalScan accède à votre position GPS même lorsque '
+                  "l'écran est éteint, afin de suivre votre déplacement "
+                  'en forêt et enregistrer votre trace sur la carte.\n\n'
+                  'Votre position reste sur votre appareil et '
+                  "n'est jamais partagée sans votre consentement.",
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Refuser'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Autoriser'),
+                  ),
+                ],
+              ),
+            );
+            if (confirmed == true) await Permission.locationAlways.request();
+          }
         }
         _positionStream = Geolocator.getPositionStream(
           locationSettings: AndroidSettings(
