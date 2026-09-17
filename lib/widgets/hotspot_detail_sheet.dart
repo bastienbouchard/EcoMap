@@ -45,6 +45,9 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
   final origine = origineLabels[origineCode] ?? (origineCode.isEmpty ? '—' : origineCode);
   final depSur = (p['dep_sur'] ?? '').toString();
   final typeEco = (p['type_eco'] ?? '—').toString();
+  const hautLabels = {'A': '< 7 m', 'B': '7–12 m', 'C': '12–17 m', 'D': '17–22 m', 'E': '> 22 m'};
+  final hautCode = (p['cl_haut'] ?? '').toString().toUpperCase();
+  final haut = hautLabels[hautCode] ?? '';
 
   int sAge;
   if (ageCode.isEmpty) {
@@ -194,6 +197,7 @@ void showHotspotDetail(BuildContext context, HotspotInfo info,
             _chip('Origine: $origine'),
             if (perturbCode.isNotEmpty) _chip('Perturbation: $perturbCode'),
             _chip('Drainage: $drai'),
+            if (haut.isNotEmpty) _chip('Hauteur: $haut'),
             _chip('${info.position.latitude.toStringAsFixed(4)}° N'),
             _chip('${info.position.longitude.abs().toStringAsFixed(4)}° O'),
           ]),

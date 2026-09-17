@@ -151,6 +151,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   StreamSubscription<Position>? _positionStream;
   StreamSubscription<CompassEvent>? _compassSub;
   bool _headingUp = false;
+  double _gpsHeading = 0;
+  double _gpsSpeed = 0;
+  double _compassHeading = 0;
   Timer? _locationTimer;
   DateTime? _lastStreamUpdate;
 
@@ -398,7 +401,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             showBackgroundLocationIndicator: true,
           ),
         ).listen(
-          (position) => handlePos(position.latitude, position.longitude),
+          (position) {
+            if (position.speed > 0.3 && position.heading >= 0 && mounted) {
+              setState(() { _gpsHeading = position.heading; _gpsSpeed = position.speed; });
+            }
+            handlePos(position.latitude, position.longitude);
+          },
           onError: (_) {},
           cancelOnError: false,
         );
@@ -452,6 +460,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         ).listen(
           (position) {
             _lastStreamUpdate = DateTime.now();
+            if (position.speed > 0.3 && position.heading >= 0 && mounted) {
+              setState(() { _gpsHeading = position.heading; _gpsSpeed = position.speed; });
+            }
             handlePos(position.latitude, position.longitude);
           },
           onError: (_) {},
@@ -552,6 +563,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       final heading = event.heading;
       if (heading != null && mounted) {
         _mapController.rotate(-heading);
+        setState(() => _compassHeading = heading);
       }
     });
   }
@@ -3258,6 +3270,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           ),
           _buildZoomControls(),
           if (_windDeg != null) _buildWindIndicator(),
+          _buildNorthIndicator(),
         ],
         ),
       ),
@@ -4227,6 +4240,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   MarkerLayer _buildCurrentPositionMarker() {
     if (!_hasGpsPosition) return const MarkerLayer(markers: []);
+    final isMoving = _gpsSpeed > 0.5; // m/s ≈ 1.8 km/h
     return MarkerLayer(markers: [
       if (_headingUp)
         Marker(
@@ -4237,20 +4251,60 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         ),
       Marker(
         point: _currentPosition,
-        width: 20, height: 20,
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF4A90E2),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.4), blurRadius: 4)
+        width: isMoving ? 32 : 20,
+        height: isMoving ? 32 : 20,
+        rotate: false, // tourne avec la carte pour que la flèche reste orientée
+        child: isMoving
+            ? Transform.rotate(
+                angle: _gpsHeading * pi / 180,
+                child: CustomPaint(
+                  size: const Size(32, 32),
+                  painter: _PositionArrowPainter(),
+                ),
+              )
+            : Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A90E2),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 4)
+                  ],
+                ),
+              ),
+      ),
+    ]);
+  }
+
+  Widget _buildNorthIndicator() {
+    final angle = _headingUp ? _compassHeading * pi / 180 : 0.0;
+    final bannerVisible = (!_isOnline && _showOfflineBanner) ||
+        (_isOnline && _polygonsCache.isEmpty && _showDownloadTip);
+    final windOffset = _windDeg != null ? 52.0 : 0.0;
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + (bannerVisible ? 62 : 12) + windOffset,
+      right: 16,
+      child: Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A).withOpacity(0.88),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white24),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)],
+        ),
+        child: Transform.rotate(
+          angle: angle,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.navigation, color: Colors.red, size: 14),
+              Text('N', style: TextStyle(color: Colors.red, fontSize: 8,
+                  fontWeight: FontWeight.bold, height: 1.0)),
             ],
           ),
         ),
       ),
-    ]);
+    );
   }
 
   MarkerLayer _buildSalineMarkers() {
@@ -5772,6 +5826,26 @@ class _AppToastState extends State<_AppToast>
       ),
     );
   }
+}
+
+class _PositionArrowPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final fill = Paint()..color = const Color(0xFF4A90E2)..style = PaintingStyle.fill;
+    final border = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2.5;
+    final path = Path()
+      ..moveTo(cx, 2)
+      ..lineTo(cx + 9, cy + 12)
+      ..lineTo(cx, cy + 6)
+      ..lineTo(cx - 9, cy + 12)
+      ..close();
+    canvas.drawPath(path, fill);
+    canvas.drawPath(path, border);
+  }
+  @override
+  bool shouldRepaint(_PositionArrowPainter old) => false;
 }
 
 class _HeadingHaloPainter extends CustomPainter {
