@@ -4240,7 +4240,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   MarkerLayer _buildCurrentPositionMarker() {
     if (!_hasGpsPosition) return const MarkerLayer(markers: []);
-    final isMoving = _gpsSpeed > 0.5; // m/s ≈ 1.8 km/h
+    final isMoving = _gpsSpeed > 0.5;
+    final showArrow = isMoving || _headingUp;
     return MarkerLayer(markers: [
       if (_headingUp)
         Marker(
@@ -4251,10 +4252,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         ),
       Marker(
         point: _currentPosition,
-        width: isMoving ? 32 : 20,
-        height: isMoving ? 32 : 20,
+        width: showArrow ? 32 : 20,
+        height: showArrow ? 32 : 20,
         rotate: false,
-        child: isMoving
+        child: showArrow
             ? Transform.rotate(
                 angle: _headingUp ? 0.0 : _gpsHeading * pi / 180,
                 child: CustomPaint(
@@ -4284,12 +4285,16 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     return Positioned(
       top: MediaQuery.of(context).padding.top + (bannerVisible ? 62 : 12) + windOffset,
       right: 16,
-      child: Container(
+      child: GestureDetector(
+        onTap: _toggleHeadingUp,
+        child: Container(
         width: 36, height: 36,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A).withOpacity(0.88),
+          color: _headingUp
+              ? const Color(0xFFFF6B35).withOpacity(0.88)
+              : const Color(0xFF1A1A1A).withOpacity(0.88),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: _headingUp ? Colors.orange : Colors.white24),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)],
         ),
         child: Transform.rotate(
@@ -4303,6 +4308,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -5558,12 +5564,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                mapIconBtn(
-                  Icons.explore,
-                  _toggleHeadingUp,
-                  active: _headingUp,
-                ),
-                mapDividerV(),
                 mapIconBtn(Icons.my_location, _goToCurrentLocation,
                     loading: _loading),
                 mapDividerV(),
