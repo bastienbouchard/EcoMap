@@ -290,6 +290,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       }
     });
     _initLocation();
+    _compassSub = FlutterCompass.events?.listen((event) {
+      final h = event.heading;
+      if (h == null || !mounted) return;
+      if (_headingUp) _mapController.rotate(-h);
+      setState(() => _compassHeading = h);
+    });
     _fetchWind();
     PremiumService.load();
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
@@ -546,8 +552,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   void _resetNorth() {
-    _compassSub?.cancel();
-    _compassSub = null;
     setState(() => _headingUp = false);
     _mapController.rotate(0);
   }
@@ -555,17 +559,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   void _toggleHeadingUp() {
     if (_headingUp) {
       _resetNorth();
-      return;
+    } else {
+      setState(() => _headingUp = true);
     }
-    setState(() => _headingUp = true);
-    _compassSub?.cancel();
-    _compassSub = FlutterCompass.events?.listen((event) {
-      final heading = event.heading;
-      if (heading != null && mounted) {
-        _mapController.rotate(-heading);
-        setState(() => _compassHeading = heading);
-      }
-    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -4240,8 +4236,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   MarkerLayer _buildCurrentPositionMarker() {
     if (!_hasGpsPosition) return const MarkerLayer(markers: []);
-    final isMoving = _gpsSpeed > 0.5;
-    final showArrow = isMoving || _headingUp;
     return MarkerLayer(markers: [
       if (_headingUp)
         Marker(
@@ -4252,27 +4246,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         ),
       Marker(
         point: _currentPosition,
-        width: showArrow ? 32 : 20,
-        height: showArrow ? 32 : 20,
+        width: 32, height: 32,
         rotate: false,
-        child: showArrow
-            ? Transform.rotate(
-                angle: _headingUp ? 0.0 : _gpsHeading * pi / 180,
-                child: CustomPaint(
-                  size: const Size(32, 32),
-                  painter: _PositionArrowPainter(),
-                ),
-              )
-            : Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4A90E2),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 3),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 4)
-                  ],
-                ),
-              ),
+        child: Transform.rotate(
+          angle: _headingUp ? 0.0 : _compassHeading * pi / 180,
+          child: CustomPaint(
+            size: const Size(32, 32),
+            painter: _PositionArrowPainter(),
+          ),
+        ),
       ),
     ]);
   }
