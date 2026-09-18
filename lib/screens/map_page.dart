@@ -4241,13 +4241,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         Marker(
           point: _currentPosition,
           width: 120, height: 120,
-          rotate: false,
+          rotate: true,
           child: CustomPaint(painter: _HeadingHaloPainter()),
         ),
       Marker(
         point: _currentPosition,
         width: 32, height: 32,
-        rotate: false,
+        rotate: true,
         child: Transform.rotate(
           angle: _headingUp ? 0.0 : _compassHeading * pi / 180,
           child: CustomPaint(
