@@ -4291,20 +4291,22 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         width: 36, height: 36,
         decoration: BoxDecoration(
           color: _headingUp
-              ? const Color(0xFFFF6B35).withOpacity(0.88)
+              ? const Color(0xFFFF6B35)
               : const Color(0xFF1A1A1A).withOpacity(0.88),
           shape: BoxShape.circle,
-          border: Border.all(color: _headingUp ? Colors.orange : Colors.white24),
+          border: Border.all(color: _headingUp ? const Color(0xFFFF6B35) : Colors.white24),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)],
         ),
         child: Transform.rotate(
           angle: angle,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.navigation, color: Colors.red, size: 14),
-              Text('N', style: TextStyle(color: Colors.red, fontSize: 8,
-                  fontWeight: FontWeight.bold, height: 1.0)),
+            children: [
+              Icon(Icons.navigation,
+                  color: _headingUp ? Colors.black : const Color(0xFFFF6B35), size: 14),
+              Text('N', style: TextStyle(
+                  color: _headingUp ? Colors.black : const Color(0xFFFF6B35),
+                  fontSize: 8, fontWeight: FontWeight.bold, height: 1.0)),
             ],
           ),
         ),
