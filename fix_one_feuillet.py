@@ -19,7 +19,7 @@ def _url(code):
         f"Decoupage250K/{code}/CARTE_ECO_MAJ_{code}_GPKG.zip"
     )
 
-COLS = ["type_couv", "gr_ess", "cl_age", "cl_drai", "origine", "type_eco", "superficie", "geometry"]
+COLS = ["type_couv", "gr_ess", "cl_age", "cl_haut", "cl_drai", "dep_sur", "origine", "perturb", "type_eco", "superficie", "geometry"]
 
 
 def load_tile(path):

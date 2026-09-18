@@ -75,7 +75,7 @@ FEUILLETS = [
     ("31C", "MONTREAL SUD"),
 ]
 
-COLS = ["type_couv", "gr_ess", "cl_age", "cl_drai", "origine", "type_eco", "superficie", "geometry"]
+COLS = ["type_couv", "gr_ess", "cl_age", "cl_haut", "cl_drai", "dep_sur", "origine", "perturb", "type_eco", "superficie", "geometry"]
 
 
 def download_gpkg(url, tmp_dir):

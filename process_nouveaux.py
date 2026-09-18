@@ -8,8 +8,8 @@ from shapely.geometry import box
 OUTPUT_DIR = os.path.expanduser("~/EcoMap_tiles_new")
 TILE_SIZE = 0.5
 
-COLS = ["type_couv", "gr_ess", "cl_age", "cl_drai", "origine", "type_eco",
-        "dep_sur", "code_couv", "cl_dens", "superficie", "geometry"]
+COLS = ["type_couv", "gr_ess", "cl_age", "cl_haut", "cl_drai", "dep_sur",
+        "origine", "perturb", "type_eco", "code_couv", "cl_dens", "superficie", "geometry"]
 
 NOUVEAUX = [
     ("21E", "SHERBROOKE"),

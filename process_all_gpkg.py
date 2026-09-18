@@ -10,8 +10,8 @@ from shapely.geometry import box
 GPKG_DIR   = os.path.expanduser("~/Downloads")
 OUTPUT_DIR = os.path.expanduser("~/EcoMap_tiles_final")
 TILE_SIZE  = 0.5
-COLS = ["type_couv", "gr_ess", "cl_age", "cl_drai", "origine", "type_eco",
-        "dep_sur", "code_couv", "cl_dens", "superficie", "geometry"]
+COLS = ["type_couv", "gr_ess", "cl_age", "cl_haut", "cl_drai", "dep_sur",
+        "origine", "perturb", "type_eco", "code_couv", "cl_dens", "superficie", "geometry"]
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
