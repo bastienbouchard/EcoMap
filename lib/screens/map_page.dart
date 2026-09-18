@@ -150,6 +150,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   bool _windCached = false;
   StreamSubscription<Position>? _positionStream;
   StreamSubscription<CompassEvent>? _compassSub;
+  StreamSubscription<CompassEvent>? _northSub; // boussole permanente pour l'indicateur N
   bool _headingUp = false;
   double _gpsHeading = 0;
   double _gpsSpeed = 0;
@@ -290,6 +291,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       }
     });
     _initLocation();
+    _northSub = FlutterCompass.events?.listen((event) {
+      final h = event.heading;
+      if (h != null && mounted) setState(() => _compassHeading = h);
+    });
     _fetchWind();
     PremiumService.load();
     Future.delayed(const Duration(seconds: 1), _reloadTerritoire);
@@ -350,6 +355,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _zoomDebounce?.cancel();
     _gestureEndTimer?.cancel();
     _compassSub?.cancel();
+    _northSub?.cancel();
     _connectivitySub?.cancel();
     if (_groupeActif && _groupeId != null && _monNom != null) {
       GroupeService.quitter(_groupeId!, _monNom!);
@@ -4277,7 +4283,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   Widget _buildNorthIndicator() {
-    final angle = _headingUp ? _compassHeading * pi / 180 : 0.0;
+    final angle = _compassHeading * pi / 180;
     final bannerVisible = (!_isOnline && _showOfflineBanner) ||
         (_isOnline && _polygonsCache.isEmpty && _showDownloadTip);
     final windOffset = _windDeg != null ? 52.0 : 0.0;
