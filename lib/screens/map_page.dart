@@ -4293,7 +4293,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)],
         ),
         child: Transform.rotate(
-          angle: angle,
+          angle: angle + pi, // Icons.navigation pointe vers le bas par défaut
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: const [
