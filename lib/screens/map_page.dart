@@ -4246,7 +4246,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         Marker(
           point: _currentPosition,
           width: 120, height: 120,
-          rotate: true,
+          rotate: false,
           child: CustomPaint(painter: _HeadingHaloPainter()),
         ),
       Marker(
@@ -4277,7 +4277,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   Widget _buildNorthIndicator() {
-    final angle = _headingUp ? _compassHeading * pi / 180 : 0.0;
+    final angle = _headingUp ? -_compassHeading * pi / 180 : 0.0;
     final bannerVisible = (!_isOnline && _showOfflineBanner) ||
         (_isOnline && _polygonsCache.isEmpty && _showDownloadTip);
     final windOffset = _windDeg != null ? 52.0 : 0.0;
@@ -4293,7 +4293,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 6)],
         ),
         child: Transform.rotate(
-          angle: angle + pi, // Icons.navigation pointe vers le bas par défaut
+          angle: angle,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: const [
