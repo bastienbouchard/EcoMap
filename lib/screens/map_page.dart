@@ -5835,7 +5835,7 @@ class _PositionArrowPainter extends CustomPainter {
     final cy = size.height / 2;
     final fill = Paint()..color = const Color(0xFF4A90E2)..style = PaintingStyle.fill;
     final border = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2.5;
-    final path = Path()
+    final path = ui.Path()
       ..moveTo(cx, 2)
       ..lineTo(cx + 9, cy + 12)
       ..lineTo(cx, cy + 6)
