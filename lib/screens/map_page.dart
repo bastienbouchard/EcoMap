@@ -4253,7 +4253,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         point: _currentPosition,
         width: isMoving ? 32 : 20,
         height: isMoving ? 32 : 20,
-        rotate: false, // tourne avec la carte pour que la flèche reste orientée
+        rotate: true, // suit la rotation de la carte — l'angle GPS absolu se compense
         child: isMoving
             ? Transform.rotate(
                 angle: _gpsHeading * pi / 180,
