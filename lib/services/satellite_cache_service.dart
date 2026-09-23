@@ -49,7 +49,7 @@ class SatelliteCacheService {
 
   static int estimateTileCount(
     double minLat, double minLon, double maxLat, double maxLon, {
-    int minZoom = 10, int maxZoom = 16,
+    int minZoom = 10, int maxZoom = 17,
   }) {
     int total = 0;
     for (int z = minZoom; z <= maxZoom; z++) {

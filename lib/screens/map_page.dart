@@ -3345,7 +3345,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                               : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
-          maxNativeZoom: _isOnline ? 19 : 16,
+          maxNativeZoom: _isOnline ? 19 : 17,
           maxZoom: 22,
           keepBuffer: 3,
           panBuffer: 1,
