@@ -151,7 +151,17 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
         if (_selTopo) {'label': 'Relief et sentiers',      'url': _satUrl('topo')},
       ];
       final satCount = SatelliteCacheService.estimateTileCount(minLat, minLon, maxLat, maxLon);
-      if (satCount <= 15000) {
+      if (satCount > 15000 && sources.isNotEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text(
+            '⚠️ Zone trop grande pour le satellite haute résolution. Réduis le carré orange et re-télécharge.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFFB85C00),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+        ));
+      } else {
         for (int i = 0; i < sources.length; i++) {
           final src = sources[i];
           if (src['url']!.isEmpty) continue;
