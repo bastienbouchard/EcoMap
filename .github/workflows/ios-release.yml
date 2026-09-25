@@ -16,6 +16,12 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Diagnostic environnement
+        run: |
+          sw_vers
+          xcodebuild -version || true
+          flutter --version || true
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -35,7 +41,7 @@ jobs:
           NEW=$((CURRENT + 1))
           sed -i '' "s/+$CURRENT/+$NEW/" "$PUBSPEC"
           echo "NEW_BUILD=$NEW" >> $GITHUB_ENV
-          echo "Build: $CURRENT → $NEW"
+          echo "Build: $CURRENT -> $NEW"
 
       - name: Flutter dependencies
         run: flutter pub get
@@ -48,21 +54,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pods-
 
-      - name: Cache Xcode DerivedData (gRPC / Firebase compilés)
-        uses: actions/cache@v4
-        with:
-          path: /tmp/EcoMapDerived
-          key: ${{ runner.os }}-derived-${{ hashFiles('ios/Podfile.lock', 'pubspec.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-derived-
-
-      - name: Rediriger Xcode DerivedData vers le cache
-        run: |
-          mkdir -p /tmp/EcoMapDerived
-          defaults write com.apple.dt.Xcode IDECustomDerivedDataLocation /tmp/EcoMapDerived
-
       - name: CocoaPods
-        run: cd ios && pod install --repo-update
+        run: cd ios && pod install
 
       - name: Import certificate & provisioning profile
         env:
@@ -75,47 +68,40 @@ jobs:
           KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
           KEYCHAIN_PASSWORD=ecomap-gh-build
 
-          echo -n "$CERTIFICATE_BASE64"  | base64 --decode -o $CERT_PATH
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
           echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
           curl -s -o $RUNNER_TEMP/AppleWWDR.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
-          security import $RUNNER_TEMP/AppleWWDR.cer -k $KEYCHAIN_PATH -T /usr/bin/codesign
+          security import $RUNNER_TEMP/AppleWWDR.cer -k $KEYCHAIN_PATH -T /usr/bin/codesign || true
+
           security import $CERT_PATH -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH ~/Library/Keychains/login.keychain-db
 
-          echo "=== Identités de signature disponibles ==="
+          echo "=== Identites de signature ==="
           security find-identity -v -p codesigning $KEYCHAIN_PATH || true
-          security find-identity -v -p codesigning || true
 
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           PP_UUID=$(security cms -D -i $PP_PATH | plutil -extract UUID raw -)
           echo "PP_UUID=$PP_UUID" >> $GITHUB_ENV
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
-          echo "Provisioning profile UUID: $PP_UUID"
+          echo "Profile UUID: $PP_UUID"
 
-      - name: Flutter build (génère les artifacts)
+      - name: Flutter build
         run: flutter build ios --release --no-codesign
 
       - name: Build IPA
         env:
           TEAM_ID: ${{ secrets.TEAM_ID }}
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
         run: |
           CLEAN_TEAM_ID=$(echo "$TEAM_ID" | tr -d '[:space:]')
           KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
-
-          # Déverrouiller le keychain (peut se verrouiller entre les étapes)
           security unlock-keychain -p "ecomap-gh-build" $KEYCHAIN_PATH
-
-          # Vérifier si le certificat est expiré
-          echo "=== Certificat de signature ==="
-          security find-certificate -a -p $KEYCHAIN_PATH | openssl x509 -noout -subject -dates 2>/dev/null || true
-          security find-identity -v -p codesigning $KEYCHAIN_PATH || true
 
           cat > $RUNNER_TEMP/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
