@@ -786,7 +786,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   }
 
   Future<void> _fetchCadastre() async {
-    if (!_showTerresPrivees || _mapZoom < 14.1) return;
+    if (!_showTerresPrivees) return;
+    final currentZoom = _mapController.camera.zoom;
+    if (currentZoom < 13.0) return;
     try {
       final b = _mapController.camera.visibleBounds;
       final url = Uri.parse(
@@ -831,7 +833,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           debugPrint('Cadastre ring error: $e');
         }
       }
-      if (mounted && _showTerresPrivees && _mapZoom >= 14.1) {
+      if (mounted && _showTerresPrivees && currentZoom >= 13.0) {
         setState(() {
           _cadastreRings = rings;
           _cadastreNoLots = noLots;
@@ -3322,9 +3324,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             _roadsDebounce = Timer(const Duration(milliseconds: 400), _rebuildRoadPolylines);
           }
           if (_showTerresPrivees) {
-            if (newZoom < 14.1 && _cadastreRings.isNotEmpty) {
+            if (newZoom < 13.0 && _cadastreRings.isNotEmpty) {
               setState(() { _cadastreRings = []; _cadastreNoLots = []; });
-            } else if (newZoom >= 14.1) {
+            } else if (newZoom >= 13.0) {
               _fetchCadastre();
             }
           }
@@ -3389,18 +3391,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 ),
               ],
             ),
-        if (_showTerresPrivees && _mapZoom >= 12.0)
-          Opacity(
-            opacity: 0.7,
-            child: TileLayer(
-              tileProvider: ArcGISExportTileProvider(
-                mapServerUrl: 'https://geo.environnement.gouv.qc.ca/donnees/rest'
-                    '/services/Reference/Cadastre_allege/MapServer',
-              ),
-              minNativeZoom: 12,
-              maxNativeZoom: 17,
-            ),
-          ),
         if (_showTerresPrivees && _cadastreRings.isNotEmpty) ...[
           if (_ecoOpacity > 0)
             PolygonLayer(
@@ -4814,8 +4804,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             _layerToggle('Terres privées', Icons.fence_rounded,
                 _showTerresPrivees, () {
                   if (!_showTerresPrivees && !_requirePremium()) return;
+                  final enabling = !_showTerresPrivees;
                   setState(() { _showTerresPrivees = !_showTerresPrivees; _showLayerPanel = false; });
-                  _fetchCadastre();
+                  if (enabling) _fetchCadastre();
                 }),
             _layerToggle(
               'Chemins forestiers', Icons.route_rounded,
