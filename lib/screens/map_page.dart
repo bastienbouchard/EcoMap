@@ -4086,12 +4086,18 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       markers: _membres.asMap().entries.map((entry) {
         final i = entry.key;
         final m = entry.value;
-        final color = _traceColors[i % _traceColors.length];
+        final inactif = m.ts == null ||
+            DateTime.now().difference(m.ts!).inMinutes >= 5;
+        final color = inactif
+            ? Colors.grey
+            : _traceColors[i % _traceColors.length];
         final initiale = m.nom.isNotEmpty ? m.nom[0].toUpperCase() : '?';
         return Marker(
           point: m.position,
-          width: 70, height: 72,
-          child: Column(
+          width: 70, height: inactif ? 86 : 72,
+          child: Opacity(
+            opacity: inactif ? 0.55 : 1.0,
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Tête 3D
@@ -4163,7 +4169,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   maxLines: 1,
                 ),
               ),
+              if (inactif)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('hors ligne',
+                    style: const TextStyle(color: Colors.grey, fontSize: 8),
+                  ),
+                ),
             ],
+          ),
           ),
         );
       }).toList(),
