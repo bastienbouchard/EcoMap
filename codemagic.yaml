@@ -27,9 +27,12 @@ workflows:
         script: xcode-project use-profiles
       - name: Build IPA
         script: |
+          echo "CM_BUILD_NUMBER=$CM_BUILD_NUMBER"
+          APPLE_BUILD=$((CM_BUILD_NUMBER + 500))
+          echo "Apple build number: $APPLE_BUILD"
           flutter build ipa \
             --release \
-            --build-number=$((CM_BUILD_NUMBER + 414)) \
+            --build-number=$APPLE_BUILD \
             --export-options-plist=/Users/builder/export_options.plist
       - name: Build AAB
         script: |
