@@ -9,16 +9,13 @@ Dépôt : `bastienbouchard/EcoMap`
 - Toujours merger les branches de travail sur `master` avant de terminer.
 - **Incrémenter le build number** (`pubspec.yaml` → `version: x.y.z+N`) à chaque série de modifications avant de pousser, sinon Apple rejette le build.
   - Format : `1.0.0+N` où N est le numéro séquentiel.
-  - Build actuel : **415** — prochain build doit être **416+**.
-  - Version actuelle : **1.0.30**
-  - Codemagic auto-incrémente ET repousse dans git — pas besoin de bumper manuellement.
+  - Build number géré automatiquement par Codemagic via `$CM_BUILD_NUMBER + 414`
+  - Version actuelle : **1.0.30** — à bumper manuellement si Apple rejette (version déjà approuvée)
 
 ## Procédure avant chaque push (checklist)
 1. `git status` — vérifier qu'il n'y a pas de fichiers non voulus (`.env`, secrets, binaires)
-2. `pubspec.yaml` → confirmer que le build number est **supérieur au dernier build uploadé**
-   - Si Codemagic a auto-incrémenté depuis le dernier push, le numéro dans git est déjà à jour
-   - Si on push sans passer par Codemagic, bumper manuellement : `version: 1.0.30+N`
-3. Si la **version string** (ex: `1.0.30`) a déjà été **approuvée sur l'App Store**, la bumper à `1.0.31`
+2. **Build number** : géré automatiquement par Codemagic (`$CM_BUILD_NUMBER + 414`), rien à faire
+3. Si la **version string** (ex: `1.0.30`) a déjà été **approuvée sur l'App Store** → la bumper à `1.0.31`
 4. `git push` → lancer le build sur Codemagic
 
 ## Stack technique
