@@ -35,8 +35,10 @@ workflows:
             --export-options-plist=/Users/builder/export_options.plist
       - name: Build AAB
         script: |
+          APPLE_BUILD=$(( $(date +%s) - 1700000000 ))
           flutter build appbundle \
-            --release
+            --release \
+            --build-number=$APPLE_BUILD
       - name: Clean up keychain
         script: keychain lock
     artifacts:
