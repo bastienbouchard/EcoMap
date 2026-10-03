@@ -16,6 +16,7 @@ workflows:
           CURRENT=$(grep '^version:' pubspec.yaml | sed 's/.*+//')
           NEW=$((CURRENT + 1))
           sed -i '' "s/+$CURRENT/+$NEW/" pubspec.yaml
+          echo "NEW_BUILD=$NEW" >> $CM_ENV
           echo "Build: $CURRENT -> $NEW"
       - name: Flutter packages
         script: flutter packages pub get
@@ -40,6 +41,13 @@ workflows:
         script: |
           flutter build appbundle \
             --release
+      - name: Sauvegarder build number dans git
+        script: |
+          git config user.email "codemagic@build.bot"
+          git config user.name "Codemagic"
+          git add pubspec.yaml
+          git commit -m "ci: bump build number to $NEW_BUILD [skip ci]"
+          git push
       - name: Clean up keychain
         script: keychain lock
     artifacts:
