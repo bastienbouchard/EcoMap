@@ -9,8 +9,8 @@ Dépôt : `bastienbouchard/EcoMap`
 - Toujours merger les branches de travail sur `master` avant de terminer.
 - **Incrémenter le build number** (`pubspec.yaml` → `version: x.y.z+N`) à chaque série de modifications avant de pousser, sinon Apple rejette le build.
   - Format : `1.0.0+N` où N est le numéro séquentiel.
-  - Build actuel : **411** — prochain build doit être **412+**.
-  - Version actuelle : **1.0.29**
+  - Build actuel : **412** — prochain build doit être **413+**.
+  - Version actuelle : **1.0.30**
 
 ## Stack technique
 - Flutter / Dart
