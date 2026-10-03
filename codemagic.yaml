@@ -11,6 +11,12 @@ workflows:
       xcode: latest
       cocoapods: default
     scripts:
+      - name: Incrémenter build number
+        script: |
+          CURRENT=$(grep '^version:' pubspec.yaml | sed 's/.*+//')
+          NEW=$((CURRENT + 1))
+          sed -i "s/+$CURRENT/+$NEW/" pubspec.yaml
+          echo "Build: $CURRENT -> $NEW"
       - name: Flutter packages
         script: flutter packages pub get
       - name: Set up keychain
