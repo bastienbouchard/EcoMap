@@ -803,7 +803,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       final b = _mapController.camera.visibleBounds;
       final url = Uri.parse(
         'https://geo.environnement.gouv.qc.ca/donnees/rest/services/Reference'
-        '/Cadastre_allege/FeatureServer/0/query'
+        '/Cadastre_allege/MapServer/0/query'
         '?geometry=${b.southWest.longitude},${b.southWest.latitude}'
         ',${b.northEast.longitude},${b.northEast.latitude}'
         '&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326'
