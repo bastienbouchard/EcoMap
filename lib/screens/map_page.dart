@@ -126,6 +126,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   int _mernTileErrors = 0;
   bool _showLayerPanel = false;
   bool _showTerresPrivees = false;
+  bool _cadastreLoading = false;
 
   List<_PdfLayerData> _pdfLayers = [];
 
@@ -209,6 +210,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   // ── Mesure de distance ──
   bool _measuringMode = false;
+  bool _useImperial = false;
   List<LatLng> _measurePoints = [];
 
   // ── Affût (pinch points) ──
@@ -306,6 +308,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     _loadPdfLayers();
     _loadSavedParcours();
     requestPersistentStorage();
+    SharedPreferences.getInstance().then((p) {
+      if (mounted) setState(() => _useImperial = p.getBool('use_imperial') ?? false);
+    });
   }
 
   @override
@@ -540,7 +545,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           _loading = false;
           _followingLocation = true;
         });
-        _mapController.move(_currentPosition, 13);
+        _mapController.move(_currentPosition, 16);
         await _fetchWind();
       }
     } catch (_) {
@@ -788,7 +793,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Future<void> _fetchCadastre() async {
     if (!_showTerresPrivees) return;
     final currentZoom = _mapController.camera.zoom;
-    if (currentZoom < 13.0) return;
+    if (currentZoom < 13.0) {
+      _snack('Zoome au niveau 13+ pour voir les terres privées');
+      return;
+    }
+    if (_cadastreLoading) return;
+    setState(() => _cadastreLoading = true);
     try {
       final b = _mapController.camera.visibleBounds;
       final url = Uri.parse(
@@ -802,12 +812,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       final resp = await http.get(url).timeout(const Duration(seconds: 20));
       if (!mounted) return;
       if (resp.statusCode != 200) {
-        debugPrint('Cadastre HTTP ${resp.statusCode}');
+        _snack('Erreur serveur cadastre (${resp.statusCode})', error: true);
         return;
       }
       final data = json.decode(resp.body) as Map<String, dynamic>;
       final features = data['features'] as List? ?? [];
-      debugPrint('Cadastre: ${features.length} lots');
       final rings = <List<LatLng>>[];
       final noLots = <String>[];
       for (final f in features) {
@@ -833,15 +842,19 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           debugPrint('Cadastre ring error: $e');
         }
       }
-      if (mounted && _showTerresPrivees && currentZoom >= 13.0) {
+      if (mounted && _showTerresPrivees) {
         setState(() {
           _cadastreRings = rings;
           _cadastreNoLots = noLots;
           _selectedCadastreLot = null;
         });
+        if (rings.isEmpty) _snack('Aucun lot trouvé dans cette zone');
       }
     } catch (e) {
+      if (mounted) _snack('Terres privées non disponibles', error: true);
       debugPrint('Cadastre error: $e');
+    } finally {
+      if (mounted) setState(() => _cadastreLoading = false);
     }
   }
 
@@ -1570,6 +1583,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         'lat': pos.latitude,
         'lon': pos.longitude,
         'note': o['note'],
+        if (o['name'] != null) 'name': o['name'],
         'time': (o['time'] as DateTime).toIso8601String(),
         if (o['pending'] == true) 'pending': true,
       };
@@ -1586,6 +1600,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         'id': m['id'],
         'pos': LatLng((m['lat'] as num).toDouble(), (m['lon'] as num).toDouble()),
         'note': m['note'] as String,
+        if (m['name'] != null) 'name': m['name'] as String,
         'time': DateTime.parse(m['time'] as String),
         if (m['pending'] == true) 'pending': true,
       }).toList();
@@ -1970,6 +1985,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           'id': doc.id,
           'pos': LatLng((d['lat'] as num).toDouble(), (d['lon'] as num).toDouble()),
           'note': d['note'] as String,
+          if (d['name'] != null) 'name': d['name'] as String,
           'time': (d['time'] as Timestamp).toDate(),
         };
       }).toList();
@@ -1993,6 +2009,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           .add({
         'lat': pos.latitude, 'lon': pos.longitude,
         'note': obs['note'],
+        if (obs['name'] != null) 'name': obs['name'],
         'time': Timestamp.fromDate(obs['time'] as DateTime),
       });
       if (mounted) setState(() { obs['id'] = ref.id; obs.remove('pending'); });
@@ -2205,21 +2222,61 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   return InkWell(
                     onTap: () {
                       final pos = _mapController.camera.center;
-                      final obs = {
-                        'pos': pos,
-                        'note': '${t.$1} ${t.$2}',
-                        'time': DateTime.now(),
-                      };
-                      final newIdx = _observations.length;
-                      setState(() {
-                        _observations.add(obs);
-                        _newObsIdx = newIdx;
-                      });
-                      _saveObservation(obs);
                       Navigator.pop(context);
-                      _snack('${t.$2} ajouté');
-                      Future.delayed(const Duration(milliseconds: 800),
-                          () { if (mounted) setState(() => _newObsIdx = null); });
+                      final nameCtrl = TextEditingController();
+                      showDialog(
+                        context: context,
+                        barrierColor: Colors.black54,
+                        builder: (dCtx) => AlertDialog(
+                          backgroundColor: const Color(0xFF1C1C1C),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          title: Row(children: [
+                            obsIcon('${t.$1} ${t.$2}', size: 24),
+                            const SizedBox(width: 10),
+                            Text(t.$2, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                          ]),
+                          content: TextField(
+                            controller: nameCtrl,
+                            autofocus: true,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: const InputDecoration(
+                              hintText: 'Nom (optionnel)',
+                              hintStyle: TextStyle(color: Colors.white38),
+                              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF6B35))),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dCtx),
+                              child: const Text('Annuler', style: TextStyle(color: Colors.white38)),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B35)),
+                              onPressed: () {
+                                Navigator.pop(dCtx);
+                                final name = nameCtrl.text.trim();
+                                final obs = <String, dynamic>{
+                                  'pos': pos,
+                                  'note': '${t.$1} ${t.$2}',
+                                  if (name.isNotEmpty) 'name': name,
+                                  'time': DateTime.now(),
+                                };
+                                final newIdx = _observations.length;
+                                setState(() {
+                                  _observations.add(obs);
+                                  _newObsIdx = newIdx;
+                                });
+                                _saveObservation(obs);
+                                _snack('${t.$2} ajouté');
+                                Future.delayed(const Duration(milliseconds: 800),
+                                    () { if (mounted) setState(() => _newObsIdx = null); });
+                              },
+                              child: const Text('Ajouter', style: TextStyle(color: Colors.black)),
+                            ),
+                          ],
+                        ),
+                      );
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -2823,15 +2880,25 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     );
   }
 
+  String _formatDist(double meters) {
+    if (_useImperial) {
+      final feet = meters * 3.28084;
+      return feet >= 5280
+          ? '${(feet / 5280).toStringAsFixed(2)} mi'
+          : '${feet.round()} pi';
+    }
+    return meters >= 1000
+        ? '${(meters / 1000).toStringAsFixed(2)} km'
+        : '${meters.round()} m';
+  }
+
   String _measureDistanceText() {
-    if (_measurePoints.length < 2) return '— m';
+    if (_measurePoints.length < 2) return _useImperial ? '— pi' : '— m';
     double total = 0;
     for (int i = 0; i < _measurePoints.length - 1; i++) {
       total += const Distance().as(LengthUnit.Meter, _measurePoints[i], _measurePoints[i + 1]);
     }
-    return total >= 1000
-        ? '${(total / 1000).toStringAsFixed(2)} km'
-        : '${total.round()} m';
+    return _formatDist(total);
   }
 
   double _trackDistanceM(List<LatLng> pts) {
@@ -2852,9 +2919,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}  '
         '${d.hour.toString().padLeft(2, '0')}h${d.minute.toString().padLeft(2, '0')}';
     final distM = _trackDistanceM(track.points);
-    final distStr = distM >= 1000
-        ? '${(distM / 1000).toStringAsFixed(1)} km'
-        : '${distM.round()} m';
+    final distStr = _formatDist(distM);
     showDialog(
       context: context,
       barrierColor: Colors.black54,
@@ -3208,6 +3273,25 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
+                GestureDetector(
+                  onTap: () async {
+                    setState(() => _useImperial = !_useImperial);
+                    final p = await SharedPreferences.getInstance();
+                    p.setBool('use_imperial', _useImperial);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _useImperial ? 'pi' : 'm',
+                      style: const TextStyle(color: Color(0xFFFFEB3B), fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 if (_measurePoints.isNotEmpty)
                   GestureDetector(
                     onTap: () => setState(() => _measurePoints.clear()),
@@ -3657,11 +3741,22 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       children: [
                         obsIcon(note, size: 52),
                         const SizedBox(height: 10),
-                        Text(label,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold)),
+                        if (obs['name'] != null && (obs['name'] as String).isNotEmpty) ...[
+                          Text(obs['name'] as String,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 2),
+                          Text(label,
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 13)),
+                        ] else
+                          Text(label,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(dateStr,
                             style: const TextStyle(
@@ -5444,8 +5539,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 ],
               ),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                    vertical: 14, horizontal: 8),
+                padding: EdgeInsets.fromLTRB(
+                    8,
+                    _windDeg != null ? MediaQuery.of(context).padding.top + 60 : 14,
+                    8,
+                    14),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

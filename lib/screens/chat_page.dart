@@ -62,7 +62,33 @@ class _ChatPageState extends State<ChatPage> {
   static const _workerUrl = 'https://ecomap-upload.bastienbouchard.workers.dev';
 
   Future<void> _envoyerPhoto() async {
-    final bytes = await pickPhoto();
+    final source = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.white70),
+              title: const Text('Caméra', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(context, true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.white70),
+              title: const Text('Galerie', style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(context, false),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final bytes = await pickPhoto(fromCamera: source);
     if (bytes == null || bytes.isEmpty) return;
 
     final idToken = await AuthService.getIdToken();
