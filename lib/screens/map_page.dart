@@ -175,8 +175,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   bool _downloadingLotTerritoire = false;
   Set<String> _downloadedLotNoms = {};
 
-  // ── Visibilité observations / traces ──
-  bool _obsVisible = true;
+  // ── Visibilité couches ──
+  bool _mesObsVisible = true;
+  bool _groupeObsVisible = true;
+  bool _monTraceVisible = true;
   bool _tracesGroupeVisible = true;
 
   // ── Hotspots ──
@@ -3639,7 +3641,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               );
             }).toList(),
           ),
-        if (_trackPoints.length >= 2)
+        if (_monTraceVisible && _trackPoints.length >= 2)
           PolylineLayer(polylines: [
             Polyline(
               points: _trackPoints,
@@ -3649,8 +3651,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               borderStrokeWidth: 2,
             ),
           ]),
-        if (_obsVisible && _observations.isNotEmpty) _buildObservationMarkers(),
-        if (_pinnedPoints.isNotEmpty || (_obsVisible && _groupePins.isNotEmpty)) _buildPinnedLayer(),
+        if (_mesObsVisible && _observations.isNotEmpty) _buildObservationMarkers(),
+        if (_pinnedPoints.isNotEmpty || (_groupeObsVisible && _groupePins.isNotEmpty)) _buildPinnedLayer(),
         if (_measuringMode && _measurePoints.length >= 2)
           PolylineLayer(polylines: [
             Polyline(
@@ -3702,6 +3704,92 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         if (_groupeActif && _membres.isNotEmpty) _buildMembreMarkers(),
         _buildCurrentPositionMarker(),
       ],
+    );
+  }
+
+  void _ouvrirMenuMasquage() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          void toggle(VoidCallback fn) {
+            fn();
+            setLocal(() {});
+            setState(() {});
+          }
+
+          Widget row(String label, String sub, bool val, VoidCallback onTap) =>
+              InkWell(
+                onTap: () => toggle(onTap),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Row(children: [
+                    Icon(
+                      val ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                      color: val ? const Color(0xFFFF6B35) : Colors.white24,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(label,
+                            style: TextStyle(
+                                color: val ? Colors.white : Colors.white38,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
+                        Text(sub,
+                            style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                      ]),
+                    ),
+                    Switch(
+                      value: val,
+                      onChanged: (_) => toggle(onTap),
+                      activeColor: const Color(0xFFFF6B35),
+                      inactiveThumbColor: Colors.white24,
+                      inactiveTrackColor: Colors.white12,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ]),
+                ),
+              );
+
+          return SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(height: 12),
+              Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Row(children: [
+                  Icon(Icons.layers_rounded, color: Color(0xFFFF6B35), size: 18),
+                  SizedBox(width: 8),
+                  Text('Visibilité des couches',
+                      style: TextStyle(color: Colors.white, fontSize: 15,
+                          fontWeight: FontWeight.bold)),
+                ]),
+              ),
+              const SizedBox(height: 8),
+              const Divider(color: Colors.white12),
+              row('Mes observations', 'Frottages, souilles, traces…',
+                  _mesObsVisible, () => _mesObsVisible = !_mesObsVisible),
+              row('Observations du groupe', 'Obs. partagées par les partenaires',
+                  _groupeObsVisible, () => _groupeObsVisible = !_groupeObsVisible),
+              row('Mon tracé GPS', 'Ta route enregistrée en orange',
+                  _monTraceVisible, () => _monTraceVisible = !_monTraceVisible),
+              row('Tracés du groupe', 'Trajets GPS de tes partenaires',
+                  _tracesGroupeVisible, () => _tracesGroupeVisible = !_tracesGroupeVisible),
+              const SizedBox(height: 8),
+            ]),
+          );
+        },
+      ),
     );
   }
 
@@ -4665,7 +4753,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       );
     });
 
-    return MarkerLayer(markers: [...myMarkers, if (_obsVisible) ...groupeMarkers]);
+    return MarkerLayer(markers: [...myMarkers, if (_groupeObsVisible) ...groupeMarkers]);
   }
 
   Widget _buildSelectedLotPanel() {
@@ -5390,19 +5478,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
-                      icon: _obsVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-                      label: 'Masquer',
+                      icon: (_mesObsVisible && _groupeObsVisible && _monTraceVisible && _tracesGroupeVisible)
+                          ? Icons.layers_rounded
+                          : Icons.layers_clear_rounded,
+                      label: 'Couches',
                       color: const Color(0xFFFF6B35),
-                      active: !_obsVisible,
-                      onTap: () => setState(() => _obsVisible = !_obsVisible),
-                    ),
-                    const SizedBox(height: 6),
-                    mapActionBtn(
-                      icon: _tracesGroupeVisible ? Icons.route_rounded : Icons.route_outlined,
-                      label: 'Tracés',
-                      color: const Color(0xFFFF6B35),
-                      active: !_tracesGroupeVisible,
-                      onTap: () => setState(() => _tracesGroupeVisible = !_tracesGroupeVisible),
+                      active: !(_mesObsVisible && _groupeObsVisible && _monTraceVisible && _tracesGroupeVisible),
+                      onTap: _ouvrirMenuMasquage,
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
