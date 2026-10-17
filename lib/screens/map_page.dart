@@ -63,6 +63,12 @@ const _typesObservation = [
   ('', 'Camion'),
   ('', 'Saline'),
   ('', 'Chalet'),
+  ('🌊', 'Point d\'eau'),
+  ('📍', 'Point divers'),
+  ('📶', 'Réseau cellulaire'),
+  ('🪤', 'Fausse souille'),
+  ('📣', 'Endroit pour calls'),
+  ('🥾', 'Sentier'),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,6 +174,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   int? _selectedCadastreLot;
   bool _downloadingLotTerritoire = false;
   Set<String> _downloadedLotNoms = {};
+
+  // ── Visibilité observations / traces ──
+  bool _obsVisible = true;
+  bool _tracesGroupeVisible = true;
 
   // ── Hotspots ──
   bool _showHotspots = false;
@@ -2539,6 +2549,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 _tracesPartages ? 'Arrêter le partage tracés' : 'Partager mes tracés',
                 _tracesPartages ? 'Tes tracés sont visibles' : 'Tracés GPS du groupe',
                 () { Navigator.pop(context); _partagerTraces(); }),
+            _groupeTile(
+                Icons.swap_horiz_rounded,
+                'Changer de groupe',
+                'Quitter ce groupe et en rejoindre un autre',
+                () {
+              Navigator.pop(context);
+              _quitterGroupe();
+              _dialogueRejoindre();
+            }),
             if (_chasseursMasques.isNotEmpty)
               _groupeTile(
                 Icons.visibility_rounded,
@@ -2560,12 +2579,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     final code = prefs.getString('last_groupe_code');
     final nom = prefs.getString('last_groupe_nom');
     final nomGroupe = prefs.getString('last_groupe_nomgroupe');
-    if (code != null && mounted) {
-      setState(() {
-        _groupeId = code;
-        _monNom = nom;
-        _groupeNom = nomGroupe ?? code;
-      });
+    if (code != null && nom != null && mounted) {
+      _rejoindreGroupe(nom, code, nomGroupe);
     }
   }
 
@@ -3634,8 +3649,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               borderStrokeWidth: 2,
             ),
           ]),
-        if (_observations.isNotEmpty) _buildObservationMarkers(),
-        if (_pinnedPoints.isNotEmpty || _groupePins.isNotEmpty) _buildPinnedLayer(),
+        if (_obsVisible && _observations.isNotEmpty) _buildObservationMarkers(),
+        if (_pinnedPoints.isNotEmpty || (_obsVisible && _groupePins.isNotEmpty)) _buildPinnedLayer(),
         if (_measuringMode && _measurePoints.length >= 2)
           PolylineLayer(polylines: [
             Polyline(
@@ -3678,9 +3693,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           _buildPinchMarkers(),
         if (_showSalines && _salines.isNotEmpty)
           _buildSalineMarkers(),
-        if (_groupeActif && _tracesGroupe.isNotEmpty)
+        if (_groupeActif && _tracesGroupeVisible && _tracesGroupe.isNotEmpty)
           _buildGroupeTracePolylines(),
-        if (_groupeActif && _tracesGroupe.isNotEmpty)
+        if (_groupeActif && _tracesGroupeVisible && _tracesGroupe.isNotEmpty)
           _buildGroupeTraceLabels(),
         if (_groupeActif && _obsGroupe.isNotEmpty)
           _buildGroupeObsMarkers(),
@@ -4088,9 +4103,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         final m = entry.value;
         final inactif = m.ts == null ||
             DateTime.now().difference(m.ts!).inMinutes >= 5;
-        final color = inactif
-            ? Colors.grey
-            : _traceColors[i % _traceColors.length];
+        final color = inactif ? Colors.grey : _colorForNom(m.nom);
         final initiale = m.nom.isNotEmpty ? m.nom[0].toUpperCase() : '?';
         return Marker(
           point: m.position,
@@ -4189,7 +4202,17 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     Color(0xFF7ED321),
     Color(0xFFBD10E0),
     Color(0xFF50E3C2),
+    Color(0xFFE2A44A),
+    Color(0xFFE24A4A),
+    Color(0xFF4AE2B0),
+    Color(0xFFE2E24A),
   ];
+
+  static Color _colorForNom(String nom) {
+    var hash = 0;
+    for (final c in nom.codeUnits) hash = (hash * 31 + c) & 0x7FFFFFFF;
+    return _traceColors[hash % _traceColors.length];
+  }
 
   PolylineLayer _buildGroupeTracePolylines() {
     return PolylineLayer(
@@ -4202,9 +4225,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             (p['lon'] as num).toDouble(),
           );
         }).toList();
+        final nom = trace['nom'] as String? ?? '';
         return Polyline(
           points: pts,
-          color: _traceColors[i % _traceColors.length],
+          color: _colorForNom(nom),
           strokeWidth: 4,
           borderColor: Colors.black38,
           borderStrokeWidth: 1,
@@ -4232,7 +4256,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: _traceColors[i % _traceColors.length],
+            color: _colorForNom(nom),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.white, width: 1),
           ),
@@ -4641,7 +4665,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       );
     });
 
-    return MarkerLayer(markers: [...myMarkers, ...groupeMarkers]);
+    return MarkerLayer(markers: [...myMarkers, if (_obsVisible) ...groupeMarkers]);
   }
 
   Widget _buildSelectedLotPanel() {
@@ -5217,7 +5241,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             child: const Icon(Icons.close, color: Colors.white38, size: 16),
           ),
           const SizedBox(width: 8),
-          const Icon(Icons.download_for_offline_outlined, color: Color(0xFF4CAF50), size: 16),
+          const Icon(Icons.wifi_off_rounded, color: Color(0xFF4CAF50), size: 16),
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
@@ -5363,6 +5387,22 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                       color: const Color(0xFFFF6B35),
                       active: false,
                       onTap: _addObservation,
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: _obsVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                      label: 'Masquer',
+                      color: const Color(0xFFFF6B35),
+                      active: !_obsVisible,
+                      onTap: () => setState(() => _obsVisible = !_obsVisible),
+                    ),
+                    const SizedBox(height: 6),
+                    mapActionBtn(
+                      icon: _tracesGroupeVisible ? Icons.route_rounded : Icons.route_outlined,
+                      label: 'Tracés',
+                      color: const Color(0xFFFF6B35),
+                      active: !_tracesGroupeVisible,
+                      onTap: () => setState(() => _tracesGroupeVisible = !_tracesGroupeVisible),
                     ),
                     const SizedBox(height: 6),
                     mapActionBtn(
@@ -5673,7 +5713,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   activeColor: const Color(0xFFFFEB3B),
                 ),
                 mapDividerV(),
-                mapIconBtn(Icons.download_for_offline_outlined, () async {
+                mapIconBtn(Icons.wifi_off_rounded, () async {
                   setState(() => _showLayerPanel = false);
                   await Navigator.push(context, MaterialPageRoute(
                     builder: (_) => TerritoireDownloadPage(
