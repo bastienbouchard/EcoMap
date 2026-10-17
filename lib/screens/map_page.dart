@@ -3614,7 +3614,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               borderStrokeWidth: 2,
             ),
           ]),
-        if (_savedTracks.isNotEmpty)
+        if (_monTraceVisible && _savedTracks.isNotEmpty)
           PolylineLayer(
             polylines: _savedTracks.asMap().entries.map((e) => Polyline(
               points: e.value.points,
@@ -3624,7 +3624,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               borderStrokeWidth: 1.5,
             )).toList(),
           ),
-        if (_savedTracks.isNotEmpty)
+        if (_monTraceVisible && _savedTracks.isNotEmpty)
           MarkerLayer(
             markers: _savedTracks.asMap().entries.map((e) {
               final idx = e.key;
@@ -3911,7 +3911,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   _mesObsVisible, () => _mesObsVisible = !_mesObsVisible),
               row('Observations du groupe', 'Obs. partagées par les partenaires',
                   _groupeObsVisible, () => _groupeObsVisible = !_groupeObsVisible),
-              row('Mon tracé GPS', 'Ta route enregistrée en orange',
+              row('Mes tracés GPS', 'Tracé en cours et tracés sauvegardés',
                   _monTraceVisible, () => _monTraceVisible = !_monTraceVisible),
               row('Tracés du groupe', 'Trajets GPS de tes partenaires',
                   _tracesGroupeVisible, () => _tracesGroupeVisible = !_tracesGroupeVisible),
