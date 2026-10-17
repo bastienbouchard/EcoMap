@@ -3698,7 +3698,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           _buildGroupeTracePolylines(),
         if (_groupeActif && _tracesGroupeVisible && _tracesGroupe.isNotEmpty)
           _buildGroupeTraceLabels(),
-        if (_groupeActif && _obsGroupe.isNotEmpty)
+        if (_groupeActif && _groupeObsVisible && _obsGroupe.isNotEmpty)
           _buildGroupeObsMarkers(),
         if (_groupeActif && _membres.isNotEmpty) _buildMembreMarkers(),
         _buildCurrentPositionMarker(),
