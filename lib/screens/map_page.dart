@@ -2560,16 +2560,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               _quitterGroupe();
               _dialogueRejoindre();
             }),
-            if (_chasseursMasques.isNotEmpty)
-              _groupeTile(
-                Icons.visibility_rounded,
-                'Réafficher tous les chasseurs',
-                '${_chasseursMasques.length} chasseur(s) masqué(s)',
-                () {
-                  setState(() => _chasseursMasques.clear());
-                  Navigator.pop(context);
-                  _snack('Observations réaffichées');
-                }),
+            _groupeTile(
+              Icons.people_alt_rounded,
+              'Visibilité des membres',
+              _chasseursMasques.isEmpty
+                  ? 'Masquer temporairement un partenaire'
+                  : '${_chasseursMasques.length} membre(s) masqué(s)',
+              () { Navigator.pop(context); _ouvrirMenuMembres(); },
+              badge: _chasseursMasques.length,
+            ),
           ],
         ),
       ),
@@ -3707,6 +3706,122 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     );
   }
 
+  void _ouvrirMenuMembres() {
+    // Collecte tous les noms connus dans le groupe
+    final Set<String> tousLesNoms = {
+      ..._membres.map((m) => m.nom),
+      ..._obsGroupe.map((o) => o['nom'] as String),
+      ..._tracesGroupe.map((t) => t['nom'] as String? ?? ''),
+      ..._groupePins.map((p) => p['nom'] as String? ?? ''),
+    }..removeWhere((n) => n.isEmpty || n == _monNom);
+
+    if (tousLesNoms.isEmpty) {
+      _snack('Aucun partenaire dans le groupe pour l\'instant');
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          void toggle(String nom) {
+            setState(() {
+              if (_chasseursMasques.contains(nom)) {
+                _chasseursMasques.remove(nom);
+              } else {
+                _chasseursMasques.add(nom);
+              }
+            });
+            setLocal(() {});
+          }
+
+          return SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(height: 12),
+              Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(children: [
+                  const Icon(Icons.people_alt_rounded, color: Color(0xFF4A90E2), size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Visibilité des membres',
+                        style: TextStyle(color: Colors.white, fontSize: 15,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                  if (_chasseursMasques.isNotEmpty)
+                    TextButton(
+                      onPressed: () {
+                        setState(() => _chasseursMasques.clear());
+                        setLocal(() {});
+                      },
+                      child: const Text('Tout afficher',
+                          style: TextStyle(color: Color(0xFF4A90E2), fontSize: 12)),
+                    ),
+                ]),
+              ),
+              const SizedBox(height: 4),
+              const Divider(color: Colors.white12),
+              ...tousLesNoms.map((nom) {
+                final visible = !_chasseursMasques.contains(nom);
+                final color = _colorForNom(nom);
+                return InkWell(
+                  onTap: () => toggle(nom),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                    child: Row(children: [
+                      Container(
+                        width: 34, height: 34,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: visible ? color.withOpacity(0.2) : Colors.white10,
+                          border: Border.all(
+                              color: visible ? color : Colors.white24, width: 2),
+                        ),
+                        child: Center(
+                          child: Text(nom[0].toUpperCase(),
+                              style: TextStyle(
+                                  color: visible ? color : Colors.white24,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14)),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(nom,
+                            style: TextStyle(
+                                color: visible ? Colors.white : Colors.white38,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500)),
+                      ),
+                      Switch(
+                        value: visible,
+                        onChanged: (_) => toggle(nom),
+                        activeColor: color,
+                        inactiveThumbColor: Colors.white24,
+                        inactiveTrackColor: Colors.white12,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ]),
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
   void _ouvrirMenuMasquage() {
     showModalBottomSheet(
       context: context,
@@ -4186,7 +4301,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   MarkerLayer _buildMembreMarkers() {
     return MarkerLayer(
-      markers: _membres.asMap().entries.map((entry) {
+      markers: _membres.where((m) => !_chasseursMasques.contains(m.nom)).toList().asMap().entries.map((entry) {
         final i = entry.key;
         final m = entry.value;
         final inactif = m.ts == null ||
@@ -4304,7 +4419,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   PolylineLayer _buildGroupeTracePolylines() {
     return PolylineLayer(
-      polylines: _tracesGroupe.asMap().entries.map((entry) {
+      polylines: _tracesGroupe.where((t) => !_chasseursMasques.contains(t['nom'])).toList().asMap().entries.map((entry) {
         final i = entry.key;
         final trace = entry.value;
         final pts = (trace['points'] as List).map((p) {
@@ -4331,6 +4446,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       final i = entry.key;
       final trace = entry.value;
       final nom = trace['nom'] as String;
+      if (_chasseursMasques.contains(nom)) continue;
       final pts = trace['points'] as List;
       if (pts.isEmpty) continue;
       final last = pts.last;
@@ -4706,7 +4822,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       );
     });
 
-    final groupeMarkers = _groupePins.map((p) {
+    final groupeMarkers = _groupePins.where((p) => !_chasseursMasques.contains(p['nom'])).map((p) {
       final pos = LatLng(p['lat'] as double, p['lon'] as double);
       final type = p['type'] as String? ?? 'hotspot';
       final nom = p['nom'] as String? ?? '?';
