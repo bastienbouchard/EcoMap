@@ -2477,13 +2477,26 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF2D2D2D),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 16, 20, 32 + MediaQuery.of(ctx).viewPadding.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (_, scrollCtrl) => SingleChildScrollView(
+          controller: scrollCtrl,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 32 + MediaQuery.of(ctx).viewPadding.bottom),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36, height: 4, margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                      color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                ),
             Row(children: [
               const Icon(Icons.people, color: Color(0xFF4A90E2), size: 20),
               const SizedBox(width: 8),
@@ -2572,7 +2585,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Future<void> _loadGroupePrefs() async {
