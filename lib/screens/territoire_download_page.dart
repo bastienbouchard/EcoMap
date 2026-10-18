@@ -101,23 +101,25 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     );
     if (nom == null || nom.isEmpty) return;
 
-    // Bounds éco : zone visible complète (comme build 310, fonctionne avec _bboxIntersects)
+    // Bounds éco : zone visible complète
     final allBounds = _mapController.camera.visibleBounds;
     final ecoMinLat = allBounds.south;
     final ecoMaxLat = allBounds.north;
     final ecoMinLon = allBounds.west;
     final ecoMaxLon = allBounds.east;
 
-    // Bounds satellite/topo : carré orange (marge 40px) pour limiter les tuiles
+    // Bounds satellite/topo : coins exacts du carré orange via projection Mercator
     final renderBox = _mapKey.currentContext!.findRenderObject() as RenderBox;
     final mapSize = renderBox.size;
     const margin = 40.0;
-    final latPerPixel = (allBounds.north - allBounds.south) / mapSize.height;
-    final lonPerPixel = (allBounds.east - allBounds.west) / mapSize.width;
-    final maxLat = allBounds.north - latPerPixel * margin;
-    final minLat = allBounds.south + latPerPixel * margin;
-    final minLon = allBounds.west  + lonPerPixel * margin;
-    final maxLon = allBounds.east  - lonPerPixel * margin;
+    final nw = _mapController.camera.pointToLatLng(
+        math.Point<double>(margin, margin));
+    final se = _mapController.camera.pointToLatLng(
+        math.Point<double>(mapSize.width - margin, mapSize.height - margin));
+    final minLat = se.latitude;
+    final maxLat = nw.latitude;
+    final minLon = nw.longitude;
+    final maxLon = se.longitude;
 
     setState(() { _downloading = true; _status = 'Démarrage…'; _progress = null; });
 
