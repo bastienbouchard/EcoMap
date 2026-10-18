@@ -10,7 +10,7 @@ Dépôt : `bastienbouchard/EcoMap`
 - **Incrémenter le build number** (`pubspec.yaml` → `version: x.y.z+N`) à chaque série de modifications avant de pousser, sinon Apple rejette le build.
   - Format : `1.0.0+N` où N est le numéro séquentiel.
   - Build number géré automatiquement par Codemagic via `$CM_BUILD_NUMBER + 414`
-  - Version actuelle : **1.0.30** — à bumper manuellement si Apple rejette (version déjà approuvée)
+  - Version actuelle : **1.0.32** — à bumper manuellement si Apple rejette (version déjà approuvée)
 
 ## Procédure avant chaque push (checklist)
 1. `git status` — vérifier qu'il n'y a pas de fichiers non voulus (`.env`, secrets, binaires)
