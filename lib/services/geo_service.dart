@@ -676,11 +676,12 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
       ?.map((p) => [((p as List)[0] as num).toDouble(), (p[1] as num).toDouble()])
       .toList() ?? <List<double>>[];
 
-  // Pre-filter: keep only features whose geometry touches the search bbox
-  final latMargin = radiusM / 111000 * 1.3;
-  final lonMargin = radiusM / (111000 * cos(lat * pi / 180)) * 1.3;
-  final minLat = lat - latMargin; final maxLat = lat + latMargin;
-  final minLon = lon - lonMargin; final maxLon = lon + lonMargin;
+  // Use visible bounds if provided, otherwise fall back to circular radius
+  final hasBounds = params.containsKey('minLat');
+  final minLat = hasBounds ? (params['minLat'] as num).toDouble() : lat - radiusM / 111000 * 1.3;
+  final maxLat = hasBounds ? (params['maxLat'] as num).toDouble() : lat + radiusM / 111000 * 1.3;
+  final minLon = hasBounds ? (params['minLon'] as num).toDouble() : lon - radiusM / (111000 * cos(lat * pi / 180)) * 1.3;
+  final maxLon = hasBounds ? (params['maxLon'] as num).toDouble() : lon + radiusM / (111000 * cos(lat * pi / 180)) * 1.3;
   final localFeatures = features.where((feat) {
     try {
       final geom = feat['geometry'] as Map;
@@ -797,9 +798,7 @@ List<Map<String, dynamic>> findSalinesIsolate(Map<String, dynamic> params) {
       final cLat = pos[0];
       final cLon = pos[1];
 
-      final distM = sqrt(pow((cLat - lat) * 111000, 2) +
-          pow((cLon - lon) * 111000 * cos(lat * pi / 180), 2));
-      if (distM > radiusM) continue;
+      if (cLat < minLat || cLat > maxLat || cLon < minLon || cLon > maxLon) continue;
 
       // Exclusion : aucun spot à moins de 100 m d'une route, bâtiment ou chemin
       final cosC = cos(cLat * pi / 180);

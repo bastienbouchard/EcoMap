@@ -1463,12 +1463,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     try {
       final center = _mapController.camera.center;
       final radiusM = _visibleRadiusM(minM: 2000);
+      final b = _mapController.camera.visibleBounds;
       final infraPoints = await _fetchOsmInfra(center, radiusM);
       _salineInfraCache = infraPoints;
       final result = await compute(findSalinesIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
         'radiusM': radiusM,
+        'minLat': b.south, 'maxLat': b.north,
+        'minLon': b.west,  'maxLon': b.east,
         'geoJson': geoJson,
         'infraPoints': infraPoints,
         'maxResults': 5,
@@ -1479,7 +1482,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
         _showSalines = true;
         _loadingSalines = false;
       });
-      _snack('Zoomer l\'entièreté de votre territoire à analyser');
     } catch (_) {
       if (mounted) setState(() => _loadingSalines = false);
     }
@@ -1508,10 +1510,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     try {
       final center = _mapController.camera.center;
       final radiusM = _visibleRadiusM(minM: 2000);
+      final b = _mapController.camera.visibleBounds;
       final result = await compute(findSalinesIsolate, {
         'lat': center.latitude,
         'lon': center.longitude,
         'radiusM': radiusM,
+        'minLat': b.south, 'maxLat': b.north,
+        'minLon': b.west,  'maxLon': b.east,
         'geoJson': geoJson,
         'infraPoints': _salineInfraCache,
         'maxResults': 5,
