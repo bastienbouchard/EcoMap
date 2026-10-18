@@ -1858,12 +1858,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   void _showCoordsSearch() {
     final ctrl = TextEditingController();
     String? erreur;
+    bool searching = false;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
           backgroundColor: const Color(0xFF2D2D2D),
-          title: const Text('Aller à des coordonnées',
+          title: const Text('Rechercher un lieu',
               style: TextStyle(color: Colors.white, fontSize: 15)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1874,9 +1875,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: '47.5000, -74.0000',
+                  hintText: 'Ville, lac, coordonnées…',
                   hintStyle: const TextStyle(color: Colors.white38),
                   errorText: erreur,
+                  prefixIcon: searching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF6B35))))
+                      : const Icon(Icons.search_rounded, color: Colors.white38, size: 20),
                   enabledBorder: const OutlineInputBorder(
                       borderSide: BorderSide(color: Colors.white24)),
                   focusedBorder: const OutlineInputBorder(
@@ -1886,11 +1893,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                   focusedErrorBorder: const OutlineInputBorder(
                       borderSide: BorderSide(color: Colors.redAccent)),
                 ),
-                onSubmitted: (_) => _submitCoords(ctrl.text, ctx, setS, (e) => erreur = e),
+                onSubmitted: (_) => _submitRecherche(ctrl.text, ctx, setS,
+                    (e) => erreur = e, (v) => searching = v),
               ),
               const SizedBox(height: 8),
               const Text(
-                'Formats acceptés :\n47.5000, -74.0000\n47°30\'00"N 74°00\'00"W',
+                'Exemples : Senneterre · Lac Pikauba\n47.5000, -74.0000 · 47°30\'00"N 74°00\'00"W',
                 style: TextStyle(color: Colors.white38, fontSize: 11),
               ),
             ],
@@ -1903,11 +1911,125 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF6B35), foregroundColor: Colors.white),
-              onPressed: () => _submitCoords(ctrl.text, ctx, setS, (e) => erreur = e),
+              onPressed: searching ? null : () => _submitRecherche(ctrl.text, ctx, setS,
+                  (e) => erreur = e, (v) => searching = v),
               child: const Text('Aller'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _submitRecherche(String text, BuildContext ctx, StateSetter setS,
+      void Function(String?) setErr, void Function(bool) setSearching) async {
+    text = text.trim();
+    if (text.isEmpty) return;
+
+    // Essai coordonnées d'abord
+    final coords = _parseCoords(text);
+    if (coords != null) {
+      Navigator.pop(ctx);
+      _mapController.move(coords, _mapZoom < 14 ? 15 : _mapZoom);
+      setState(() => _coordPreview = coords);
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) _showCoordPreviewDialog(coords);
+      });
+      return;
+    }
+
+    // Géocodage Nominatim
+    setS(() { setErr(null); setSearching(true); });
+    try {
+      final uri = Uri.parse('https://nominatim.openstreetmap.org/search')
+          .replace(queryParameters: {
+        'q': text,
+        'format': 'json',
+        'limit': '5',
+        'accept-language': 'fr',
+        'countrycodes': 'ca',
+      });
+      final resp = await http.get(uri,
+          headers: {'User-Agent': 'OrignalScan/1.0 bastienbouchard@gmail.com'});
+      if (!ctx.mounted) return;
+      setS(() => setSearching(false));
+
+      if (resp.statusCode != 200) {
+        setS(() => setErr('Erreur réseau (${resp.statusCode})'));
+        return;
+      }
+      final List results = json.decode(resp.body) as List;
+      if (results.isEmpty) {
+        setS(() => setErr('Aucun résultat trouvé'));
+        return;
+      }
+      if (results.length == 1) {
+        final pos = LatLng(
+          double.parse(results[0]['lat'] as String),
+          double.parse(results[0]['lon'] as String),
+        );
+        Navigator.pop(ctx);
+        _mapController.move(pos, 13);
+        setState(() => _coordPreview = pos);
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) _showCoordPreviewDialog(pos);
+        });
+        return;
+      }
+      // Plusieurs résultats → picker
+      if (!ctx.mounted) return;
+      Navigator.pop(ctx);
+      _showGeocodingPicker(results);
+    } catch (_) {
+      if (ctx.mounted) setS(() { setSearching(false); setErr('Erreur réseau'); });
+    }
+  }
+
+  void _showGeocodingPicker(List results) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2D2D2D),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 12),
+          Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Choisir un résultat',
+                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 8),
+          ...results.take(5).map((r) {
+            final pos = LatLng(
+              double.parse(r['lat'] as String),
+              double.parse(r['lon'] as String),
+            );
+            final nom = r['display_name'] as String? ?? '';
+            final parts = nom.split(', ');
+            final titre = parts.first;
+            final sous = parts.skip(1).take(2).join(', ');
+            return ListTile(
+              leading: const Icon(Icons.place_rounded, color: Color(0xFFFF6B35), size: 20),
+              title: Text(titre, style: const TextStyle(color: Colors.white, fontSize: 13)),
+              subtitle: sous.isNotEmpty
+                  ? Text(sous, style: const TextStyle(color: Colors.white38, fontSize: 11))
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                _mapController.move(pos, 13);
+                setState(() => _coordPreview = pos);
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (mounted) _showCoordPreviewDialog(pos);
+                });
+              },
+            );
+          }),
+          const SizedBox(height: 8),
+        ]),
       ),
     );
   }
