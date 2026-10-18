@@ -30,6 +30,9 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   final MapController _mapController = MapController();
   final GlobalKey _mapKey = GlobalKey();
 
+  // Aperçu satellite sur la carte de cadrage
+  bool _previewSat = false;
+
   // Sélection des couches à télécharger
   bool _selEco = true; // obligatoire
   bool _selSat = true;
@@ -240,11 +243,23 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                 initialZoom: widget.initialZoom,
               ),
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.bastienbouchard.ecomap',
-                  tileProvider: SatelliteTileProvider(),
-                ),
+                if (_previewSat && (widget.satUrlTemplate?.isNotEmpty ?? false))
+                  TileLayer(
+                    urlTemplate: widget.satUrlTemplate!,
+                    userAgentPackageName: 'com.bastienbouchard.ecomap',
+                    tileProvider: SatelliteTileProvider(),
+                    additionalOptions: widget.mapboxToken != null
+                        ? {'access_token': widget.mapboxToken!}
+                        : const {},
+                  )
+                else
+                  TileLayer(
+                    urlTemplate: _previewSat
+                        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.bastienbouchard.ecomap',
+                    tileProvider: SatelliteTileProvider(),
+                  ),
               ],
             ),
             // Cadre de sélection
@@ -255,8 +270,39 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
               ),
               child: Container(color: const Color(0xFFFF6B35).withOpacity(0.06)),
             ))),
+            // Bouton satellite
+            Positioned(
+              top: 10, right: 10,
+              child: GestureDetector(
+                onTap: () => setState(() => _previewSat = !_previewSat),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: _previewSat
+                        ? const Color(0xFFFF6B35)
+                        : Colors.black.withOpacity(0.65),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: _previewSat
+                            ? const Color(0xFFFF6B35)
+                            : Colors.white24),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.satellite_alt_rounded,
+                        color: _previewSat ? Colors.white : Colors.white70,
+                        size: 16),
+                    const SizedBox(width: 5),
+                    Text(_previewSat ? 'Satellite' : 'Carte',
+                        style: TextStyle(
+                            color: _previewSat ? Colors.white : Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
+            ),
             // Indication zoom
-            Positioned(top: 10, left: 0, right: 0, child: Center(child: Container(
+            Positioned(top: 10, left: 0, right: 60, child: Center(child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.6),
