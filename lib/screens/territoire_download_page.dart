@@ -112,10 +112,10 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
     final renderBox = _mapKey.currentContext!.findRenderObject() as RenderBox;
     final mapSize = renderBox.size;
     const margin = 40.0;
-    final nw = _mapController.camera.pointToLatLng(
-        math.Point<double>(margin, margin));
-    final se = _mapController.camera.pointToLatLng(
-        math.Point<double>(mapSize.width - margin, mapSize.height - margin));
+    final nw = _mapController.camera.screenOffsetToLatLng(
+        Offset(margin, margin));
+    final se = _mapController.camera.screenOffsetToLatLng(
+        Offset(mapSize.width - margin, mapSize.height - margin));
     final minLat = se.latitude;
     final maxLat = nw.latitude;
     final minLon = nw.longitude;
