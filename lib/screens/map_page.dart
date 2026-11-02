@@ -3177,11 +3177,74 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   bool _requireEcoMap() {
     final features = (geoJson['features'] as List?) ?? [];
     if (features.isNotEmpty) return true;
-    _snack('Télécharge d\'abord une carte écoforestière via le bouton Couches', error: true);
     _layersGlowCtrl.repeat(reverse: true);
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted) _layersGlowCtrl.stop();
     });
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.map_outlined, color: Color(0xFF4CAF50), size: 22),
+              const SizedBox(width: 10),
+              const Text('Carte éco requise', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 10),
+            const Text(
+              'Les hotspots, salines et parcours ont besoin de ta carte écoforestière téléchargée.\n\nC\'est la base — télécharge ton territoire une fois et tout fonctionne hors réseau.',
+              style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TerritoireDownloadPage(
+                      initialCenter: _mapController.camera.center,
+                      initialZoom: _mapController.camera.zoom,
+                      satUrlTemplate: null,
+                      satSource: null,
+                      mapboxToken: _mapboxToken,
+                      ecoOnly: true,
+                    ),
+                  )).then((_) => _reloadTerritoire());
+                },
+                icon: const Icon(Icons.download_rounded, size: 18),
+                label: const Text('Télécharger mon territoire', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Plus tard', style: TextStyle(color: Colors.white38, fontSize: 13)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
     return false;
   }
 
@@ -5571,31 +5634,68 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
 
   Widget _buildDownloadTip() {
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 8,
+      bottom: 110,
       left: 16, right: 16,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A3A1A).withOpacity(0.95),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 6)],
+          color: const Color(0xFF0F2D0F).withOpacity(0.97),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.6), width: 1.5),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 12, offset: const Offset(0, 4))],
         ),
-        child: Row(children: [
-          GestureDetector(
-            onTap: () => setState(() => _showDownloadTip = false),
-            child: const Icon(Icons.close, color: Colors.white38, size: 16),
-          ),
-          const SizedBox(width: 8),
-          const Icon(Icons.wifi_off_rounded, color: Color(0xFF4CAF50), size: 16),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              'Sans réseau en forêt ? Télécharge ta carte éco avant de partir — requis pour les algorithmes.',
-              style: TextStyle(color: Colors.white70, fontSize: 11),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [
+              const Icon(Icons.map_outlined, color: Color(0xFF4CAF50), size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Prépare ton territoire',
+                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _showDownloadTip = false),
+                child: const Icon(Icons.close, color: Colors.white38, size: 18),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            const Text(
+              'Télécharge ta carte écoforestière pour accéder aux hotspots, salines et parcours — même sans réseau en forêt.',
+              style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
             ),
-          ),
-        ]),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() => _showDownloadTip = false);
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TerritoireDownloadPage(
+                      initialCenter: _mapController.camera.center,
+                      initialZoom: _mapController.camera.zoom,
+                      satUrlTemplate: null,
+                      satSource: null,
+                      mapboxToken: _mapboxToken,
+                      ecoOnly: true,
+                    ),
+                  )).then((_) => _reloadTerritoire());
+                },
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: const Text('Télécharger mon territoire', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
