@@ -630,7 +630,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     if (!mounted) return;
     if (list.isEmpty) {
       geoJson = {'type': 'FeatureCollection', 'features': []};
-      setState(() { _polygonsCache = []; _polygonLabels = []; });
+      setState(() { _polygonsCache = []; _polygonLabels = []; _showDownloadTip = true; });
       return;
     }
     // Charger seulement la carte active (ou la première si aucune active)
