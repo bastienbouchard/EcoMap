@@ -5,8 +5,8 @@ allprojects {
     }
     configurations.all {
         resolutionStrategy {
-            force("com.android.billingclient:billing:7.1.1")
-            force("com.android.billingclient:billing-ktx:7.1.1")
+            force("com.android.billingclient:billing:8.0.0")
+            force("com.android.billingclient:billing-ktx:8.0.0")
         }
     }
 }
