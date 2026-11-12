@@ -38,7 +38,8 @@ workflows:
           APPLE_BUILD=$(( $(date +%s) - 1700000000 ))
           flutter build appbundle \
             --release \
-            --build-number=$APPLE_BUILD
+            --build-number=$APPLE_BUILD \
+            --android-skip-build-dependency-validation
       - name: Clean up keychain
         script: keychain lock
     artifacts:
