@@ -26,7 +26,7 @@ dependencies:
   permission_handler: ^11.0.0
   flutter_map_cache: ^2.1.0
   dio_cache_interceptor: ^4.0.6
-  file_picker: ^8.1.2
+  file_picker: ^9.0.0
   pdfx: ^2.7.0
 
 dev_dependencies:
