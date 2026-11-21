@@ -15,6 +15,14 @@ subprojects {
 subprojects {
     project.evaluationDependsOn(":app")
 }
+subprojects {
+    afterEvaluate {
+        @Suppress("UNCHECKED_CAST")
+        (extensions.findByName("android") as? com.android.build.api.dsl.LibraryExtension)?.apply {
+            if (compileSdk < 36) compileSdk = 36
+        }
+    }
+}
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
