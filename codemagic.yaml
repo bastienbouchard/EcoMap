@@ -7,7 +7,7 @@ workflows:
       groups:
         - BB
         - BB_Android
-      flutter: stable
+      flutter: 3.27.4
       xcode: latest
       cocoapods: default
     scripts:
