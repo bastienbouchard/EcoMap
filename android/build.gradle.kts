@@ -12,10 +12,9 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
-subprojects {
-    tasks.matching { it.name.contains("checkAarMetadata") }.configureEach {
-        enabled = false
-    }
+gradle.taskGraph.whenReady {
+    allTasks.filter { it.name.contains("checkAarMetadata") }
+            .forEach { it.enabled = false }
 }
 
 tasks.register<Delete>("clean") {
