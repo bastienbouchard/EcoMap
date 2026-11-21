@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION_ERROR")
 import java.util.Base64
 import java.util.Properties
 import java.io.File as JavaFile
@@ -36,10 +37,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
-    }
-
     defaultConfig {
         applicationId = "com.bastienbouchard.ecomap"
         minSdk = 23
@@ -66,6 +63,10 @@ android {
     }
 }
 
+kotlin {
+    jvmToolchain(11)
+}
+
 configurations.all {
     resolutionStrategy {
         force("com.android.billingclient:billing:8.0.0")
@@ -81,6 +82,3 @@ dependencies {
 flutter {
     source = "../.."
 }
-
-
-
