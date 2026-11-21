@@ -19,7 +19,7 @@ subprojects {
     afterEvaluate {
         @Suppress("UNCHECKED_CAST")
         (extensions.findByName("android") as? com.android.build.api.dsl.LibraryExtension)?.apply {
-            if (compileSdk < 36) compileSdk = 36
+            if ((compileSdk ?: 0) < 36) compileSdk = 36
         }
     }
 }
