@@ -16,8 +16,7 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 subprojects {
-    afterEvaluate {
-        @Suppress("UNCHECKED_CAST")
+    pluginManager.withPlugin("com.android.library") {
         (extensions.findByName("android") as? com.android.build.api.dsl.LibraryExtension)?.apply {
             if ((compileSdk ?: 0) < 36) compileSdk = 36
         }
