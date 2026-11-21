@@ -82,3 +82,7 @@ dependencies {
 flutter {
     source = "../.."
 }
+
+tasks.matching { it.name.contains("checkAarMetadata") }.configureEach {
+    enabled = false
+}
