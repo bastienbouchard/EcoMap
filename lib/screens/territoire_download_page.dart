@@ -258,7 +258,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
                   TileLayer(
                     urlTemplate: _previewSat
                         ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
                     subdomains: const ['a', 'b', 'c', 'd'],
                     userAgentPackageName: 'com.bastienbouchard.ecomap',
                     tileProvider: SatelliteTileProvider(),
