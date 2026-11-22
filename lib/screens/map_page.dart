@@ -3653,8 +3653,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                           : _satSource == 'topo'
                               ? 'https://tile.opentopomap.org/{z}/{x}/{y}.png'
                               : 'https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=$_mapboxToken')
-              : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-          subdomains: const ['a', 'b', 'c', 'd'],
+              : 'https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=27CQVM2Qas5V4XhJcSji',
           userAgentPackageName: 'com.bastienbouchard.ecomap',
           maxNativeZoom: _isOnline ? 19 : 17,
           maxZoom: 22,
