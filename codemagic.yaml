@@ -13,6 +13,16 @@ workflows:
     scripts:
       - name: Flutter packages
         script: flutter packages pub get
+      - name: Patch file_picker compileSdk
+        script: |
+          find "$HOME/.pub-cache" -name "build.gradle" -path "*/file_picker*" \
+            -exec sed -i '' \
+              -e 's/compileSdkVersion 34/compileSdkVersion 36/g' \
+              -e 's/compileSdk 34/compileSdk 36/g' \
+            {} \;
+          find "$HOME/.pub-cache" -name "build.gradle.kts" -path "*/file_picker*" \
+            -exec sed -i '' 's/compileSdk = 34/compileSdk = 36/g' {} \;
+          echo "file_picker patch done"
       - name: Set up keychain
         script: keychain initialize
       - name: Fetch signing files
