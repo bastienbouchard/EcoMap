@@ -31,7 +31,7 @@ class _TerritoireDownloadPageState extends State<TerritoireDownloadPage> {
   final GlobalKey _mapKey = GlobalKey();
 
   // Aperçu satellite sur la carte de cadrage
-  bool _previewSat = false;
+  bool _previewSat = true;
 
   // Sélection des couches à télécharger
   bool _selEco = true; // obligatoire
