@@ -3197,13 +3197,22 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              const Icon(Icons.map_outlined, color: Color(0xFF4CAF50), size: 22),
+              const Text('🌲', style: TextStyle(fontSize: 24)),
               const SizedBox(width: 10),
-              const Text('Carte éco requise', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Prépare ton territoire !', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                    SizedBox(height: 2),
+                    Text('Étape 1 pour trouver les spots 🫎', style: TextStyle(color: Color(0xFF81C784), fontSize: 12)),
+                  ],
+                ),
+              ),
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             const Text(
-              'Les hotspots, salines et parcours ont besoin de ta carte écoforestière téléchargée.\n\nC\'est la base — télécharge ton territoire une fois et tout fonctionne hors réseau.',
+              'Hotspots, salines et parcours utilisent ta carte écoforestière pour analyser le couvert forestier.\n\nTélécharge ton territoire une seule fois — tout fonctionne ensuite hors réseau, même au fond du bois.',
               style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.5),
             ),
             const SizedBox(height: 16),
@@ -3223,8 +3232,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     ),
                   )).then((_) => _reloadTerritoire());
                 },
-                icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Télécharger mon territoire', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                icon: const Text('🗺️', style: TextStyle(fontSize: 16)),
+                label: const Text('Préparer mon territoire', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4CAF50),
                   foregroundColor: Colors.white,
@@ -5637,40 +5646,57 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       bottom: 110,
       left: 16, right: 16,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF0F2D0F).withOpacity(0.97),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.6), width: 1.5),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 12, offset: const Offset(0, 4))],
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0C2610), Color(0xFF163520)],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF66BB6A).withOpacity(0.5), width: 1.5),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 18, offset: const Offset(0, 6))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(children: [
-              const Icon(Icons.map_outlined, color: Color(0xFF4CAF50), size: 18),
-              const SizedBox(width: 8),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('🫎', style: TextStyle(fontSize: 26)),
+              const SizedBox(width: 10),
               const Expanded(
-                child: Text(
-                  'Prépare ton territoire',
-                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ton territoire t\'attend !',
+                      style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800, height: 1.2),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Spots, salines, habitats — hors réseau',
+                      style: TextStyle(color: Color(0xFF81C784), fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ],
                 ),
               ),
               GestureDetector(
                 onTap: () => setState(() => _showDownloadTip = false),
-                child: const Icon(Icons.close, color: Colors.white38, size: 18),
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Icon(Icons.close, color: Colors.white30, size: 18),
+                ),
               ),
             ]),
-            const SizedBox(height: 6),
-            const Text(
-              'Télécharge ta carte écoforestière pour accéder aux hotspots, salines et parcours — même sans réseau en forêt.',
-              style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
-            ),
             const SizedBox(height: 10),
+            const Text(
+              'Télécharge ta carte éco une fois → trouve les meilleurs habitats, analyse le couvert forestier et trace tes parcours même au fond du bois.',
+              style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.45),
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: () {
                   setState(() => _showDownloadTip = false);
                   Navigator.push(context, MaterialPageRoute(
@@ -5684,14 +5710,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     ),
                   )).then((_) => _reloadTerritoire());
                 },
-                icon: const Icon(Icons.download_rounded, size: 16),
-                label: const Text('Télécharger mon territoire', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
+                  backgroundColor: const Color(0xFF43A047),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
+                child: const Text('🗺️  Préparer mon territoire', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
               ),
             ),
           ],
