@@ -4097,9 +4097,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Row(children: [
-                  Icon(Icons.layers_rounded, color: Color(0xFFFF6B35), size: 18),
+                  Icon(Icons.visibility_rounded, color: Color(0xFFFF6B35), size: 18),
                   SizedBox(width: 8),
-                  Text('Visibilité des couches',
+                  Text('Visibilité',
                       style: TextStyle(color: Colors.white, fontSize: 15,
                           fontWeight: FontWeight.bold)),
                 ]),
@@ -5863,9 +5863,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     const SizedBox(height: 6),
                     mapActionBtn(
                       icon: (_mesObsVisible && _groupeObsVisible && _monTraceVisible && _tracesGroupeVisible)
-                          ? Icons.layers_rounded
-                          : Icons.layers_clear_rounded,
-                      label: 'Couches',
+                          ? Icons.visibility_rounded
+                          : Icons.visibility_off_rounded,
+                      label: 'Visibilité',
                       color: const Color(0xFFFF6B35),
                       active: !(_mesObsVisible && _groupeObsVisible && _monTraceVisible && _tracesGroupeVisible),
                       onTap: _ouvrirMenuMasquage,
@@ -6223,7 +6223,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                                 ),
                               ),
                             Icon(
-                              Icons.layers_rounded,
+                              _showLayerPanel ? Icons.visibility_off_rounded : Icons.visibility_rounded,
                               size: 20,
                               color: _layersGlowCtrl.isAnimating
                                   ? Color.lerp(Colors.white, const Color(0xFFFF6B35), _layersGlowAnim.value)
