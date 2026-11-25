@@ -5863,9 +5863,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
                     const SizedBox(height: 6),
                     mapActionBtn(
                       icon: (_mesObsVisible && _groupeObsVisible && _monTraceVisible && _tracesGroupeVisible)
-                          ? Icons.visibility_rounded
-                          : Icons.visibility_off_rounded,
-                      label: 'Visibilité',
+                          ? Icons.layers_rounded
+                          : Icons.layers_clear_rounded,
+                      label: 'Couches',
                       color: const Color(0xFFFF6B35),
                       active: !(_mesObsVisible && _groupeObsVisible && _monTraceVisible && _tracesGroupeVisible),
                       onTap: _ouvrirMenuMasquage,
