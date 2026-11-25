@@ -2,7 +2,7 @@ workflows:
   release:
     name: Release — iOS + Android
     max_build_duration: 90
-    instance_type: mac_mini_m1
+    instance_type: mac_mini_m2
     environment:
       groups:
         - BB
