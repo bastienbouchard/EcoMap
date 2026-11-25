@@ -281,6 +281,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   bool _isOnline = true;
   bool _showOfflineBanner = true;
   bool _showDownloadTip = true;
+  bool _territoireCheckDone = false;
   StreamSubscription<bool>? _connectivitySub;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -630,7 +631,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     if (!mounted) return;
     if (list.isEmpty) {
       geoJson = {'type': 'FeatureCollection', 'features': []};
-      setState(() { _polygonsCache = []; _polygonLabels = []; _showDownloadTip = true; });
+      setState(() { _polygonsCache = []; _polygonLabels = []; _showDownloadTip = true; _territoireCheckDone = true; });
       return;
     }
     // Charger seulement la carte active (ou la première si aucune active)
@@ -659,6 +660,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
       _polygonLabels = labels;
       _rawHotspots = parsedHS;
       if (_showHotspots) _hotspots = _computeHotspots();
+      _territoireCheckDone = true;
     });
 
     // Charger les données hydrographiques OSM du territoire
@@ -3485,7 +3487,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
           _buildActionPanel(),
           _buildNavPanel(),
           if (!_isOnline && _showOfflineBanner) _buildOfflineBanner(),
-          if (_isOnline && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
+          if (_isOnline && _territoireCheckDone && _polygonsCache.isEmpty && _showDownloadTip) _buildDownloadTip(),
           if (_measuringMode) Positioned(
             top: MediaQuery.of(context).padding.top + 64,
             left: 16, right: 16,
@@ -4806,7 +4808,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
   Widget _buildNorthIndicator() {
     final angle = _headingUp ? -_compassHeading * pi / 180 : 0.0;
     final bannerVisible = (!_isOnline && _showOfflineBanner) ||
-        (_isOnline && _polygonsCache.isEmpty && _showDownloadTip);
+        (_isOnline && _territoireCheckDone && _polygonsCache.isEmpty && _showDownloadTip);
     final windOffset = _windDeg != null ? 52.0 : 0.0;
     return Positioned(
       top: MediaQuery.of(context).padding.top + (bannerVisible ? 62 : 12) + windOffset,
@@ -5545,7 +5547,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin, Widget
     final deg = _windDeg!;
     final speed = _windSpeed ?? 0.0;
     final bannerVisible = (!_isOnline && _showOfflineBanner) ||
-        (_isOnline && _polygonsCache.isEmpty && _showDownloadTip);
+        (_isOnline && _territoireCheckDone && _polygonsCache.isEmpty && _showDownloadTip);
     return Positioned(
       top: MediaQuery.of(context).padding.top + (bannerVisible ? 62 : 12),
       right: 16,
